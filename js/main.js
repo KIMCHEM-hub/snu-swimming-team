@@ -30,21 +30,21 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11
 
 
 const scheduleEvents = [
-  ["2025. 5. 11.", "JOINT TRAINING", "한국외대 수영부 연합훈련", ""],
+  ["2025. 5. 11.", "JOINT TRAINING", "한국외대 수영부 연합훈련", "—"],
   ["2025. 5. 15. – 5. 17.", "COMPETITION", "2025 경기도 도민체전", "우승 (4관왕)"],
-  ["2025. 5. 30. – 6. 1.", "COMPETITION", "제2회 쉬엄쉬엄 한강 3종 축제", ""],
-  ["2025. 6. 21. – 6. 22.", "COMPETITION", "2025 한강크로스스위밍챌린지", ""],
-  ["2025. 9. 27. – 9. 28.", "COMPETITION", "2025 배럴 스프린트 챔피언십", ""],
-  ["2025. 10. 19.", "COMPETITION", "제11회 노원구청장배 및 제8회 연명회장배 수영대회", ""],
+  ["2025. 5. 30. – 6. 1.", "COMPETITION", "제2회 쉬엄쉬엄 한강 3종 축제", "—"],
+  ["2025. 6. 21. – 6. 22.", "COMPETITION", "2025 한강크로스위밍챌린지", "—"],
+  ["2025. 9. 27. – 9. 28.", "COMPETITION", "2025 배럴 스프린트 챔피언십", "—"],
+  ["2025. 10. 19.", "COMPETITION", "제1회 노원구청장배 및 제8회 연맹회장배 수영대회", "—"],
   ["2025. 11. 8. – 11. 9.", "COMPETITION", "제31회 전국대학수영선수권대회", "공동 1위 (남자 2부 · 여자 2부)"],
-  ["2025. 11. 14.", "JOINT TRAINING", "스누풀(중앙 수영동아리) 연합훈련", ""],
+  ["2025. 11. 14.", "JOINT TRAINING", "스누풀(중앙 수영동아리) 연합훈련", "—"],
   ["2025. 11. 20. – 11. 24.", "COMPETITION", "전문체육인 전국대회(MBC배)", "3위"],
-  ["2026. 3. 8.", "COMPETITION", "2026년 전국생활체육대축전 서울시 대표 선발전 수영대회", "자유형 1위 · 접영 2위"],
-  ["2026. 5. 2. – 5. 3.", "EXCHANGE EVENT", "서울대 × 카이스트 연합교류전", "카이스트(17명) · 서울대(8명)"],
-  ["2026. 5. 18. – 5. 21.", "EXCHANGE EVENT", "서울대 × PolyU", "PolyU(8명) · 서울대(6명)"],
-  ["2026. 6. 5. – 6. 7.", "COMPETITION", "제3회 수영연합 한강 3종 축제", "완주 (3명)"],
-  ["2026. 6. 21.", "COMPETITION", "한강크로스스위밍챌린지", "완주 (7명) · 3위 수상 (테스트 대회)"],
-  ["2026. 6. 27.", "COMPETITION", "제12회 서울특별시 연명회장배 수영대회", "" ]
+  ["2026. 3. 8.", "COMPETITION", "전국생활체육대축전 서울시 대표 선발전 수영대회", "자유형 1위 · 접영 2위"],
+  ["2026. 5. 2. – 5. 3.", "EXCHANGE EVENT", "서울대 × 카이스트 연합교류전", "카이스트 17명 · 서울대 8명"],
+  ["2026. 5. 18. – 5. 21.", "EXCHANGE EVENT", "서울대 × PolyU", "PolyU 8명 · 서울대 6명"],
+  ["2026. 6. 5. – 6. 7.", "COMPETITION", "제3회 수영연합 한강 3종 축제", "완주 3명"],
+  ["2026. 6. 21.", "COMPETITION", "한강크로스스위밍챌린지", "완주 7명"],
+  ["2026. 6. 27.", "COMPETITION", "제12회 서울특별시 연맹회장배 수영대회", "—" ]
 ];
 
 // 학교/단체 교류전 로고 매핑 (제목에 포함된 키워드로 매칭)
@@ -105,6 +105,92 @@ const scheduleList = document.querySelector("#schedule .event-list");
 const teamShell = document.querySelector("#team .shell");
 const recordShell = document.querySelector("#records .shell");
 const newsGrid = document.querySelector("#news .news-grid");
+
+// ---- RECORDS: 종목별 개인 기록 ----
+const recordsData = {
+  "50 FREE": [
+    { athlete: "이정행", time: "24.43", seconds: 24.43, tags: ["PB"], meet: "2026 전국생활체육대축전 서울시 대표 선발전", date: "2026. 3. 7." },
+    { athlete: "이정행", time: "24.50", seconds: 24.50, tags: ["SILVER"], meet: "2026 전국생활체육대축전", date: "2026. 4. 25." },
+    { athlete: "이정행", time: "24.83", seconds: 24.83, tags: ["GR", "GOLD"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
+    { athlete: "이정행", time: "25.00", seconds: 25.00, tags: ["5위"], meet: "2025 배럴 스프린트 챔피언십", date: "2025. 9. 27.", detail: "예선" },
+    { athlete: "이정행", time: "25.11", seconds: 25.11, tags: ["SILVER"], meet: "2025 고양 전국 마스터즈 수영대회", date: "2025. 10. 18." },
+    { athlete: "이정행", time: "25.40", seconds: 25.40, tags: ["6위"], meet: "2025 배럴 스프린트 챔피언십", date: "2025. 9. 27.", detail: "결승" },
+    { athlete: "이정행", time: "26.18", seconds: 26.18, tags: ["SILVER"], meet: "제11회 서울특별시연맹회장배 수영대회", date: "2025. 6. 22." },
+    { athlete: "이정행", time: "26.28", seconds: 26.28, tags: ["6위"], meet: "제45회 서울특별시장기 수영대회", date: "2024. 8. 3." },
+    { athlete: "이정행", time: "26.61", seconds: 26.61, tags: ["BRONZE"], meet: "제8회 송파구연맹회장기 수영대회", date: "2024. 10. 27." },
+    { athlete: "이정행", time: "26.84", seconds: 26.84, tags: ["11위"], meet: "2024 배럴 스프린트 챔피언십", date: "2024. 5. 25.", detail: "예선" },
+    { athlete: "김민찬", time: "32.17", seconds: 32.17, tags: ["PB"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." },
+    { athlete: "김민찬", time: "32.79", seconds: 32.79, tags: [], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
+  ],
+  "100 FREE": [
+    { athlete: "이정행", time: "56.94", seconds: 56.94, tags: ["PB", "4위"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." },
+    { athlete: "이정행", time: "57.30", seconds: 57.30, tags: ["SILVER"], meet: "2025 고양 전국 마스터즈 수영대회", date: "2025. 10. 18." },
+    { athlete: "김민찬", time: "1:14.18", seconds: 74.18, tags: ["PB"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." }
+  ],
+  "50 FLY": [
+    { athlete: "이정행", time: "25.87", seconds: 25.87, tags: ["SILVER"], meet: "2026 전국생활체육대축전", date: "2026. 4. 25." },
+    { athlete: "이정행", time: "25.90", seconds: 25.90, tags: ["PB", "GOLD"], meet: "2026 전국생활체육대축전 서울시 대표 선발전", date: "2026. 3. 7." },
+    { athlete: "이정행", time: "26.16", seconds: 26.16, tags: ["GR", "GOLD"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
+    { athlete: "이정행", time: "27.91", seconds: 27.91, tags: ["GOLD"], meet: "제11회 서울특별시연맹회장배 수영대회", date: "2025. 6. 22." },
+    { athlete: "이정행", time: "28.82", seconds: 28.82, tags: ["BRONZE"], meet: "제8회 송파구연맹회장기 수영대회", date: "2024. 10. 27." },
+    { athlete: "이정행", time: "29.63", seconds: 29.63, tags: ["10위"], meet: "제45회 서울특별시장기 수영대회", date: "2024. 8. 3." },
+    { athlete: "신재원", time: "30.33", seconds: 30.33, tags: [], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
+  ],
+  "100 FLY": [
+    { athlete: "이정행", time: "1:00.54", seconds: 60.54, tags: ["GOLD"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." }
+  ],
+  "50 BREAST": [
+    { athlete: "신재원", time: "30.13", seconds: 30.13, tags: ["GOLD"], meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8." },
+    { athlete: "신재원", time: "30.45", seconds: 30.45, tags: ["GOLD"], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." },
+    { athlete: "신재원", time: "30.73", seconds: 30.73, tags: ["GR"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
+    { athlete: "김민찬", time: "45.48", seconds: 45.48, tags: ["PB"], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
+  ],
+  "100 BREAST": [
+    { athlete: "신재원", time: "1:07.35", seconds: 67.35, tags: ["PB"], meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8." },
+    { athlete: "신재원", time: "1:09.15", seconds: 69.15, tags: ["GR"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." }
+  ],
+  "RELAY": [
+    { event: "혼계영 200m", team: "SNU Swimming Team", time: "2:31.78", seconds: 151.78, meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8.", members: "12명" }
+  ]
+};
+const recordEventOrder = ["50 FREE", "100 FREE", "50 FLY", "100 FLY", "50 BREAST", "100 BREAST", "RELAY"];
+
+function recordTagClass(tag) {
+  if (tag === "PB") return "record-badge pb";
+  if (tag === "GR") return "record-badge gr";
+  if (tag === "GOLD") return "result-tag gold";
+  return "result-tag";
+}
+function renderRecordTags(entry) {
+  const tags = (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${tag}</span>`).join("");
+  return tags;
+}
+function renderRecordsTable(eventName) {
+  if (eventName === "RELAY") {
+    const rows = recordsData.RELAY.slice().sort((a, b) => a.seconds - b.seconds).map((r) =>
+      `<tr><td>${r.event}</td><td>${r.team}</td><td>${r.time}</td><td>${r.meet}</td><td>${r.date}</td><td>${r.members}</td></tr>`
+    ).join("");
+    return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  const entries = (recordsData[eventName] || []).slice().sort((a, b) => a.seconds - b.seconds);
+  const rows = entries.map((r) =>
+    `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${r.meet}${r.detail ? ` · ${r.detail}` : ""}</td><td>${r.date}</td></tr>`
+  ).join("");
+  return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">빠른 기록 순으로 정렬되어 있습니다.</p>`;
+}
+
+const recordsAppEl = document.querySelector("[data-records-app]");
+if (recordsAppEl) {
+  const tabsHtml = recordEventOrder.map((name, i) => `<button type="button" class="${i === 0 ? "is-active" : ""}" data-event-tab="${name}">${name}</button>`).join("");
+  recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="종목 선택">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
+  const tableWrapEl = recordsAppEl.querySelector("[data-records-table]");
+  recordsAppEl.querySelectorAll("[data-event-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      recordsAppEl.querySelectorAll("[data-event-tab]").forEach((b) => b.classList.toggle("is-active", b === btn));
+      tableWrapEl.innerHTML = renderRecordsTable(btn.dataset.eventTab);
+    });
+  });
+}
 
 
 const galleryGrid = document.querySelector("#gallery .photo-grid");
