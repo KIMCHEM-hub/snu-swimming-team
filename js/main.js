@@ -30,22 +30,76 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11
 
 
 const scheduleEvents = [
-  ["2025. 5. 11.", "JOINT TRAINING", "\uD55C\uAD6D\uC678\uB300 \uC218\uC601\uBD80 \uC5F0\uD569\uD6C8\uB828", ""],
-  ["2025. 5. 15. ??5. 17.", "COMPETITION", "2025 \uACBD\uAE30\uB3C4 \uB3C4\uBBFC\uCCB4\uC804", "\uC6B0\uC2B9 (4\uAD00\uC655)"],
-  ["2025. 5. 30. ??6. 1.", "COMPETITION", "\uC81C2\uD68C \uC26C\uC5C4\uC26C\uC5C4 \uD55C\uAC15 3\uC885 \uCD95\uC81C", ""],
-  ["2025. 6. 21. ??6. 22.", "COMPETITION", "2025 \uD55C\uAC15\uD06C\uB85C\uC2A4\uC704\uBC0D\uCC4C\uB9B0\uC9C0", ""],
-  ["2025. 9. 27. ??9. 28.", "COMPETITION", "2025 \uBC30\uB7F4 \uC2A4\uD504\uB9B0\uD2B8 \uCC54\uD53C\uC5B8\uC2ED", ""],
-  ["2025. 10. 19.", "COMPETITION", "\uC81C1\uD68C \uB178\uC6D0\uAD6C\uCCAD\uC7A5\uBC30 \uBC0F \uC81C8\uD68C \uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C", ""],
-  ["2025. 11. 8. ??11. 9.", "COMPETITION", "\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", "\uACF5\uB3D9 1\uC704 (\uB0A8\uC790 2\uBD80 夷?\uC5EC\uC790 2\uBD80)"],
-  ["2025. 11. 14.", "JOINT TRAINING", "\uC2A4\uB204\uD480(\uC911\uC559 \uC218\uC601\uB3D9\uC544\uB9AC) \uC5F0\uD569\uD6C8\uB828", ""],
-  ["2025. 11. 20. ??11. 24.", "COMPETITION", "\uC804\uBB38\uCCB4\uC721\uC778 \uC804\uAD6D\uB300\uD68C(MBC\uBC30)", "3\uC704"],
-  ["2026. 3. 8.", "COMPETITION", "2026\uB144 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC \uB300\uD45C \uC120\uBC1C\uC804 \uC218\uC601\uB300\uD68C", "\uC790\uC720\uD615 1\uC704 夷?\uC811\uC601 2\uC704"],
-  ["2026. 5. 2. ??5. 3.", "EXCHANGE EVENT", "\uC11C\uC6B8\uB300 ??\uCE74\uC774\uC2A4\uD2B8 \uC5F0\uD569\uAD50\uB958\uC804", "\uCE74\uC774\uC2A4\uD2B8(17\uBA85) 夷?\uC11C\uC6B8\uB300(8\uBA85)"],
-  ["2026. 5. 18. ??5. 21.", "EXCHANGE EVENT", "\uC11C\uC6B8\uB300 ??PolyU", "PolyU(8\uBA85) 夷?\uC11C\uC6B8\uB300(6\uBA85)"],
-  ["2026. 6. 5. ??6. 7.", "COMPETITION", "\uC81C3\uD68C \uC218\uC601\uC5F0\uD569 \uD55C\uAC15 3\uC885 \uCD95\uC81C", "\uC644\uC8FC (3\uBA85)"],
-  ["2026. 6. 21.", "COMPETITION", "\uD55C\uAC15\uD06C\uB85C\uC2A4\uC2A4\uC704\uBC0D\uCC4C\uB9B0\uC9C0", "\uC644\uC8FC (7\uBA85) 夷?3\uC704 \uC218\uC0C1 (\uD14C\uC2A4\uD2B8 \uB300\uD68C)"],
-  ["2026. 6. 27.", "COMPETITION", "\uC81C12\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC \uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C", "" ]
+  ["2025. 5. 11.", "JOINT TRAINING", "한국외대 수영부 연합훈련", ""],
+  ["2025. 5. 15. – 5. 17.", "COMPETITION", "2025 경기도 도민체전", "우승 (4관왕)"],
+  ["2025. 5. 30. – 6. 1.", "COMPETITION", "제2회 쉬엄쉬엄 한강 3종 축제", ""],
+  ["2025. 6. 21. – 6. 22.", "COMPETITION", "2025 한강크로스스위밍챌린지", ""],
+  ["2025. 9. 27. – 9. 28.", "COMPETITION", "2025 배럴 스프린트 챔피언십", ""],
+  ["2025. 10. 19.", "COMPETITION", "제11회 노원구청장배 및 제8회 연명회장배 수영대회", ""],
+  ["2025. 11. 8. – 11. 9.", "COMPETITION", "제31회 전국대학수영선수권대회", "공동 1위 (남자 2부 · 여자 2부)"],
+  ["2025. 11. 14.", "JOINT TRAINING", "스누풀(중앙 수영동아리) 연합훈련", ""],
+  ["2025. 11. 20. – 11. 24.", "COMPETITION", "전문체육인 전국대회(MBC배)", "3위"],
+  ["2026. 3. 8.", "COMPETITION", "2026년 전국생활체육대축전 서울시 대표 선발전 수영대회", "자유형 1위 · 접영 2위"],
+  ["2026. 5. 2. – 5. 3.", "EXCHANGE EVENT", "서울대 × 카이스트 연합교류전", "카이스트(17명) · 서울대(8명)"],
+  ["2026. 5. 18. – 5. 21.", "EXCHANGE EVENT", "서울대 × PolyU", "PolyU(8명) · 서울대(6명)"],
+  ["2026. 6. 5. – 6. 7.", "COMPETITION", "제3회 수영연합 한강 3종 축제", "완주 (3명)"],
+  ["2026. 6. 21.", "COMPETITION", "한강크로스스위밍챌린지", "완주 (7명) · 3위 수상 (테스트 대회)"],
+  ["2026. 6. 27.", "COMPETITION", "제12회 서울특별시 연명회장배 수영대회", "" ]
 ];
+
+// 학교/단체 교류전 로고 매핑 (제목에 포함된 키워드로 매칭)
+const scheduleLogoRules = [
+  { match: "카이스트", logos: [
+      { src: "university-logo.png", alt: "서울대학교" },
+      { src: "kaori.png", alt: "KAIST 가오리" }
+    ] },
+  { match: "PolyU", logos: [
+      { src: "university-logo.png", alt: "서울대학교" },
+      { src: "polyu.png", alt: "PolyU" }
+    ] },
+  { match: "한국외대", logos: [
+      { src: "hufs.png", alt: "한국외국어대학교" }
+    ] }
+];
+function getScheduleLogos(title) {
+  const rule = scheduleLogoRules.find((r) => title.includes(r.match));
+  return rule ? rule.logos : [];
+}
+function scheduleStatusClass(status) {
+  if (status === "JOINT TRAINING") return "joint-training";
+  if (status === "EXCHANGE EVENT") return "exchange";
+  return "competition";
+}
+function renderScheduleRow([date, status, title, result]) {
+  const logos = getScheduleLogos(title);
+  const logosHtml = logos.length
+    ? logos.map((l, i) => `${i > 0 ? '<span class="schedule-logo-mark">×</span>' : ""}<img src="./assets/images/${l.src}" alt="${l.alt}" loading="lazy">`).join("")
+    : "";
+  return `<article class="schedule-row" role="row"><time>${date}</time><div class="schedule-logos">${logosHtml}</div><div><p class="status ${scheduleStatusClass(status)}">${status}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
+}
+function renderSeasonAccordion(year, events, isOpen) {
+  const rows = events.map(renderScheduleRow).join("");
+  return `<div class="season-accordion" data-season="${year}"><button class="season-toggle" type="button" aria-expanded="${isOpen}" aria-controls="season-${year}"><span>${year} SEASON</span><span class="season-indicator">${isOpen ? "−" : "+"}</span></button><div class="season-events" id="season-${year}" role="region"${isOpen ? "" : " hidden"}>${rows}</div></div>`;
+}
+
+const scheduleSeasonsEl = document.querySelector("[data-schedule-seasons]");
+if (scheduleSeasonsEl) {
+  const events2026 = scheduleEvents.filter(([date]) => date.startsWith("2026."));
+  const events2025 = scheduleEvents.filter(([date]) => date.startsWith("2025."));
+  scheduleSeasonsEl.innerHTML =
+    renderSeasonAccordion("2026", events2026, true) +
+    renderSeasonAccordion("2025", events2025, false);
+
+  scheduleSeasonsEl.querySelectorAll(".season-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = document.getElementById(btn.getAttribute("aria-controls"));
+      const willOpen = panel.hasAttribute("hidden");
+      panel.toggleAttribute("hidden", !willOpen);
+      btn.setAttribute("aria-expanded", String(willOpen));
+      btn.querySelector(".season-indicator").textContent = willOpen ? "−" : "+";
+    });
+  });
+}
 
 const scheduleList = document.querySelector("#schedule .event-list");
 const teamShell = document.querySelector("#team .shell");
@@ -65,7 +119,7 @@ if (galleryGrid && galleryFilter) {
     { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 \uCE74\uC774\uC2A4\uD2B8 \uC5F0\uD569\uAD50\uB958\uC804", meta:"2026. 5. 2. \u2013 5. 3.", image:"KAIST.jpg" },
     { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 PolyU", meta:"2026. 5. 18. \u2013 5. 21.", image:"POLYU.jpg" }
   ];
-  galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${card.image ? `<img src="./assets/images/${card.image}" alt="${card.title}" loading="lazy">` : card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING"}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>??뽯뻻?????????곷뮸??덈뼄.</p>';
+  galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${card.image ? `<img src="./assets/images/${card.image}" alt="${card.title}" loading="lazy">` : card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING"}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>해당 카테고리의 사진이 아직 없습니다.</p>';
   galleryFilter.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
     const category = button.textContent.trim().toLowerCase();
     galleryFilter.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
@@ -90,9 +144,9 @@ if (training) {
 }
 
 const infoItems = document.querySelectorAll(".info-grid article");
-if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026\uB144 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC \uB300\uD45C \uC120\uBC1C\uC804 \uC218\uC601\uB300\uD68C</strong><span>FREESTYLE 夷?1ST / BUTTERFLY 夷?2ND</span><a href="#records">VIEW RESULTS <b>??/b></a>';
+if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026\uB144 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC \uB300\uD45C \uC120\uBC1C\uC804 \uC218\uC601\uB300\uD68C</strong><span>FREESTYLE · 1ST / BUTTERFLY · 2ND</span><a href="#records">VIEW RESULTS <b>↗</b></a>';
 const featuredAchievement = document.querySelector(".highlight-record");
-if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN???II 夷?WOMEN???II</b></div><div><span>DATE</span><b>2025. 11. 8. ??11. 9.</b></div><a href="#records">VIEW RESULTS <b>??/b></a>';
+if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN\'S DIV II · WOMEN\'S DIV II</b></div><div><span>DATE</span><b>2025. 11. 8. – 11. 9.</b></div><a href="#records">VIEW RESULTS <b>↗</b></a>';
 
 const revealItems = document.querySelectorAll(".reveal");
 if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
