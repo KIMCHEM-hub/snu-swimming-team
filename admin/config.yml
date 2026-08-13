@@ -21,7 +21,9 @@ collections:
           - label: 리더십 명단
             name: members
             widget: list
+            required: false
             summary: "{{role}} · {{name}}"
+            hint: "여기에 아무도 등록하지 않으면 LEADERSHIP 탭에는 TEAM 컬렉션의 공용 안내 문구가 대신 표시됩니다."
             fields:
               - { label: "직책 (영문)", name: role, widget: string, hint: "예: CAPTAIN, VICE CAPTAIN, TRAINING DIRECTOR, TREASURER" }
               - { label: 이름, name: name, widget: string }
@@ -29,13 +31,42 @@ collections:
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다. 나중에 업로드하면 자동으로 교체됩니다." }
 
   - name: team
-    label: "팀 (TEAM)"
+    label: "팀 (TEAM > MEMBERS)"
     files:
       - name: team
-        label: "멤버 안내 문구"
+        label: "부원 명단"
         file: content/team.json
         fields:
-          - { label: "MEMBERS 탭 안내 문구", name: membersNote, widget: text, hint: "TEAM 섹션 MEMBERS 탭에 표시됩니다. 부원 명단이 준비되기 전까지 보여줄 안내 문구입니다." }
+          - { label: "공용 안내 문구", name: membersNote, widget: text, hint: "LEADERSHIP · MEMBERS · LEGACY 세 탭 중 어느 하나라도 등록된 항목이 0개면, 해당 탭에 이 문구가 대신 표시됩니다." }
+          - label: 부원 명단
+            name: members
+            widget: list
+            required: false
+            summary: "{{name}}"
+            hint: "여기에 아무도 등록하지 않으면 MEMBERS 탭에는 위 안내 문구만 표시됩니다."
+            fields:
+              - { label: 이름, name: name, widget: string }
+              - { label: 소속(학과), name: department, widget: string, required: false }
+              - { label: 학번/기수, name: year, widget: string, required: false }
+              - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다." }
+
+  - name: legacy
+    label: "팀 (TEAM > LEGACY)"
+    files:
+      - name: legacy
+        label: "레거시 스토리"
+        file: content/legacy.json
+        fields:
+          - label: 레거시 스토리 목록
+            name: entries
+            widget: list
+            required: false
+            summary: "{{name}}"
+            hint: "여기에 아무것도 등록하지 않으면 LEGACY 탭에는 TEAM 컬렉션의 공용 안내 문구가 대신 표시됩니다."
+            fields:
+              - { label: 이름, name: name, widget: string }
+              - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }
+              - { label: "영문 캡션 (선택)", name: tag, widget: string, required: false, hint: "예: 2014 INCHEON ASIAN GAMES · WOMEN'S 4×100M MEDLEY RELAY · SILVER" }
 
   - name: training
     label: "훈련 (TRAINING)"
