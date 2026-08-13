@@ -107,6 +107,20 @@ const teamShell = document.querySelector("#team .shell");
 const recordShell = document.querySelector("#records .shell");
 const newsGrid = document.querySelector("#news .news-grid");
 
+// ---- NEWS: TEAM UPDATES 카드 (홈 캐러셀과 동일한 이미지/날짜/카테고리/제목, 날짜 최신순) ----
+if (newsGrid) {
+  const teamUpdateNews = [
+    { sortKey:"2025-11-08", date:"2025. 11. 8. – 11. 9.", category:"COMPETITION", title:"제31회 전국대학수영선수권대회", image:"C32C.webp", alt:"제31회 전국대학수영선수권대회 사진" },
+    { sortKey:"2026-05-02", date:"2026. 5. 2. – 5. 3.", category:"EXCHANGE EVENT", title:"서울대 × 카이스트 연합교류전", image:"KAIST.webp", alt:"서울대와 카이스트 연합교류전 사진" },
+    { sortKey:"2026-05-18", date:"2026. 5. 18. – 5. 21.", category:"EXCHANGE EVENT", title:"서울대 × PolyU", image:"POLYU.webp", alt:"서울대와 PolyU 교류 사진" }
+  ].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+
+  const [featured, ...rest] = teamUpdateNews;
+  const featureHtml = `<article class="feature-news"><div class="news-image"><img src="./assets/images/${featured.image}" alt="${featured.alt}" loading="lazy"></div><div><p class="news-meta">${featured.date} · ${featured.category}</p><h3>${featured.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`;
+  const stackHtml = rest.map((item) => `<article class="news-photo-card"><img src="./assets/images/${item.image}" alt="${item.alt}" loading="lazy"><div><p class="news-meta">${item.date} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
+  newsGrid.innerHTML = `${featureHtml}<div class="news-stack">${stackHtml}</div>`;
+}
+
 // ---- RECORDS: 종목별 개인 기록 ----
 const recordsData = {
   "50 FREE": [
