@@ -23,7 +23,7 @@ collections:
             widget: list
             summary: "{{dateLabel}} · {{title}}"
             fields:
-              - { label: 시작일, name: startDate, widget: date, format: "YYYY-MM-DD", hint: "시즌 분류(연도)와 정렬에 쓰입니다" }
+              - { label: 시작일, name: startDate, widget: datetime, type: date, format: "YYYY-MM-DD", hint: "시즌 분류(연도)와 정렬에 쓰입니다" }
               - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 2. – 5. 3." }
               - { label: 구분, name: type, widget: select, options: ["COMPETITION", "JOINT TRAINING", "EXCHANGE EVENT"] }
               - { label: 제목, name: title, widget: string }
@@ -101,7 +101,7 @@ collections:
             summary: "{{dateLabel}} · {{title}}"
             hint: "홈 TEAM UPDATES 캐러셀은 이 목록의 순서(첫 항목이 리드 카드)를, NEWS 섹션 캐러셀은 날짜 최신순을 사용합니다."
             fields:
-              - { label: 시작일, name: startDate, widget: date, format: "YYYY-MM-DD", hint: "NEWS 섹션 정렬에 쓰입니다" }
+              - { label: 시작일, name: startDate, widget: datetime, type: date, format: "YYYY-MM-DD", hint: "NEWS 섹션 정렬에 쓰입니다" }
               - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 18. – 5. 21." }
               - { label: 구분, name: category, widget: select, options: ["COMPETITION", "EXCHANGE EVENT", "TEAM", "RECRUITMENT", "ANNOUNCEMENT"] }
               - { label: 제목, name: title, widget: string }
@@ -123,7 +123,7 @@ collections:
             summary: "{{date}} · {{title}}"
             fields:
               - { label: 고유 ID, name: id, widget: string, hint: "영문/숫자/하이픈 권장 (예: 2026-08-13-recruitment). 한 번 정하면 나중에 바꾸지 마세요 — 댓글·링크가 이 ID로 연결됩니다." }
-              - { label: 날짜, name: date, widget: date, format: "YYYY-MM-DD" }
+              - { label: 날짜, name: date, widget: datetime, type: date, format: "YYYY-MM-DD" }
               - { label: 제목, name: title, widget: string }
               - { label: 작성자, name: author, widget: string }
               - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }
