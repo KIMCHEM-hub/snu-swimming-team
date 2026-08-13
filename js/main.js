@@ -328,6 +328,37 @@ if (training) {
   if (notes[2]) notes[2].innerHTML = `<b>DRYLAND</b><p><strong>TBD</strong><br><small>추후 안내 예정</small></p>`;
 }
 
+// ---- WEEKLY TRAINING SESSIONS ----
+// Sits between the day-schedule table and the GROUPS/STRUCTURE/DRYLAND notes.
+// content/weekly-training.json holds one entry per session; if two entries share the
+// same day (e.g. admin forgot to remove last week's), the most recent date wins. If the
+// whole file is empty, the entire block stays hidden — no empty grid between the tables.
+const WEEKLY_TRAINING_DAYS = ["화", "목"];
+function weeklyTrainingCardHtml(day, session) {
+  if (!session) {
+    return `<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${day}요일</p><p class="weekly-session-empty">이번 주 훈련 세션 준비 중</p></article>`;
+  }
+  const d = session.details || {};
+  const distance = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
+  return `<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${day}요일</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${d.warmup || ""}</dd></div><div><dt>MAIN SET</dt><dd>${d.mainset || ""}</dd></div><div><dt>EVENTS</dt><dd>${d.events || ""}</dd></div><div><dt>COOL-DOWN</dt><dd>${d.cooldown || ""}</dd></div></dl></article>`;
+}
+function renderWeeklyTraining(sessions) {
+  const container = document.querySelector("[data-weekly-training]");
+  if (!container) return;
+  if (!sessions.length) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+  const latestByDay = {};
+  sessions.forEach((s) => {
+    if (!latestByDay[s.day] || String(s.date) > String(latestByDay[s.day].date)) latestByDay[s.day] = s;
+  });
+  const cards = WEEKLY_TRAINING_DAYS.map((day) => weeklyTrainingCardHtml(day, latestByDay[day])).join("");
+  container.innerHTML = `<p class="weekly-training-title">THIS WEEK'S SESSIONS</p><div class="weekly-training-grid">${cards}</div>`;
+  container.hidden = false;
+}
+
 const infoItems = document.querySelectorAll(".info-grid article");
 if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026년 전국생활체육대축전 서울시 대표 선발전 수영대회</strong><span>FREESTYLE · 1ST / BUTTERFLY · 2ND</span><a href="#records">VIEW RESULTS <b>↗</b></a>';
 const featuredAchievement = document.querySelector(".highlight-record");
@@ -725,12 +756,11 @@ function initNewsCarousel() {
   setPlaying(true);
 }
 
-// ---- NOTICE MODAL (공지사항 상세 + 댓글 UI) ----
+// ---- NOTICE MODAL (공지사항 상세) ----
 // Separate, self-contained modal instance for the NOTICES section — independent from
 // initNewsModal (NEWS 섹션 모달). Title/body come from noticesById (keyed by the stable
 // JSON id, not the row's position), so adding/removing entries in content/notices.json
-// needs no other changes. Comments are session-only (in-memory per notice id) — no
-// backend yet for comments per spec, so they reset on reload.
+// needs no other changes.
 function initNoticeModal() {
   const modal = document.querySelector("[data-notice-modal]");
   const panel = modal && modal.querySelector("[data-notice-modal-panel]");
@@ -739,15 +769,8 @@ function initNoticeModal() {
   const closeBtn = modal.querySelector("[data-notice-modal-close]");
   const titleEl = modal.querySelector("[data-notice-modal-title]");
   const bodyEl = modal.querySelector("[data-notice-modal-body]");
-  const commentListEl = modal.querySelector("[data-notice-comment-list]");
-  const commentCountEl = modal.querySelector("[data-notice-modal-comment-count]");
-  const commentForm = modal.querySelector("[data-notice-comment-form]");
-  const nameInput = modal.querySelector("[data-notice-comment-name]");
-  const textInput = modal.querySelector("[data-notice-comment-text]");
   const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  const commentsByNotice = new Map();
   let lastFocused = null;
-  let currentNoticeId = null;
 
   function getFocusable() {
     return Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR)).filter((el) => el.offsetParent !== null);
@@ -767,51 +790,12 @@ function initNoticeModal() {
     }
   }
 
-  function formatCommentTime(date) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
-
-  function renderComments() {
-    const comments = commentsByNotice.get(currentNoticeId) || [];
-    commentCountEl.textContent = String(comments.length);
-    commentListEl.innerHTML = "";
-    if (!comments.length) {
-      const empty = document.createElement("li");
-      empty.className = "notice-comment-empty";
-      empty.textContent = "아직 댓글이 없습니다. 첫 댓글을 남겨보세요.";
-      commentListEl.appendChild(empty);
-      return;
-    }
-    comments.forEach((c) => {
-      const li = document.createElement("li");
-      li.className = "notice-comment";
-      const head = document.createElement("div");
-      head.className = "notice-comment-head";
-      const nameSpan = document.createElement("span");
-      nameSpan.textContent = c.name;
-      const timeSpan = document.createElement("span");
-      timeSpan.className = "notice-comment-time";
-      timeSpan.textContent = c.time;
-      head.append(nameSpan, timeSpan);
-      const textP = document.createElement("p");
-      textP.className = "notice-comment-text";
-      textP.textContent = c.text;
-      li.append(head, textP);
-      commentListEl.appendChild(li);
-    });
-  }
-
   function openModal(row, trigger) {
-    currentNoticeId = row.dataset.noticeId;
     lastFocused = trigger || document.activeElement;
 
-    const notice = noticesById.get(currentNoticeId);
+    const notice = noticesById.get(row.dataset.noticeId);
     titleEl.textContent = notice ? notice.title : "";
     bodyEl.textContent = notice ? notice.body : "";
-
-    if (!commentsByNotice.has(currentNoticeId)) commentsByNotice.set(currentNoticeId, []);
-    renderComments();
 
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
@@ -828,7 +812,6 @@ function initNoticeModal() {
     document.removeEventListener("keydown", handleKeydown);
     if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
     lastFocused = null;
-    currentNoticeId = null;
   }
 
   document.addEventListener("click", (event) => {
@@ -841,22 +824,6 @@ function initNoticeModal() {
 
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
-
-  if (commentForm) {
-    commentForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      if (currentNoticeId === null) return;
-      const name = nameInput.value.trim();
-      const text = textInput.value.trim();
-      if (!name || !text) return;
-      const comments = commentsByNotice.get(currentNoticeId) || [];
-      comments.push({ name, text, time: formatCommentTime(new Date()) });
-      commentsByNotice.set(currentNoticeId, comments);
-      renderComments();
-      commentForm.reset();
-      nameInput.focus();
-    });
-  }
 }
 
 // ---- SCROLL REVEAL ----
@@ -915,13 +882,14 @@ async function fetchJson(path, fallback) {
 }
 
 async function loadContentAndRender() {
-  const [schedule, records, relays, gallery, news, notices] = await Promise.all([
+  const [schedule, records, relays, gallery, news, notices, weeklyTraining] = await Promise.all([
     fetchJson("./content/schedule.json", { events: [] }),
     fetchJson("./content/records.json", { entries: [] }),
     fetchJson("./content/relays.json", { entries: [] }),
     fetchJson("./content/gallery.json", { photos: [] }),
     fetchJson("./content/news.json", { items: [] }),
-    fetchJson("./content/notices.json", { items: [] })
+    fetchJson("./content/notices.json", { items: [] }),
+    fetchJson("./content/weekly-training.json", { sessions: [] })
   ]);
 
   renderSchedule(schedule.events || []);
@@ -930,6 +898,7 @@ async function loadContentAndRender() {
   renderHomeNewsCarousel(news.items || []);
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
+  renderWeeklyTraining(weeklyTraining.sessions || []);
 
   initHomeNewsCarousel();
   initNewsCarousel();
