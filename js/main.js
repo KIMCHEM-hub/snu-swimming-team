@@ -412,7 +412,7 @@ if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow acce
 // (Unicode escapes preserve Korean labels across local environments.)
 // A 4th array item is an optional profile photo filename (in assets/images/); leaders without one fall back to the university-logo placeholder.
 const verifiedTeam = [
-  ["CAPTAIN","김민찬","주장"], ["VICE CAPTAIN","이정행","부주장"],
+  ["CAPTAIN","김민찬","주장"], ["VICE CAPTAIN","이정행","부주장","lee1.png"],
   ["TRAINING DIRECTOR","신재원","훈련부장","SHINPROF.png"], ["TREASURER","최세나","총무"]
 ];
 const MEMBERS_NOTE_FALLBACK = "Verified member information will be added as it becomes available.";
