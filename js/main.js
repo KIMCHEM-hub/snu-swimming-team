@@ -1,7 +1,7 @@
 const header = document.querySelector("[data-header]");
 const toggle = document.querySelector(".menu-toggle");
 const menu = document.querySelector("#primary-menu");
-const sectionIds = ["about", "team", "training", "schedule", "records", "news", "gallery", "join"];
+const sectionIds = ["about", "team", "training", "schedule", "records", "news", "notices", "gallery", "join"];
 const contentSections = sectionIds.map((id) => document.getElementById(id));
 
 contentSections.forEach((section) => section.classList.add("content-section"));
@@ -168,6 +168,23 @@ if (newsGrid) {
   const slidesHtml = teamUpdateNews.map((item) => `<article class="feature-news"><div class="news-image"><img src="./assets/images/${item.image}" alt="${item.alt}" loading="lazy"></div><div><p class="news-meta">${item.date} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
 
   newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="NEWS 카드 슬라이드 (6초마다 자동 전환)"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>일시정지</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
+}
+
+// ---- NOTICES: 공지사항 목록 (날짜 최신순, 행 추가/삭제는 noticesData 배열만 수정하면 됨) ----
+const noticeList = document.querySelector("#notices [data-notice-list]");
+if (noticeList) {
+  const noticesData = [
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" }
+  ];
+  const rowsHtml = noticesData
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((n) => `<article class="notice-row"><time class="notice-date">${n.date}</time><h3 class="notice-title">${n.title}</h3><span class="notice-author">${n.author}</span></article>`)
+    .join("");
+  noticeList.innerHTML = rowsHtml || '<p class="notice-empty">등록된 공지사항이 없습니다.</p>';
 }
 
 // ---- RECORDS: 종목별 개인 기록 ----
