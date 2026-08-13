@@ -418,3 +418,113 @@ const meetNames = {
   goTo(0);
   setPlaying(true);
 })();
+
+// ---- NEWS MODAL ----
+// Card data (title/date·category/image/summary) is read straight from each
+// article's DOM at click time, so cards can be added or removed in the NEWS
+// section markup without touching this script. A future full article body can
+// be added per-card via a `data-news-body` attribute on the <article> — the
+// modal will pick it up automatically; until then it shows a placeholder note.
+(function initNewsModal() {
+  const modal = document.querySelector("[data-news-modal]");
+  const panel = modal && modal.querySelector("[data-news-modal-panel]");
+  if (!modal || !panel) return;
+
+  const closeBtn = modal.querySelector("[data-news-modal-close]");
+  const imageEl = modal.querySelector("[data-news-modal-image]");
+  const metaEl = modal.querySelector("[data-news-modal-meta]");
+  const titleEl = modal.querySelector("[data-news-modal-title]");
+  const leadEl = modal.querySelector("[data-news-modal-lead]");
+  const bodyEl = modal.querySelector("[data-news-modal-body]");
+  const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const BODY_FALLBACK = "자세한 본문은 준비되는 대로 업데이트됩니다.";
+  let lastFocused = null;
+
+  function readCardData(article) {
+    const meta = article.querySelector(".news-meta");
+    const heading = article.querySelector("h3");
+    const image = article.querySelector("img");
+    const leadParagraph = Array.from(article.querySelectorAll("p")).find((p) => !p.classList.contains("news-meta"));
+    return {
+      meta: meta ? meta.textContent.trim() : "",
+      title: heading ? heading.textContent.trim() : "",
+      imageSrc: image ? image.src : "",
+      imageAlt: image ? image.alt : "",
+      lead: leadParagraph ? leadParagraph.textContent.trim() : "",
+      body: article.dataset.newsBody || ""
+    };
+  }
+
+  function getFocusable() {
+    return Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR)).filter((el) => el.offsetParent !== null);
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") { event.preventDefault(); closeModal(); return; }
+    if (event.key !== "Tab") return;
+    const focusable = getFocusable();
+    if (!focusable.length) { event.preventDefault(); panel.focus(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+      event.preventDefault(); first.focus();
+    }
+  }
+
+  function openModal(article, trigger) {
+    const data = readCardData(article);
+    lastFocused = trigger || document.activeElement;
+
+    metaEl.textContent = data.meta;
+    titleEl.textContent = data.title;
+
+    if (data.imageSrc) {
+      imageEl.src = data.imageSrc;
+      imageEl.alt = data.imageAlt;
+      imageEl.hidden = false;
+    } else {
+      imageEl.hidden = true;
+      imageEl.removeAttribute("src");
+    }
+
+    if (data.lead) {
+      leadEl.textContent = data.lead;
+      leadEl.hidden = false;
+    } else {
+      leadEl.hidden = true;
+      leadEl.textContent = "";
+    }
+
+    bodyEl.textContent = data.body || BODY_FALLBACK;
+
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("news-modal-open");
+    document.addEventListener("keydown", handleKeydown);
+    panel.focus();
+  }
+
+  function closeModal() {
+    if (!modal.classList.contains("is-open")) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("news-modal-open");
+    document.removeEventListener("keydown", handleKeydown);
+    if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
+    lastFocused = null;
+  }
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-news-read-more]");
+    if (!trigger) return;
+    const article = trigger.closest("article");
+    if (!article) return;
+    event.preventDefault();
+    openModal(article, trigger);
+  });
+
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+})();
