@@ -1,8 +1,11 @@
 {
   "items": [
-    { "id": "notice-placeholder-1", "date": "2026-01-01", "title": "[제목]", "author": "[작성자]", "body": "[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { "id": "notice-placeholder-2", "date": "2026-01-01", "title": "[제목]", "author": "[작성자]", "body": "[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { "id": "notice-placeholder-3", "date": "2026-01-01", "title": "[제목]", "author": "[작성자]", "body": "[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { "id": "notice-placeholder-4", "date": "2026-01-01", "title": "[제목]", "author": "[작성자]", "body": "[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" }
+    {
+      "id": "notice-placeholder-4",
+      "date": "2026-08-13",
+      "title": "[26-2 서울대학교 수영부 활동 공지]",
+      "author": "민찬",
+      "body": "TBD."
+    }
   ]
 }
