@@ -3,25 +3,25 @@
     {
       "role": "CAPTAIN",
       "name": "김민찬",
-      "koRole": "주장",
+      "koRole": "주장 · 응용생물화학부",
       "photo": "/assets/images/증명사진_2023.jpg"
     },
     {
       "role": "VICE CAPTAIN",
       "name": "이정행",
-      "koRole": "부주장",
+      "koRole": "부주장 · 체육교육과",
       "photo": "lee1.png"
     },
     {
       "role": "TRAINING DIRECTOR",
       "name": "신재원",
-      "koRole": "훈련부장",
+      "koRole": "훈련부장 · 의류학과",
       "photo": "SHINPROF.png"
     },
     {
       "role": "TREASURER",
       "name": "최세나",
-      "koRole": "총무",
+      "koRole": "총무 · 화학생물공학부",
       "photo": ""
     }
   ]
