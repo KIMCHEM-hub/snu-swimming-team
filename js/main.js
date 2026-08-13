@@ -406,28 +406,26 @@ const featuredAchievement = document.querySelector(".highlight-record");
 if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">제31회 전국대학수영선수권대회</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN\'S DIV II · WOMEN\'S DIV II</b></div><div><span>DATE</span><b>2025. 11. 8. – 11. 9.</b></div><a href="#records">VIEW RESULTS <b>↗</b></a>';
 
 // ---- TEAM ----
-// Leadership roster and TEAM LEGACY copy stay hardcoded here — they're finished site copy,
-// not an operational gap. Only the MEMBERS-tab note comes from content/team.json: that's
-// the one placeholder text an admin needs to swap out once a real member directory exists.
-// (Unicode escapes preserve Korean labels across local environments.)
-// A 4th array item is an optional profile photo filename (in assets/images/); leaders without one fall back to the university-logo placeholder.
-const verifiedTeam = [
-  ["CAPTAIN","김민찬","주장"], ["VICE CAPTAIN","이정행","부주장","lee1.png"],
-  ["TRAINING DIRECTOR","신재원","훈련부장","SHINPROF.png"], ["TREASURER","최세나","총무"]
-];
+// Leadership roster comes from content/leadership.json (CMS collection "leadership") —
+// admin can add/reorder/remove members and upload a photo per member. A member with no
+// photo (photo: "") falls back to the university-logo placeholder automatically; uploading
+// one later just fills the `photo` field and this same render swaps it in on next load.
+// TEAM LEGACY copy stays hardcoded here — it's finished site copy, not an operational gap.
+// The MEMBERS-tab note comes from content/team.json.
 const MEMBERS_NOTE_FALLBACK = "Verified member information will be added as it becomes available.";
-function renderTeam(membersNote) {
+function leaderCardHtml(leader) {
+  const { role, name, koRole, photo } = leader;
+  const photoHtml = photo
+    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${name} 프로필 사진" loading="lazy"></div>`
+    : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
+  return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p></article>`;
+}
+function renderTeam(membersNote, leaders) {
   const teamShell = document.querySelector("#team .shell");
   if (!teamShell) return;
-  const fallback = '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
-  const leaders = verifiedTeam.map(([role, name, ko, photo]) => {
-    const photoHtml = photo
-      ? `<div class="member-photo has-photo"><img src="./assets/images/${photo}" alt="${name} 프로필 사진" loading="lazy"></div>`
-      : fallback;
-    return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${ko}</p></article>`;
-  }).join("");
+  const leadersHtml = (leaders || []).map(leaderCardHtml).join("");
   const legacy = `<article class="legacy-note"><div><p class="eyebrow">TEAM LEGACY</p><strong>이다린</strong></div><div><p>서울대학교 수영부에는 국가대표 및 상비군 출신 부원들이 함께해 왔으며, 이다린 선수는 2014 인천아시안게임 여자 400m 혼계영에 출전해 한국신기록 4분 04초 82를 세우며 은메달을 획득했습니다.</p><p class="legacy-pending">2014 INCHEON ASIAN GAMES · WOMEN'S 4×100M MEDLEY RELAY · SILVER</p></div></article>`;
-  teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="is-active" data-team-tab="leadership">LEADERSHIP</button><button data-team-tab="members">MEMBERS</button><button data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership"><div class="leadership-directory">${leaders}</div></div><div class="team-directory-view member-directory" data-team-view="members" hidden><p>MEMBER DIRECTORY</p><p>${membersNote || MEMBERS_NOTE_FALLBACK}</p></div><div class="team-directory-view" data-team-view="legacy" hidden>${legacy}</div>`;
+  teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="is-active" data-team-tab="leadership">LEADERSHIP</button><button data-team-tab="members">MEMBERS</button><button data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership"><div class="leadership-directory">${leadersHtml}</div></div><div class="team-directory-view member-directory" data-team-view="members" hidden><p>MEMBER DIRECTORY</p><p>${membersNote || MEMBERS_NOTE_FALLBACK}</p></div><div class="team-directory-view" data-team-view="legacy" hidden>${legacy}</div>`;
   teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => { const tab=button.dataset.teamTab; teamShell.querySelectorAll("[data-team-tab]").forEach((item)=>item.classList.toggle("is-active",item===button)); teamShell.querySelectorAll("[data-team-view]").forEach((view)=>view.hidden=view.dataset.teamView!==tab); }));
 }
 
@@ -928,7 +926,7 @@ async function fetchJson(path, fallback) {
 }
 
 async function loadContentAndRender() {
-  const [schedule, records, relays, gallery, news, notices, weeklyTraining, team, training] = await Promise.all([
+  const [schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership] = await Promise.all([
     fetchJson("./content/schedule.json", { events: [] }),
     fetchJson("./content/records.json", { entries: [] }),
     fetchJson("./content/relays.json", { entries: [] }),
@@ -937,7 +935,8 @@ async function loadContentAndRender() {
     fetchJson("./content/notices.json", { items: [] }),
     fetchJson("./content/weekly-training.json", { sessions: [] }),
     fetchJson("./content/team.json", { membersNote: "" }),
-    fetchJson("./content/training.json", { schedule: [], dryland: {} })
+    fetchJson("./content/training.json", { schedule: [], dryland: {} }),
+    fetchJson("./content/leadership.json", { members: [] })
   ]);
 
   renderSchedule(schedule.events || []);
@@ -947,7 +946,7 @@ async function loadContentAndRender() {
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
   renderWeeklyTraining(weeklyTraining.sessions || []);
-  renderTeam(team.membersNote);
+  renderTeam(team.membersNote, leadership.members || []);
   renderTraining(training.schedule || [], training.dryland || {});
 
   initHomeNewsCarousel();

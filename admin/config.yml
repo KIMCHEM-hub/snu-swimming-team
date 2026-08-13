@@ -11,6 +11,23 @@ media_folder: "assets/images"
 public_folder: "/assets/images"
 
 collections:
+  - name: leadership
+    label: "리더십 (TEAM > LEADERSHIP)"
+    files:
+      - name: leadership
+        label: "리더십 명단"
+        file: content/leadership.json
+        fields:
+          - label: 리더십 명단
+            name: members
+            widget: list
+            summary: "{{role}} · {{name}}"
+            fields:
+              - { label: "직책 (영문)", name: role, widget: string, hint: "예: CAPTAIN, VICE CAPTAIN, TRAINING DIRECTOR, TREASURER" }
+              - { label: 이름, name: name, widget: string }
+              - { label: "직책 (한글)", name: koRole, widget: string, hint: "예: 주장, 부주장, 훈련부장, 총무" }
+              - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다. 나중에 업로드하면 자동으로 교체됩니다." }
+
   - name: team
     label: "팀 (TEAM)"
     files:
