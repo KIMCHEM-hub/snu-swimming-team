@@ -155,7 +155,9 @@ const teamShell = document.querySelector("#team .shell");
 const recordShell = document.querySelector("#records .shell");
 const newsGrid = document.querySelector("#news .news-grid");
 
-// ---- NEWS: TEAM UPDATES 카드 (홈 캐러셀과 동일한 이미지/날짜/카테고리/제목, 날짜 최신순) ----
+// ---- NEWS: TEAM UPDATES 카드를 슬라이드 캐러셀로 표시 (홈 캐러셀과 동일한 이미지/날짜/
+// 카테고리/제목, 날짜 최신순). 캐러셀 자체의 재생/조작 로직은 initNewsCarousel()에서
+// 별도로 구현 — home-news-carousel(TEAM UPDATES) 쪽 코드는 이 파일 어디에서도 건드리지 않음.
 if (newsGrid) {
   const teamUpdateNews = [
     { sortKey:"2025-11-08", date:"2025. 11. 8. – 11. 9.", category:"COMPETITION", title:"제31회 전국대학수영선수권대회", image:"C32C.webp", alt:"제31회 전국대학수영선수권대회 사진" },
@@ -163,10 +165,9 @@ if (newsGrid) {
     { sortKey:"2026-05-18", date:"2026. 5. 18. – 5. 21.", category:"EXCHANGE EVENT", title:"서울대 × PolyU", image:"POLYU.webp", alt:"서울대와 PolyU 교류 사진" }
   ].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
-  const [featured, ...rest] = teamUpdateNews;
-  const featureHtml = `<article class="feature-news"><div class="news-image"><img src="./assets/images/${featured.image}" alt="${featured.alt}" loading="lazy"></div><div><p class="news-meta">${featured.date} · ${featured.category}</p><h3>${featured.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`;
-  const stackHtml = rest.map((item) => `<article class="news-photo-card"><img src="./assets/images/${item.image}" alt="${item.alt}" loading="lazy"><div><p class="news-meta">${item.date} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
-  newsGrid.innerHTML = `${featureHtml}<div class="news-stack">${stackHtml}</div>`;
+  const slidesHtml = teamUpdateNews.map((item) => `<article class="feature-news"><div class="news-image"><img src="./assets/images/${item.image}" alt="${item.alt}" loading="lazy"></div><div><p class="news-meta">${item.date} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
+
+  newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="NEWS 카드 슬라이드 (6초마다 자동 전환)"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>일시정지</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
 }
 
 // ---- RECORDS: 종목별 개인 기록 ----
@@ -605,4 +606,136 @@ const meetNames = {
 
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+})();
+
+// ---- NEWS CAROUSEL ----
+// A fully separate carousel instance for the NEWS section slides rendered above.
+// This is deliberately NOT shared with initHomeNewsCarousel (TEAM UPDATES) — different
+// data-news-carousel* attributes, different variables/closures, nothing in common — so
+// nothing here can ever affect that carousel's logic or state, and vice versa.
+(function initNewsCarousel() {
+  const root = document.querySelector("[data-news-carousel]");
+  const track = root && root.querySelector("[data-news-carousel-track]");
+  if (!root || !track) return;
+
+  const slides = Array.from(track.children);
+  const dotsWrap = root.parentElement.querySelector("[data-news-carousel-dots]");
+  const toggleBtn = root.parentElement.querySelector("[data-news-carousel-toggle]");
+  const toggleLabel = toggleBtn && toggleBtn.querySelector("[data-news-carousel-toggle-label]");
+  const toggleIcon = toggleBtn && toggleBtn.querySelector("[data-news-carousel-toggle-icon]");
+  const statusEl = root.parentElement.querySelector("[data-news-carousel-status]");
+  const prevBtn = root.querySelector("[data-news-carousel-prev]");
+  const nextBtn = root.querySelector("[data-news-carousel-next]");
+  const AUTOPLAY_MS = 6000;
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (slides.length <= 1) {
+    if (dotsWrap) dotsWrap.hidden = true;
+    if (toggleBtn) toggleBtn.hidden = true;
+    if (prevBtn) prevBtn.hidden = true;
+    if (nextBtn) nextBtn.hidden = true;
+    return;
+  }
+
+  let index = 0;
+  let timer = null;
+  let isPlaying = true;
+
+  slides.forEach((slide, i) => {
+    slide.setAttribute("role", "group");
+    slide.setAttribute("aria-roledescription", "slide");
+    slide.setAttribute("aria-label", `${i + 1} / ${slides.length}`);
+  });
+
+  dotsWrap.innerHTML = slides
+    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}번째 카드로 이동" data-news-carousel-dot="${i}"></button>`)
+    .join("");
+  const dots = Array.from(dotsWrap.querySelectorAll("[data-news-carousel-dot]"));
+
+  function setSlideFocusability(activeIndex) {
+    slides.forEach((slide, s) => {
+      const active = s === activeIndex;
+      slide.setAttribute("aria-hidden", String(!active));
+      slide.querySelectorAll("a, button").forEach((el) => {
+        if (active) el.removeAttribute("tabindex");
+        else el.setAttribute("tabindex", "-1");
+      });
+    });
+  }
+
+  function goTo(i) {
+    index = (i + slides.length) % slides.length;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    setSlideFocusability(index);
+    dots.forEach((dot, d) => {
+      dot.classList.toggle("is-active", d === index);
+      dot.setAttribute("aria-selected", String(d === index));
+    });
+    if (statusEl) {
+      const heading = slides[index].querySelector("h3");
+      statusEl.textContent = `${index + 1} / ${slides.length}${heading ? `: ${heading.textContent}` : ""}`;
+    }
+  }
+
+  function next() { goTo(index + 1); }
+  function prev() { goTo(index - 1); }
+
+  function stopAutoplay() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+  function startAutoplay() {
+    stopAutoplay();
+    if (prefersReducedMotion) return;
+    timer = setInterval(next, AUTOPLAY_MS);
+  }
+  function setPlaying(playing) {
+    isPlaying = playing;
+    if (statusEl) statusEl.setAttribute("aria-live", playing ? "off" : "polite");
+    if (toggleBtn) {
+      toggleBtn.setAttribute("aria-pressed", String(!playing));
+      toggleBtn.setAttribute("aria-label", playing ? "자동 재생 일시정지" : "자동 재생 시작");
+      if (toggleLabel) toggleLabel.textContent = playing ? "일시정지" : "재생";
+      if (toggleIcon) toggleIcon.textContent = playing ? "❚❚" : "▶";
+    }
+    if (playing) startAutoplay(); else stopAutoplay();
+  }
+
+  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.newsCarouselDot)); if (isPlaying) startAutoplay(); }));
+  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); });
+  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); });
+  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying));
+
+  // Pause on hover, resume on mouse leave.
+  root.addEventListener("mouseenter", stopAutoplay);
+  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); });
+  // Pause while any control/link inside has keyboard focus; resume once focus leaves.
+  root.addEventListener("focusin", stopAutoplay);
+  root.addEventListener("focusout", (event) => {
+    if (isPlaying && !root.contains(event.relatedTarget)) startAutoplay();
+  });
+
+  // Touch swipe (mobile): left swipe -> next, right swipe -> previous.
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchTracking = false;
+  track.addEventListener("touchstart", (event) => {
+    const t = event.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY; touchTracking = true;
+    stopAutoplay();
+  }, { passive: true });
+  track.addEventListener("touchend", (event) => {
+    if (!touchTracking) return;
+    touchTracking = false;
+    const t = event.changedTouches[0];
+    const deltaX = t.clientX - touchStartX;
+    const deltaY = t.clientY - touchStartY;
+    const SWIPE_THRESHOLD = 40;
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX < 0) next(); else prev();
+    }
+    if (isPlaying) startAutoplay();
+  }, { passive: true });
+
+  goTo(0);
+  setPlaying(true);
 })();
