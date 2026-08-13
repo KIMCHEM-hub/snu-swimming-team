@@ -1,0 +1,131 @@
+backend:
+  name: github
+  repo: KIMCHEM-hub/snu-swimming-team
+  branch: main
+  # Phase 3(Cloudflare Worker OAuth 배포)를 마친 뒤 아래 URL을 실제 Worker 주소로 바꾸세요.
+  # 예: https://sveltia-cms-auth.<your-subdomain>.workers.dev
+  base_url: https://REPLACE-WITH-YOUR-WORKER.workers.dev
+
+# 커밋 즉시 반영. 나중에 검토(승인) 절차가 필요해지면 editorial_workflow로 바꾸세요.
+publish_mode: simple
+
+media_folder: "assets/images"
+public_folder: "/assets/images"
+
+collections:
+  - name: schedule
+    label: "일정 (SCHEDULE)"
+    files:
+      - name: schedule
+        label: "일정 목록"
+        file: content/schedule.json
+        fields:
+          - label: 일정 목록
+            name: events
+            widget: list
+            summary: "{{dateLabel}} · {{title}}"
+            fields:
+              - { label: 시작일, name: startDate, widget: date, format: "YYYY-MM-DD", hint: "시즌 분류(연도)와 정렬에 쓰입니다" }
+              - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 2. – 5. 3." }
+              - { label: 구분, name: type, widget: select, options: ["COMPETITION", "JOINT TRAINING", "EXCHANGE EVENT"] }
+              - { label: 제목, name: title, widget: string }
+              - { label: 결과, name: result, widget: string, required: false, hint: "비우면 — 로 표시됩니다" }
+
+  - name: records
+    label: "기록 (RECORDS)"
+    files:
+      - name: records
+        label: "개인 기록"
+        file: content/records.json
+        fields:
+          - label: 기록 목록
+            name: entries
+            widget: list
+            summary: "{{event}} · {{athlete}} · {{time}}"
+            fields:
+              - { label: 종목, name: event, widget: string, hint: "예: 50 FREE, 100 FREE, 50 FLY, 100 FLY, 50 BREAST, 100 BREAST (자유 입력 — 새 종목도 탭에 자동으로 추가됩니다)" }
+              - { label: 선수명, name: athlete, widget: string }
+              - { label: 기록, name: time, widget: string, hint: "초 단위(24.43) 또는 분:초(1:07.35) — 정렬에 자동 반영됩니다" }
+              - { label: 태그, name: tags, widget: list, required: false, hint: "예: PB, GR, GOLD, SILVER, BRONZE, 5위" }
+              - { label: 대회명, name: meet, widget: string }
+              - { label: 날짜, name: date, widget: string, hint: "예: 2026. 3. 7." }
+              - { label: 비고, name: detail, widget: string, required: false, hint: "예: 예선, 결승" }
+
+  - name: relays
+    label: "계영 기록 (RELAY)"
+    files:
+      - name: relays
+        label: "계영 기록"
+        file: content/relays.json
+        fields:
+          - label: 계영 목록
+            name: entries
+            widget: list
+            summary: "{{event}} · {{time}}"
+            fields:
+              - { label: 종목, name: event, widget: string, hint: "예: 혼계영 200m" }
+              - { label: 팀명, name: team, widget: string }
+              - { label: 기록, name: time, widget: string }
+              - { label: 대회명, name: meet, widget: string }
+              - { label: 날짜, name: date, widget: string }
+              - { label: 참가 인원, name: members, widget: string, hint: "예: 12명" }
+
+  - name: gallery
+    label: "갤러리 (GALLERY)"
+    files:
+      - name: gallery
+        label: "사진 목록"
+        file: content/gallery.json
+        fields:
+          - label: 사진 목록
+            name: photos
+            widget: list
+            summary: "{{title}}"
+            fields:
+              - { label: 카테고리, name: category, widget: select, options: ["training", "competition", "team", "events"], hint: "필터 버튼과 연결됩니다" }
+              - { label: 라벨, name: label, widget: string, hint: "예: TRAINING, COMPETITION, TEAM, TEAM EVENT, EXCHANGE EVENT" }
+              - { label: 제목, name: title, widget: string }
+              - { label: 설명, name: meta, widget: string }
+              - { label: 사진, name: image, widget: image }
+              - { label: 원본 가로폭(px), name: w, widget: number, required: false, hint: "축소본(-sm.webp)을 별도로 준비해 올린 사진만 입력하세요. 비워두면 축소본 없이 원본이 그대로 표시됩니다." }
+              - { label: 축소본 가로폭(px), name: sw, widget: number, required: false }
+
+  - name: news
+    label: "뉴스 (NEWS)"
+    files:
+      - name: news
+        label: "뉴스 목록"
+        file: content/news.json
+        fields:
+          - label: 뉴스 목록
+            name: items
+            widget: list
+            summary: "{{dateLabel}} · {{title}}"
+            hint: "홈 TEAM UPDATES 캐러셀은 이 목록의 순서(첫 항목이 리드 카드)를, NEWS 섹션 캐러셀은 날짜 최신순을 사용합니다."
+            fields:
+              - { label: 시작일, name: startDate, widget: date, format: "YYYY-MM-DD", hint: "NEWS 섹션 정렬에 쓰입니다" }
+              - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 18. – 5. 21." }
+              - { label: 구분, name: category, widget: select, options: ["COMPETITION", "EXCHANGE EVENT", "TEAM", "RECRUITMENT", "ANNOUNCEMENT"] }
+              - { label: 제목, name: title, widget: string }
+              - { label: 사진, name: image, widget: image }
+              - { label: 사진 대체텍스트, name: alt, widget: string }
+              - { label: "성과 요약 (홈 리드 카드용)", name: result, widget: string, required: false, hint: "채우면 홈 캐러셀에서 이 카드가 'VIEW RESULTS' 링크로 표시됩니다. 비우면 'VIEW SCHEDULE' 링크가 표시됩니다." }
+              - { label: "본문 (READ MORE 모달)", name: body, widget: text, required: false }
+
+  - name: notices
+    label: "공지사항"
+    files:
+      - name: notices
+        label: "공지 목록"
+        file: content/notices.json
+        fields:
+          - label: 공지 목록
+            name: items
+            widget: list
+            summary: "{{date}} · {{title}}"
+            fields:
+              - { label: 고유 ID, name: id, widget: string, hint: "영문/숫자/하이픈 권장 (예: 2026-08-13-recruitment). 한 번 정하면 나중에 바꾸지 마세요 — 댓글·링크가 이 ID로 연결됩니다." }
+              - { label: 날짜, name: date, widget: date, format: "YYYY-MM-DD" }
+              - { label: 제목, name: title, widget: string }
+              - { label: 작성자, name: author, widget: string }
+              - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }

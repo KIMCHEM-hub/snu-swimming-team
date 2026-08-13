@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "startDate": "2025-11-08", "dateLabel": "2025. 11. 8. – 11. 9.", "category": "COMPETITION", "title": "제31회 전국대학수영선수권대회", "image": "C32C.webp", "alt": "제31회 전국대학수영선수권대회 사진", "result": "공동 1위 (남자 2부 · 여자 2부)", "body": "" },
+    { "startDate": "2026-05-02", "dateLabel": "2026. 5. 2. – 5. 3.", "category": "EXCHANGE EVENT", "title": "서울대 × 카이스트 연합교류전", "image": "KAIST.webp", "alt": "서울대와 카이스트 연합교류전 사진", "result": "", "body": "" },
+    { "startDate": "2026-05-18", "dateLabel": "2026. 5. 18. – 5. 21.", "category": "EXCHANGE EVENT", "title": "서울대 × PolyU", "image": "POLYU.webp", "alt": "서울대와 PolyU 교류 사진", "result": "", "body": "" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "photos": [
+    { "category": "training", "label": "TRAINING", "title": "정기 훈련", "meta": "서울대포스코수영장 (3F)", "image": "trainp01.webp", "w": 1422, "sw": 711 },
+    { "category": "competition", "label": "COMPETITION", "title": "대회 출전", "meta": "COMPETITION PHOTO 02", "image": "cp02.webp", "w": 1439, "sw": 899 },
+    { "category": "team", "label": "TEAM", "title": "팀 사진", "meta": "TEAM PHOTO 03", "image": "Teamphoto03.webp", "w": 1800, "sw": 900 },
+    { "category": "events", "label": "TEAM EVENT", "title": "팀 행사", "meta": "TEAM EVENT · PHOTO 04", "image": "tev04.webp", "w": 1800, "sw": 900 },
+    { "category": "competition", "label": "COMPETITION", "title": "제31회 전국대학수영선수권대회", "meta": "2025. 11. 8. – 11. 9.", "image": "C32C.webp", "w": 1440, "sw": 900 },
+    { "category": "events", "label": "EXCHANGE EVENT", "title": "서울대 × 카이스트 연합교류전", "meta": "2026. 5. 2. – 5. 3.", "image": "KAIST.webp", "w": 1800, "sw": 900 },
+    { "category": "events", "label": "EXCHANGE EVENT", "title": "서울대 × PolyU", "meta": "2026. 5. 18. – 5. 21.", "image": "POLYU.webp", "w": 1800, "sw": 900 }
+  ]
+}

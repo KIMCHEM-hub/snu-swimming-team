@@ -26,14 +26,29 @@ window.addEventListener("scroll", () => header.classList.toggle("is-scrolled", w
 showPage(window.location.hash.slice(1));
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 const brandName = document.querySelector(".brand span");
-if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11C\uC6B8\uB300\uD559\uAD50 \uC218\uC601\uBD80";
+if (brandName && brandName.firstChild) brandName.firstChild.textContent = "서울대학교 수영부";
+
+// ---- ADMIN 메뉴 노출 ----
+// /admin/(Sveltia CMS)과 사이트 루트는 동일 오리진이므로 로그인 세션이 있으면
+// localStorage에 "sveltia-cms" 접두사 키가 남는다. 순수 표시용 장치일 뿐 —
+// 실제 접근 통제는 GitHub 레포 쓰기 권한이 전담하므로 여기서 틀려도 보안엔 영향 없다.
+(function initAdminLinkVisibility() {
+  const adminLink = document.querySelector("[data-admin-link]");
+  if (!adminLink) return;
+  try {
+    const hasSession = Object.keys(window.localStorage).some((key) => key.toLowerCase().includes("sveltia"));
+    adminLink.hidden = !hasSession;
+  } catch (err) {
+    // localStorage 접근 불가(프라이빗 모드 등) 시 안전하게 숨김 유지
+  }
+})();
 
 // ---- HERO PARALLAX ----
 // Desktop/tablet only. Background image is pinned via CSS `background-attachment:fixed`
 // (see .hero in css/style.css); this just fades + lifts the hero text/logo as the user
 // scrolls through the hero's own height, so the next section reads as rising up over it.
-// Disabled on mobile (\u2264760px, matching the site's other mobile breakpoints) and under
-// prefers-reduced-motion \u2014 in both cases the CSS custom properties are cleared so
+// Disabled on mobile (≤760px, matching the site's other mobile breakpoints) and under
+// prefers-reduced-motion — in both cases the CSS custom properties are cleared so
 // .hero-content falls back to its normal static position/opacity. Never touches
 // anything under .home-news-carousel (the TEAM UPDATES slider).
 (function initHeroParallax() {
@@ -76,26 +91,9 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11
   applyParallax();
 })();
 
-
-const scheduleEvents = [
-  ["2025. 5. 11.", "JOINT TRAINING", "서울대 × 한국외대 수영부 연합훈련", "—"],
-  ["2025. 5. 15. – 5. 17.", "COMPETITION", "2025 경기도 도민체전", "우승 (4관왕)"],
-  ["2025. 5. 30. – 6. 1.", "COMPETITION", "제2회 쉬엄쉬엄 한강 3종 축제", "—"],
-  ["2025. 6. 21. – 6. 22.", "COMPETITION", "2025 한강크로스위밍챌린지", "—"],
-  ["2025. 9. 27. – 9. 28.", "COMPETITION", "2025 배럴 스프린트 챔피언십", "—"],
-  ["2025. 10. 19.", "COMPETITION", "제1회 노원구청장배 및 제8회 연맹회장배 수영대회", "—"],
-  ["2025. 11. 8. – 11. 9.", "COMPETITION", "제31회 전국대학수영선수권대회", "공동 1위 (남자 2부 · 여자 2부)"],
-  ["2025. 11. 14.", "JOINT TRAINING", "스누풀(중앙 수영동아리) 연합훈련", "—"],
-  ["2025. 11. 20. – 11. 24.", "COMPETITION", "전문체육인 전국대회(MBC배)", "3위"],
-  ["2026. 3. 8.", "COMPETITION", "전국생활체육대축전 서울시 대표 선발전 수영대회", "자유형 1위 · 접영 2위"],
-  ["2026. 5. 2. – 5. 3.", "EXCHANGE EVENT", "서울대 × 카이스트 연합교류전", "카이스트 17명 · 서울대 8명"],
-  ["2026. 5. 18. – 5. 21.", "EXCHANGE EVENT", "서울대 × PolyU", "PolyU 8명 · 서울대 6명"],
-  ["2026. 6. 5. – 6. 7.", "COMPETITION", "제3회 수영연합 한강 3종 축제", "완주 3명"],
-  ["2026. 6. 21.", "COMPETITION", "한강크로스스위밍챌린지", "완주 7명"],
-  ["2026. 6. 27.", "COMPETITION", "제12회 서울특별시 연맹회장배 수영대회", "—" ]
-];
-
-// 학교/단체 교류전 로고 매핑 (제목에 포함된 키워드로 매칭)
+// ---- SCHEDULE ----
+// 학교/단체 교류전 로고 매핑(제목 키워드 매칭)은 콘텐츠가 아니라 표현 설정이라
+// content/schedule.json으로 옮기지 않고 여기 그대로 둔다.
 const scheduleLogoRules = [
   { match: "카이스트", logos: [
       { src: "university-logo.png", alt: "서울대학교" },
@@ -119,26 +117,25 @@ function scheduleStatusClass(status) {
   if (status === "EXCHANGE EVENT") return "exchange";
   return "competition";
 }
-function renderScheduleRow([date, status, title, result]) {
+function renderScheduleRow(event) {
+  const { dateLabel, type, title, result } = event;
   const logos = getScheduleLogos(title);
   const logosHtml = logos.length
     ? logos.map((l, i) => `${i > 0 ? '<span class="schedule-logo-mark">×</span>' : ""}<img src="./assets/images/${l.src}" alt="${l.alt}" loading="lazy">`).join("")
     : "";
-  return `<article class="schedule-row" role="row"><time>${date}</time><div class="schedule-logos${logos.length ? " has-logos" : ""}">${logosHtml}</div><div><p class="status ${scheduleStatusClass(status)}">${status}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
+  return `<article class="schedule-row" role="row"><time>${dateLabel}</time><div class="schedule-logos${logos.length ? " has-logos" : ""}">${logosHtml}</div><div><p class="status ${scheduleStatusClass(type)}">${type}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
 }
 function renderSeasonAccordion(year, events, isOpen) {
   const rows = events.map(renderScheduleRow).join("");
   return `<div class="season-accordion" data-season="${year}"><button class="season-toggle" type="button" aria-expanded="${isOpen}" aria-controls="season-${year}"><span>${year} SEASON</span><span class="season-indicator">${isOpen ? "−" : "+"}</span></button><div class="season-events" id="season-${year}" role="region"${isOpen ? "" : " hidden"}>${rows}</div></div>`;
 }
-
-const scheduleSeasonsEl = document.querySelector("[data-schedule-seasons]");
-if (scheduleSeasonsEl) {
-  const events2026 = scheduleEvents.filter(([date]) => date.startsWith("2026."));
-  const events2025 = scheduleEvents.filter(([date]) => date.startsWith("2025."));
-  scheduleSeasonsEl.innerHTML =
-    renderSeasonAccordion("2026", events2026, true) +
-    renderSeasonAccordion("2025", events2025, false);
-
+function renderSchedule(events) {
+  const scheduleSeasonsEl = document.querySelector("[data-schedule-seasons]");
+  if (!scheduleSeasonsEl) return;
+  const years = Array.from(new Set(events.map((e) => e.startDate.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
+  scheduleSeasonsEl.innerHTML = years
+    .map((year, i) => renderSeasonAccordion(year, events.filter((e) => e.startDate.startsWith(year)), i === 0))
+    .join("");
   scheduleSeasonsEl.querySelectorAll(".season-toggle").forEach((btn) => {
     btn.addEventListener("click", () => {
       const panel = document.getElementById(btn.getAttribute("aria-controls"));
@@ -150,95 +147,14 @@ if (scheduleSeasonsEl) {
   });
 }
 
-const scheduleList = document.querySelector("#schedule .event-list");
-const teamShell = document.querySelector("#team .shell");
-const recordShell = document.querySelector("#records .shell");
-const newsGrid = document.querySelector("#news .news-grid");
-
-// ---- NEWS: TEAM UPDATES 카드를 슬라이드 캐러셀로 표시 (홈 캐러셀과 동일한 이미지/날짜/
-// 카테고리/제목, 날짜 최신순). 캐러셀 자체의 재생/조작 로직은 initNewsCarousel()에서
-// 별도로 구현 — home-news-carousel(TEAM UPDATES) 쪽 코드는 이 파일 어디에서도 건드리지 않음.
-if (newsGrid) {
-  const teamUpdateNews = [
-    { sortKey:"2025-11-08", date:"2025. 11. 8. – 11. 9.", category:"COMPETITION", title:"제31회 전국대학수영선수권대회", image:"C32C.webp", alt:"제31회 전국대학수영선수권대회 사진" },
-    { sortKey:"2026-05-02", date:"2026. 5. 2. – 5. 3.", category:"EXCHANGE EVENT", title:"서울대 × 카이스트 연합교류전", image:"KAIST.webp", alt:"서울대와 카이스트 연합교류전 사진" },
-    { sortKey:"2026-05-18", date:"2026. 5. 18. – 5. 21.", category:"EXCHANGE EVENT", title:"서울대 × PolyU", image:"POLYU.webp", alt:"서울대와 PolyU 교류 사진" }
-  ].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-
-  const slidesHtml = teamUpdateNews.map((item) => `<article class="feature-news"><div class="news-image"><img src="./assets/images/${item.image}" alt="${item.alt}" loading="lazy"></div><div><p class="news-meta">${item.date} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
-
-  newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="NEWS 카드 슬라이드 (6초마다 자동 전환)"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>일시정지</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
+// ---- RECORDS ----
+// "24.43" / "1:07.35" 두 형식을 모두 정렬 가능한 초 단위로 변환. time 하나만 입력하면
+// 되므로 과거처럼 seconds를 손으로 이중 입력하다 값이 어긋나는 일이 없어진다.
+function timeToSeconds(time) {
+  const parts = String(time).split(":");
+  if (parts.length === 2) return Number(parts[0]) * 60 + Number(parts[1]);
+  return Number(time);
 }
-
-// ---- NOTICES: 공지사항 목록 (날짜 최신순, 행 추가/삭제는 noticesData 배열만 수정하면 됨) ----
-// 제목 클릭 시 상세 모달(본문+댓글)이 뜨는데, 그 모달(initNoticeModal)은 클릭 시점에
-// 이 DOM(article의 date/title/author/data-notice-body)을 그대로 읽어가므로 여기
-// 배열만 수정해도 모달 내용까지 자동으로 반영됨 — 별도 하드코딩 지점 없음.
-const noticeList = document.querySelector("#notices [data-notice-list]");
-if (noticeList) {
-  const noticesData = [
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" }
-  ];
-  const rowsHtml = noticesData
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .map((n, i) => `<article class="notice-row" data-notice-id="${i}" data-notice-body="${n.body.replace(/"/g, "&quot;")}"><time class="notice-date">${n.date}</time><h3 class="notice-title"><button type="button" class="notice-title-btn" data-notice-open aria-haspopup="dialog">${n.title}</button></h3><span class="notice-author">${n.author}</span></article>`)
-    .join("");
-  noticeList.innerHTML = rowsHtml || '<p class="notice-empty">등록된 공지사항이 없습니다.</p>';
-}
-
-// ---- RECORDS: 종목별 개인 기록 ----
-const recordsData = {
-  "50 FREE": [
-    { athlete: "이정행", time: "24.43", seconds: 24.43, tags: ["PB"], meet: "2026 전국생활체육대축전 서울시 대표 선발전", date: "2026. 3. 7." },
-    { athlete: "이정행", time: "24.50", seconds: 24.50, tags: ["SILVER"], meet: "2026 전국생활체육대축전", date: "2026. 4. 25." },
-    { athlete: "이정행", time: "24.83", seconds: 24.83, tags: ["GR", "GOLD"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
-    { athlete: "이정행", time: "25.00", seconds: 25.00, tags: ["5위"], meet: "2025 배럴 스프린트 챔피언십", date: "2025. 9. 27.", detail: "예선" },
-    { athlete: "이정행", time: "25.11", seconds: 25.11, tags: ["SILVER"], meet: "2025 고양 전국 마스터즈 수영대회", date: "2025. 10. 18." },
-    { athlete: "이정행", time: "25.40", seconds: 25.40, tags: ["6위"], meet: "2025 배럴 스프린트 챔피언십", date: "2025. 9. 27.", detail: "결승" },
-    { athlete: "이정행", time: "26.18", seconds: 26.18, tags: ["SILVER"], meet: "제11회 서울특별시연맹회장배 수영대회", date: "2025. 6. 22." },
-    { athlete: "이정행", time: "26.28", seconds: 26.28, tags: ["6위"], meet: "제45회 서울특별시장기 수영대회", date: "2024. 8. 3." },
-    { athlete: "이정행", time: "26.61", seconds: 26.61, tags: ["BRONZE"], meet: "제8회 송파구연맹회장기 수영대회", date: "2024. 10. 27." },
-    { athlete: "이정행", time: "26.84", seconds: 26.84, tags: ["11위"], meet: "2024 배럴 스프린트 챔피언십", date: "2024. 5. 25.", detail: "예선" },
-    { athlete: "김민찬", time: "32.17", seconds: 32.17, tags: ["PB"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." },
-    { athlete: "김민찬", time: "32.79", seconds: 32.79, tags: [], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
-  ],
-  "100 FREE": [
-    { athlete: "이정행", time: "56.94", seconds: 56.94, tags: ["PB", "4위"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." },
-    { athlete: "이정행", time: "57.30", seconds: 57.30, tags: ["SILVER"], meet: "2025 고양 전국 마스터즈 수영대회", date: "2025. 10. 18." },
-    { athlete: "김민찬", time: "1:14.18", seconds: 74.18, tags: ["PB"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." }
-  ],
-  "50 FLY": [
-    { athlete: "이정행", time: "25.87", seconds: 25.87, tags: ["SILVER"], meet: "2026 전국생활체육대축전", date: "2026. 4. 25." },
-    { athlete: "이정행", time: "25.90", seconds: 25.90, tags: ["PB", "GOLD"], meet: "2026 전국생활체육대축전 서울시 대표 선발전", date: "2026. 3. 7." },
-    { athlete: "이정행", time: "26.16", seconds: 26.16, tags: ["GR", "GOLD"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
-    { athlete: "이정행", time: "27.91", seconds: 27.91, tags: ["GOLD"], meet: "제11회 서울특별시연맹회장배 수영대회", date: "2025. 6. 22." },
-    { athlete: "이정행", time: "28.82", seconds: 28.82, tags: ["BRONZE"], meet: "제8회 송파구연맹회장기 수영대회", date: "2024. 10. 27." },
-    { athlete: "이정행", time: "29.63", seconds: 29.63, tags: ["10위"], meet: "제45회 서울특별시장기 수영대회", date: "2024. 8. 3." },
-    { athlete: "신재원", time: "30.33", seconds: 30.33, tags: [], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
-  ],
-  "100 FLY": [
-    { athlete: "이정행", time: "1:00.54", seconds: 60.54, tags: ["GOLD"], meet: "제31회 전국대학수영선수권대회", date: "2025. 11. 8." }
-  ],
-  "50 BREAST": [
-    { athlete: "신재원", time: "30.13", seconds: 30.13, tags: ["GOLD"], meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8." },
-    { athlete: "신재원", time: "30.45", seconds: 30.45, tags: ["GOLD"], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." },
-    { athlete: "신재원", time: "30.73", seconds: 30.73, tags: ["GR"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." },
-    { athlete: "김민찬", time: "45.48", seconds: 45.48, tags: ["PB"], meet: "제12회 서울특별시연맹회장배 수영대회", date: "2026. 6. 27." }
-  ],
-  "100 BREAST": [
-    { athlete: "신재원", time: "1:07.35", seconds: 67.35, tags: ["PB"], meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8." },
-    { athlete: "신재원", time: "1:09.15", seconds: 69.15, tags: ["GR"], meet: "전국마스터즈 수영대회", date: "2025. 12. 13." }
-  ],
-  "RELAY": [
-    { event: "혼계영 200m", team: "SNU Swimming Team", time: "2:31.78", seconds: 151.78, meet: "2026 아레나 마스터즈 수영대회", date: "2026. 8. 8.", members: "12명" }
-  ]
-};
-const recordEventOrder = ["50 FREE", "100 FREE", "50 FLY", "100 FLY", "50 BREAST", "100 BREAST", "RELAY"];
-
 function recordTagClass(tag) {
   if (tag === "PB") return "record-badge pb";
   if (tag === "GR") return "record-badge gr";
@@ -246,25 +162,33 @@ function recordTagClass(tag) {
   return "result-tag";
 }
 function renderRecordTags(entry) {
-  const tags = (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${tag}</span>`).join("");
-  return tags;
+  return (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${tag}</span>`).join("");
 }
-function renderRecordsTable(eventName) {
-  if (eventName === "RELAY") {
-    const rows = recordsData.RELAY.slice().sort((a, b) => a.seconds - b.seconds).map((r) =>
-      `<tr><td>${r.event}</td><td>${r.team}</td><td>${r.time}</td><td>${r.meet}</td><td>${r.date}</td><td>${r.members}</td></tr>`
-    ).join("");
-    return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  }
-  const entries = (recordsData[eventName] || []).slice().sort((a, b) => a.seconds - b.seconds);
-  const rows = entries.map((r) =>
-    `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${r.meet}${r.detail ? ` · ${r.detail}` : ""}</td><td>${r.date}</td></tr>`
-  ).join("");
-  return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">빠른 기록 순으로 정렬되어 있습니다.</p>`;
-}
+const BASE_RECORD_ORDER = ["50 FREE", "100 FREE", "50 FLY", "100 FLY", "50 BREAST", "100 BREAST"];
+function renderRecords(recordEntries, relayEntries) {
+  const recordsAppEl = document.querySelector("[data-records-app]");
+  if (!recordsAppEl) return;
 
-const recordsAppEl = document.querySelector("[data-records-app]");
-if (recordsAppEl) {
+  const recordsByEvent = {};
+  recordEntries.forEach((r) => { (recordsByEvent[r.event] = recordsByEvent[r.event] || []).push(r); });
+  // 새 종목이 CMS로 들어와도 조용히 사라지지 않도록, 알려진 순서 뒤에 자동으로 붙인다.
+  const extraEvents = Object.keys(recordsByEvent).filter((e) => !BASE_RECORD_ORDER.includes(e));
+  const recordEventOrder = [...BASE_RECORD_ORDER, ...extraEvents, "RELAY"];
+
+  function renderRecordsTable(eventName) {
+    if (eventName === "RELAY") {
+      const rows = relayEntries.slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time)).map((r) =>
+        `<tr><td>${r.event}</td><td>${r.team}</td><td>${r.time}</td><td>${r.meet}</td><td>${r.date}</td><td>${r.members}</td></tr>`
+      ).join("");
+      return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+    const entries = (recordsByEvent[eventName] || []).slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time));
+    const rows = entries.map((r) =>
+      `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${r.meet}${r.detail ? ` · ${r.detail}` : ""}</td><td>${r.date}</td></tr>`
+    ).join("");
+    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">빠른 기록 순으로 정렬되어 있습니다.</p>`;
+  }
+
   const tabsHtml = recordEventOrder.map((name, i) => `<button type="button" class="${i === 0 ? "is-active" : ""}" data-event-tab="${name}">${name}</button>`).join("");
   recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="종목 선택">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
   const tableWrapEl = recordsAppEl.querySelector("[data-records-table]");
@@ -276,29 +200,35 @@ if (recordsAppEl) {
   });
 }
 
+// ---- IMAGE PATHS ----
+// Hand-authored JSON stores bare filenames ("trainp01.webp"); the CMS media widget
+// (admin/config.yml, public_folder: "/assets/images") writes root-absolute paths
+// ("/assets/images/trainp01.webp") instead. assetPath() normalizes either form so
+// both old and CMS-uploaded entries resolve to the same URL.
+function assetPath(name) {
+  if (!name) return "";
+  if (/^(https?:)?\//.test(name) || name.startsWith("./") || name.startsWith("../")) return name;
+  return `./assets/images/${name}`;
+}
 
-const galleryGrid = document.querySelector("#gallery .photo-grid");
-const galleryFilter = document.querySelector("#gallery .gallery-filter");
-if (galleryGrid && galleryFilter) {
-  const cards = [
-    { category:"training", label:"TRAINING", title:"\uC815\uAE30 \uD6C8\uB828", meta:"\uC11C\uC6B8\uB300\uD3EC\uC2A4\uCF54\uC218\uC601\uC7A5 (3F)", image:"trainp01.webp", w:1422, sw:711 },
-    { category:"competition", label:"COMPETITION", title:"\uB300\uD68C \uCD9C\uC804", meta:"COMPETITION PHOTO 02", image:"cp02.webp", w:1439, sw:899 },
-    { category:"team", label:"TEAM", title:"\uD300 \uC0AC\uC9C4", meta:"TEAM PHOTO 03", image:"Teamphoto03.webp", w:1800, sw:900 },
-    { category:"events", label:"TEAM EVENT", title:"\uD300 \uD589\uC0AC", meta:"TEAM EVENT \u00B7 PHOTO 04", image:"tev04.webp", w:1800, sw:900 },
-    { category:"competition", label:"COMPETITION", title:"\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", meta:"2025. 11. 8. \u2013 11. 9.", image:"C32C.webp", w:1440, sw:900 },
-    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 \uCE74\uC774\uC2A4\uD2B8 \uC5F0\uD569\uAD50\uB958\uC804", meta:"2026. 5. 2. \u2013 5. 3.", image:"KAIST.webp", w:1800, sw:900 },
-    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 PolyU", meta:"2026. 5. 18. \u2013 5. 21.", image:"POLYU.webp", w:1800, sw:900 }
-  ];
-  // Every gallery photo ships a ~900px-wide "-sm" WebP companion next to the ~1800px
-  // full version, so narrow viewports fetch the smaller file instead of the large one.
-  // Sizes mirrors the actual grid: near-full-width on mobile, ~1/3 of the shell on desktop.
-  const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
-  function galleryImgHtml(card) {
-    if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
-    const large = `./assets/images/${card.image}`;
-    const small = `./assets/images/${card.image.replace(".webp", "-sm.webp")}`;
+// ---- GALLERY ----
+// Every gallery photo *may* ship a ~900px-wide "-sm" WebP companion next to the ~1800px
+// full version. CMS uploads won't have one, so srcset is only added when both w/sw are
+// present in the data — otherwise we fall back to a plain <img> instead of a 404 srcset.
+const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
+function galleryImgHtml(card) {
+  if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
+  const large = assetPath(card.image);
+  if (card.w && card.sw) {
+    const small = assetPath(card.image.replace(".webp", "-sm.webp"));
     return `<img src="${large}" srcset="${small} ${card.sw}w, ${large} ${card.w}w" sizes="${GALLERY_SIZES}" alt="${card.title}" loading="lazy">`;
   }
+  return `<img src="${large}" alt="${card.title}" loading="lazy">`;
+}
+function renderGallery(cards) {
+  const galleryGrid = document.querySelector("#gallery .photo-grid");
+  const galleryFilter = document.querySelector("#gallery .gallery-filter");
+  if (!galleryGrid || !galleryFilter) return;
   galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${galleryImgHtml(card)}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>해당 카테고리의 사진이 아직 없습니다.</p>';
   galleryFilter.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
     const category = button.textContent.trim().toLowerCase();
@@ -309,71 +239,113 @@ if (galleryGrid && galleryFilter) {
   }));
 }
 
+// ---- NEWS ----
+// content/news.json 하나가 홈 "TEAM UPDATES" 캐러셀과 #news 섹션 캐러셀을 모두 먹인다
+// (과거엔 이 둘이 HTML/JS에 따로 중복 저장되어 있었다). 두 캐러셀은 정렬 기준이 다르다:
+// 홈 캐러셀은 큐레이션된 게재 순서(JSON 배열 순서, 첫 항목이 "리드" 카드)를 그대로 쓰고,
+// #news 섹션 캐러셀은 최신순 정렬이다.
+function homeNewsCardHtml(item, isLead) {
+  const leadAttr = isLead ? ' class="home-news-lead"' : "";
+  const img = `<img src="${assetPath(item.image)}" alt="${item.alt}" loading="lazy">`;
+  const meta = `<p>${item.dateLabel} · ${item.category}</p>`;
+  const heading = `<h3>${item.title}</h3>`;
+  if (item.result) {
+    return `<article${leadAttr}>${img}${meta}${heading}<span>${item.result}</span><a href="#records">VIEW RESULTS ↗</a></article>`;
+  }
+  return `<article${leadAttr}>${img}${meta}${heading}<a href="#schedule">VIEW SCHEDULE ↗</a></article>`;
+}
+function renderHomeNewsCarousel(items) {
+  const track = document.querySelector("[data-carousel-track]");
+  if (!track) return;
+  track.innerHTML = items.map((item, i) => homeNewsCardHtml(item, i === 0)).join("");
+}
+
+function renderNewsSection(items) {
+  const newsGrid = document.querySelector("#news .news-grid");
+  if (!newsGrid) return;
+  const sorted = items.slice().sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const slidesHtml = sorted.map((item) => `<article class="feature-news" data-news-body="${(item.body || "").replace(/"/g, "&quot;")}"><div class="news-image"><img src="${assetPath(item.image)}" alt="${item.alt}" loading="lazy"></div><div><p class="news-meta">${item.dateLabel} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
+  newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="NEWS 카드 슬라이드 (6초마다 자동 전환)"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>일시정지</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
+}
+
+// ---- NOTICES ----
+// noticesById는 상세 모달(initNoticeModal)이 id로 원문을 조회하는 데 쓰인다. 과거처럼
+// 본문을 HTML 속성(data-notice-body)에 넣지 않으므로 여러 줄 본문이 가능하고, 제목/작성자도
+// textContent로만 다뤄 XSS 삽입 경로가 없다. id는 배열 인덱스가 아니라 JSON의 고정 id라
+// 공지를 추가/삭제해도 기존 글의 id·댓글이 밀리지 않는다.
+const noticesById = new Map();
+function renderNotices(items) {
+  const noticeList = document.querySelector("#notices [data-notice-list]");
+  if (!noticeList) return;
+  noticesById.clear();
+  items.forEach((n) => noticesById.set(n.id, n));
+
+  noticeList.innerHTML = "";
+  if (!items.length) {
+    noticeList.innerHTML = '<p class="notice-empty">등록된 공지사항이 없습니다.</p>';
+    return;
+  }
+  const sorted = items.slice().sort((a, b) => b.date.localeCompare(a.date));
+  sorted.forEach((n) => {
+    const article = document.createElement("article");
+    article.className = "notice-row";
+    article.dataset.noticeId = n.id;
+
+    const time = document.createElement("time");
+    time.className = "notice-date";
+    time.textContent = n.date;
+
+    const h3 = document.createElement("h3");
+    h3.className = "notice-title";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "notice-title-btn";
+    btn.setAttribute("data-notice-open", "");
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.textContent = n.title;
+    h3.appendChild(btn);
+
+    const author = document.createElement("span");
+    author.className = "notice-author";
+    author.textContent = n.author;
+
+    article.append(time, h3, author);
+    noticeList.appendChild(article);
+  });
+}
+
 const training = document.querySelector("#training");
 if (training) {
   const rows = training.querySelectorAll(".training-table .table-row");
-  const pool = "\uC11C\uC6B8\uB300\uD3EC\uC2A4\uCF54\uC218\uC601\uC7A5 (3F)";
-  training.querySelector(".section-intro").textContent = "\uC815\uAE30 \uD300 \uD6C8\uB828\uC740 \uB808\uC778\uBCC4 \uC6B4\uB3D9 \uAC15\uB3C4\uC640 \uAC01\uC790\uC758 \uBAA9\uD45C\uB97C \uACE0\uB824\uD574 \uC6B4\uC601\uB429\uB2C8\uB2E4.";
-  if (rows[1]) rows[1].innerHTML = `<span>TUE</span><span>17:00\u201318:30</span><span>REGULAR TRAINING</span><span>${pool}</span>`;
-  if (rows[2]) rows[2].innerHTML = `<span>THU</span><span>17:00\u201318:30</span><span>REGULAR TRAINING</span><span>${pool}</span>`;
+  const pool = "서울대포스코수영장 (3F)";
+  training.querySelector(".section-intro").textContent = "정기 팀 훈련은 레인별 운동 강도와 각자의 목표를 고려해 운영됩니다.";
+  if (rows[1]) rows[1].innerHTML = `<span>TUE</span><span>17:00–18:30</span><span>REGULAR TRAINING</span><span>${pool}</span>`;
+  if (rows[2]) rows[2].innerHTML = `<span>THU</span><span>17:00–18:30</span><span>REGULAR TRAINING</span><span>${pool}</span>`;
   if (rows[3]) rows[3].remove();
   const notes = training.querySelectorAll(".training-notes > div");
-  if (notes[0]) notes[0].innerHTML = `<b>GROUPS</b><p><strong>\uC0C1\uAE09 \uB808\uC778</strong><br><strong>\uC911\uAE09/\uD558\uAE09 \uB808\uC778</strong><br><small>ADVANCED LANE \u00B7 INTERMEDIATE / DEVELOPMENT LANE</small></p>`;
-  if (notes[1]) notes[1].innerHTML = `<b>STRUCTURE</b><p>\uB2E4\uC591\uD55C Drill \u00B7 Interval \uC911\uC2EC \uD6C8\uB828<br><small>DRILLS \u00B7 INTERVALS \u00B7 TECHNIQUE \u00B7 ENDURANCE</small></p>`;
-  if (notes[2]) notes[2].innerHTML = `<b>DRYLAND</b><p><strong>TBD</strong><br><small>\uCD94\uD6C4 \uC548\uB0B4 \uC608\uC815</small></p>`;
+  if (notes[0]) notes[0].innerHTML = `<b>GROUPS</b><p><strong>상급 레인</strong><br><strong>중급/하급 레인</strong><br><small>ADVANCED LANE · INTERMEDIATE / DEVELOPMENT LANE</small></p>`;
+  if (notes[1]) notes[1].innerHTML = `<b>STRUCTURE</b><p>다양한 Drill · Interval 중심 훈련<br><small>DRILLS · INTERVALS · TECHNIQUE · ENDURANCE</small></p>`;
+  if (notes[2]) notes[2].innerHTML = `<b>DRYLAND</b><p><strong>TBD</strong><br><small>추후 안내 예정</small></p>`;
 }
 
 const infoItems = document.querySelectorAll(".info-grid article");
-if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026\uB144 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC \uB300\uD45C \uC120\uBC1C\uC804 \uC218\uC601\uB300\uD68C</strong><span>FREESTYLE · 1ST / BUTTERFLY · 2ND</span><a href="#records">VIEW RESULTS <b>↗</b></a>';
+if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026년 전국생활체육대축전 서울시 대표 선발전 수영대회</strong><span>FREESTYLE · 1ST / BUTTERFLY · 2ND</span><a href="#records">VIEW RESULTS <b>↗</b></a>';
 const featuredAchievement = document.querySelector(".highlight-record");
-if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN\'S DIV II · WOMEN\'S DIV II</b></div><div><span>DATE</span><b>2025. 11. 8. – 11. 9.</b></div><a href="#records">VIEW RESULTS <b>↗</b></a>';
-
-const revealItems = document.querySelectorAll(".reveal");
-if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-  const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } }), { threshold: 0.08 });
-  revealItems.forEach((item) => observer.observe(item));
-} else revealItems.forEach((item) => item.classList.add("is-visible"));
-
-// Homepage-only reveal rhythm. Detail pages and navigation remain untouched.
-const homeRevealGroups = [
-  [".current-panel article", true],
-  [".home-news .home-section-top, .home-news h2", false],
-  [".home-news-grid article", true],
-  [".quick-facts .eyebrow", false],
-  [".quick-facts strong", false],
-  [".home-join .shell > *", false],
-  [".home-contact .contact-layout > *", false]
-];
-const homeRevealItems = [];
-homeRevealGroups.forEach(([selector, cards]) => document.querySelectorAll(selector).forEach((item, index) => {
-  item.classList.add("home-reveal");
-  if (cards) item.classList.add("home-reveal-card");
-  item.style.setProperty("--reveal-delay", `${index * 90}ms`);
-  homeRevealItems.push(item);
-}));
-if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
-  homeRevealItems.forEach((item) => item.classList.add("is-visible"));
-} else {
-  const homeRevealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
-    if (!entry.isIntersecting || document.body.classList.contains("detail-mode")) return;
-    entry.target.classList.add("is-visible");
-    homeRevealObserver.unobserve(entry.target);
-  }), { threshold: 0.12 });
-  homeRevealItems.forEach((item) => homeRevealObserver.observe(item));
-}
+if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">제31회 전국대학수영선수권대회</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN\'S DIV II · WOMEN\'S DIV II</b></div><div><span>DATE</span><b>2025. 11. 8. – 11. 9.</b></div><a href="#records">VIEW RESULTS <b>↗</b></a>';
 
 // Verified leadership and performance archive (Unicode escapes preserve Korean labels across local environments).
 // A 4th array item is an optional profile photo filename (in assets/images/); leaders without one fall back to the university-logo placeholder.
 const verifiedTeam = [
-  ["CAPTAIN","\uAE40\uBBFC\uCC2C","\uC8FC\uC7A5"], ["VICE CAPTAIN","\uC774\uC815\uD589","\uBD80\uC8FC\uC7A5"],
-  ["TRAINING DIRECTOR","\uC2E0\uC7AC\uC6D0","\uD6C8\uB828\uBD80\uC7A5","SHINPROF.png"], ["TREASURER","\uCD5C\uC138\uB098","\uCD1D\uBB34"]
+  ["CAPTAIN","김민찬","주장"], ["VICE CAPTAIN","이정행","부주장"],
+  ["TRAINING DIRECTOR","신재원","훈련부장","SHINPROF.png"], ["TREASURER","최세나","총무"]
 ];
 
+const teamShell = document.querySelector("#team .shell");
 if (teamShell) {
   const fallback = '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   const leaders = verifiedTeam.map(([role, name, ko, photo]) => {
     const photoHtml = photo
-      ? `<div class="member-photo has-photo"><img src="./assets/images/${photo}" alt="${name} \uD504\uB85C\uD544 \uC0AC\uC9C4" loading="lazy"></div>`
+      ? `<div class="member-photo has-photo"><img src="./assets/images/${photo}" alt="${name} 프로필 사진" loading="lazy"></div>`
       : fallback;
     return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${ko}</p></article>`;
   }).join("");
@@ -382,16 +354,10 @@ if (teamShell) {
   teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => { const tab=button.dataset.teamTab; teamShell.querySelectorAll("[data-team-tab]").forEach((item)=>item.classList.toggle("is-active",item===button)); teamShell.querySelectorAll("[data-team-view]").forEach((view)=>view.hidden=view.dataset.teamView!==tab); }));
 }
 
-const meetNames = {
-  seoulTrials:"2026 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC\uB300\uD45C\uC120\uBC1C\uC804", national:"2026 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804",
-  masters:"\uC81C30\uD68C \uC77C\uB958\uACBD\uC81C\uB3C4\uC2DC\uB300\uC804 \uC804\uAD6D\uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", barrel25:"2025 \uBC30\uB7F4 \uC2A4\uD504\uB9B0\uD2B8 \uCC54\uD53C\uC5B8\uC2ED", goyang:"2025 \uACE0\uC591 \uC804\uAD6D \uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", seoul11:"\uC81C11\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C (\uD55C\uC911 \uC2A4\uD3EC\uCE20\uAD50\uB958)", mayor45:"\uC81C45\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC7A5\uAE30 \uC218\uC601\uB300\uD68C", songpa8:"\uC81C8\uD68C \uC1A1\uD30C\uAD6C\uC5F0\uB9F9\uD68C\uC7A5\uAE30 \uC218\uC601\uB300\uD68C", barrel24:"2024 \uBC30\uB7F4 \uC2A4\uD504\uB9B0\uD2B8 \uCC54\uD53C\uC5B8\uC2ED", uni31:"\uC81C31\uD68C \uC804\uAD6D\uB300\uD559 \uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", arena:"2026 \uC544\uB808\uB098 \uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", seoul12:"\uC81C12\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C"
-};
-
 // ---- HOME "TEAM UPDATES" CAROUSEL ----
-// Slide count is read from the DOM (data-carousel-track children), so adding or
-// removing <article> cards in index.html is automatically reflected \u2014 nothing here
-// needs to change.
-(function initHomeNewsCarousel() {
+// Slide count is read from the DOM (data-carousel-track children) at call time, so this
+// must run after renderHomeNewsCarousel() has populated the track.
+function initHomeNewsCarousel() {
   const root = document.querySelector("[data-carousel]");
   const track = root && root.querySelector("[data-carousel-track]");
   if (!root || !track) return;
@@ -426,7 +392,7 @@ const meetNames = {
   });
 
   dotsWrap.innerHTML = slides
-    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}\uBC88\uC9F8 \uCE74\uB4DC\uB85C \uC774\uB3D9" data-carousel-dot="${i}"></button>`)
+    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}번째 카드로 이동" data-carousel-dot="${i}"></button>`)
     .join("");
   const dots = Array.from(dotsWrap.querySelectorAll("[data-carousel-dot]"));
 
@@ -471,9 +437,9 @@ const meetNames = {
     if (statusEl) statusEl.setAttribute("aria-live", playing ? "off" : "polite");
     if (toggleBtn) {
       toggleBtn.setAttribute("aria-pressed", String(!playing));
-      toggleBtn.setAttribute("aria-label", playing ? "\uC790\uB3D9 \uC7AC\uC0DD \uC77C\uC2DC\uC815\uC9C0" : "\uC790\uB3D9 \uC7AC\uC0DD \uC2DC\uC791");
-      if (toggleLabel) toggleLabel.textContent = playing ? "\uC77C\uC2DC\uC815\uC9C0" : "\uC7AC\uC0DD";
-      if (toggleIcon) toggleIcon.textContent = playing ? "\u275A\u275A" : "\u25B6";
+      toggleBtn.setAttribute("aria-label", playing ? "자동 재생 일시정지" : "자동 재생 시작");
+      if (toggleLabel) toggleLabel.textContent = playing ? "일시정지" : "재생";
+      if (toggleIcon) toggleIcon.textContent = playing ? "❚❚" : "▶";
     }
     if (playing) startAutoplay(); else stopAutoplay();
   }
@@ -516,15 +482,14 @@ const meetNames = {
 
   goTo(0);
   setPlaying(true);
-})();
+}
 
 // ---- NEWS MODAL ----
 // Card data (title/date·category/image/summary) is read straight from each
 // article's DOM at click time, so cards can be added or removed in the NEWS
-// section markup without touching this script. A future full article body can
-// be added per-card via a `data-news-body` attribute on the <article> — the
-// modal will pick it up automatically; until then it shows a placeholder note.
-(function initNewsModal() {
+// section markup without touching this script. Full article body comes from
+// the `data-news-body` attribute renderNewsSection() sets from content/news.json.
+function initNewsModal() {
   const modal = document.querySelector("[data-news-modal]");
   const panel = modal && modal.querySelector("[data-news-modal-panel]");
   if (!modal || !panel) return;
@@ -626,14 +591,14 @@ const meetNames = {
 
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
-})();
+}
 
 // ---- NEWS CAROUSEL ----
 // A fully separate carousel instance for the NEWS section slides rendered above.
 // This is deliberately NOT shared with initHomeNewsCarousel (TEAM UPDATES) — different
 // data-news-carousel* attributes, different variables/closures, nothing in common — so
 // nothing here can ever affect that carousel's logic or state, and vice versa.
-(function initNewsCarousel() {
+function initNewsCarousel() {
   const root = document.querySelector("[data-news-carousel]");
   const track = root && root.querySelector("[data-news-carousel-track]");
   if (!root || !track) return;
@@ -758,15 +723,15 @@ const meetNames = {
 
   goTo(0);
   setPlaying(true);
-})();
+}
 
 // ---- NOTICE MODAL (공지사항 상세 + 댓글 UI) ----
 // Separate, self-contained modal instance for the NOTICES section — independent from
-// initNewsModal (NEWS 섹션 모달). Reads title/body straight from the clicked row's DOM
-// (data-notice-body 등) at open time via event delegation, so adding/removing rows in
-// noticesData needs no other changes. Comments are session-only (in-memory per notice
-// id, keyed off data-notice-id) — no login/backend yet per spec, so they reset on reload.
-(function initNoticeModal() {
+// initNewsModal (NEWS 섹션 모달). Title/body come from noticesById (keyed by the stable
+// JSON id, not the row's position), so adding/removing entries in content/notices.json
+// needs no other changes. Comments are session-only (in-memory per notice id) — no
+// backend yet for comments per spec, so they reset on reload.
+function initNoticeModal() {
   const modal = document.querySelector("[data-notice-modal]");
   const panel = modal && modal.querySelector("[data-notice-modal-panel]");
   if (!modal || !panel) return;
@@ -841,9 +806,9 @@ const meetNames = {
     currentNoticeId = row.dataset.noticeId;
     lastFocused = trigger || document.activeElement;
 
-    const titleBtn = row.querySelector("[data-notice-open]");
-    titleEl.textContent = titleBtn ? titleBtn.textContent.trim() : "";
-    bodyEl.textContent = row.dataset.noticeBody || "";
+    const notice = noticesById.get(currentNoticeId);
+    titleEl.textContent = notice ? notice.title : "";
+    bodyEl.textContent = notice ? notice.body : "";
 
     if (!commentsByNotice.has(currentNoticeId)) commentsByNotice.set(currentNoticeId, []);
     renderComments();
@@ -892,4 +857,86 @@ const meetNames = {
       nameInput.focus();
     });
   }
-})();
+}
+
+// ---- SCROLL REVEAL ----
+// Registered after content render so it can observe elements that only exist once the
+// fetched JSON has been rendered (e.g. .home-news-grid article cards).
+function setupRevealObservers() {
+  const revealItems = document.querySelectorAll(".reveal");
+  if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } }), { threshold: 0.08 });
+    revealItems.forEach((item) => observer.observe(item));
+  } else revealItems.forEach((item) => item.classList.add("is-visible"));
+
+  // Homepage-only reveal rhythm. Detail pages and navigation remain untouched.
+  const homeRevealGroups = [
+    [".current-panel article", true],
+    [".home-news .home-section-top, .home-news h2", false],
+    [".home-news-grid article", true],
+    [".quick-facts .eyebrow", false],
+    [".quick-facts strong", false],
+    [".home-join .shell > *", false],
+    [".home-contact .contact-layout > *", false]
+  ];
+  const homeRevealItems = [];
+  homeRevealGroups.forEach(([selector, cards]) => document.querySelectorAll(selector).forEach((item, index) => {
+    item.classList.add("home-reveal");
+    if (cards) item.classList.add("home-reveal-card");
+    item.style.setProperty("--reveal-delay", `${index * 90}ms`);
+    homeRevealItems.push(item);
+  }));
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+    homeRevealItems.forEach((item) => item.classList.add("is-visible"));
+  } else {
+    const homeRevealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting || document.body.classList.contains("detail-mode")) return;
+      entry.target.classList.add("is-visible");
+      homeRevealObserver.unobserve(entry.target);
+    }), { threshold: 0.12 });
+    homeRevealItems.forEach((item) => homeRevealObserver.observe(item));
+  }
+}
+
+// ---- CONTENT LOADING ----
+// GitHub Pages caches static files for a few minutes, so { cache: "no-cache" } forces an
+// ETag revalidation request on every load — the admin's edits show up on next reload
+// instead of being stuck behind a stale cached copy. Each fetch fails independently: one
+// bad/missing JSON file falls back to an empty section instead of breaking the page.
+async function fetchJson(path, fallback) {
+  try {
+    const res = await fetch(path, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (err) {
+    console.warn(`콘텐츠를 불러오지 못했습니다: ${path}`, err);
+    return fallback;
+  }
+}
+
+async function loadContentAndRender() {
+  const [schedule, records, relays, gallery, news, notices] = await Promise.all([
+    fetchJson("./content/schedule.json", { events: [] }),
+    fetchJson("./content/records.json", { entries: [] }),
+    fetchJson("./content/relays.json", { entries: [] }),
+    fetchJson("./content/gallery.json", { photos: [] }),
+    fetchJson("./content/news.json", { items: [] }),
+    fetchJson("./content/notices.json", { items: [] })
+  ]);
+
+  renderSchedule(schedule.events || []);
+  renderRecords(records.entries || [], relays.entries || []);
+  renderGallery(gallery.photos || []);
+  renderHomeNewsCarousel(news.items || []);
+  renderNewsSection(news.items || []);
+  renderNotices(notices.items || []);
+
+  initHomeNewsCarousel();
+  initNewsCarousel();
+  initNewsModal();
+  initNoticeModal();
+
+  setupRevealObservers();
+}
+
+loadContentAndRender();
