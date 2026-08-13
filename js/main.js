@@ -30,7 +30,7 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11
 
 
 const scheduleEvents = [
-  ["2025. 5. 11.", "JOINT TRAINING", "한국외대 수영부 연합훈련", "—"],
+  ["2025. 5. 11.", "JOINT TRAINING", "서울대 × 한국외대 수영부 연합훈련", "—"],
   ["2025. 5. 15. – 5. 17.", "COMPETITION", "2025 경기도 도민체전", "우승 (4관왕)"],
   ["2025. 5. 30. – 6. 1.", "COMPETITION", "제2회 쉬엄쉬엄 한강 3종 축제", "—"],
   ["2025. 6. 21. – 6. 22.", "COMPETITION", "2025 한강크로스위밍챌린지", "—"],
@@ -58,6 +58,7 @@ const scheduleLogoRules = [
       { src: "polyu.png", alt: "PolyU" }
     ] },
   { match: "한국외대", logos: [
+      { src: "university-logo.png", alt: "서울대학교" },
       { src: "hufs.png", alt: "한국외국어대학교" }
     ] }
 ];
