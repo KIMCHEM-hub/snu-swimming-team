@@ -2,9 +2,7 @@ backend:
   name: github
   repo: KIMCHEM-hub/snu-swimming-team
   branch: main
-  # Phase 3(Cloudflare Worker OAuth 배포)를 마친 뒤 아래 URL을 실제 Worker 주소로 바꾸세요.
-  # 예: https://sveltia-cms-auth.<your-subdomain>.workers.dev
-  base_url: https://REPLACE-WITH-YOUR-WORKER.workers.dev
+  base_url: https://sveltia-cms-auth.chemi-kim1701.workers.dev
 
 # 커밋 즉시 반영. 나중에 검토(승인) 절차가 필요해지면 editorial_workflow로 바꾸세요.
 publish_mode: simple
