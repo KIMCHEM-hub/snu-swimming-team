@@ -171,18 +171,21 @@ if (newsGrid) {
 }
 
 // ---- NOTICES: 공지사항 목록 (날짜 최신순, 행 추가/삭제는 noticesData 배열만 수정하면 됨) ----
+// 제목 클릭 시 상세 모달(본문+댓글)이 뜨는데, 그 모달(initNoticeModal)은 클릭 시점에
+// 이 DOM(article의 date/title/author/data-notice-body)을 그대로 읽어가므로 여기
+// 배열만 수정해도 모달 내용까지 자동으로 반영됨 — 별도 하드코딩 지점 없음.
 const noticeList = document.querySelector("#notices [data-notice-list]");
 if (noticeList) {
   const noticesData = [
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" },
-    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]" }
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" },
+    { date:"[YYYY.MM.DD]", title:"[제목]", author:"[작성자]", body:"[공지 내용을 입력하세요. 실제 공지사항이 준비되면 이 영역이 교체됩니다.]" }
   ];
   const rowsHtml = noticesData
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))
-    .map((n) => `<article class="notice-row"><time class="notice-date">${n.date}</time><h3 class="notice-title">${n.title}</h3><span class="notice-author">${n.author}</span></article>`)
+    .map((n, i) => `<article class="notice-row" data-notice-id="${i}" data-notice-body="${n.body.replace(/"/g, "&quot;")}"><time class="notice-date">${n.date}</time><h3 class="notice-title"><button type="button" class="notice-title-btn" data-notice-open aria-haspopup="dialog">${n.title}</button></h3><span class="notice-author">${n.author}</span></article>`)
     .join("");
   noticeList.innerHTML = rowsHtml || '<p class="notice-empty">등록된 공지사항이 없습니다.</p>';
 }
@@ -755,4 +758,138 @@ const meetNames = {
 
   goTo(0);
   setPlaying(true);
+})();
+
+// ---- NOTICE MODAL (공지사항 상세 + 댓글 UI) ----
+// Separate, self-contained modal instance for the NOTICES section — independent from
+// initNewsModal (NEWS 섹션 모달). Reads title/body straight from the clicked row's DOM
+// (data-notice-body 등) at open time via event delegation, so adding/removing rows in
+// noticesData needs no other changes. Comments are session-only (in-memory per notice
+// id, keyed off data-notice-id) — no login/backend yet per spec, so they reset on reload.
+(function initNoticeModal() {
+  const modal = document.querySelector("[data-notice-modal]");
+  const panel = modal && modal.querySelector("[data-notice-modal-panel]");
+  if (!modal || !panel) return;
+
+  const closeBtn = modal.querySelector("[data-notice-modal-close]");
+  const titleEl = modal.querySelector("[data-notice-modal-title]");
+  const bodyEl = modal.querySelector("[data-notice-modal-body]");
+  const commentListEl = modal.querySelector("[data-notice-comment-list]");
+  const commentCountEl = modal.querySelector("[data-notice-modal-comment-count]");
+  const commentForm = modal.querySelector("[data-notice-comment-form]");
+  const nameInput = modal.querySelector("[data-notice-comment-name]");
+  const textInput = modal.querySelector("[data-notice-comment-text]");
+  const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const commentsByNotice = new Map();
+  let lastFocused = null;
+  let currentNoticeId = null;
+
+  function getFocusable() {
+    return Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR)).filter((el) => el.offsetParent !== null);
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") { event.preventDefault(); closeModal(); return; }
+    if (event.key !== "Tab") return;
+    const focusable = getFocusable();
+    if (!focusable.length) { event.preventDefault(); panel.focus(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+      event.preventDefault(); first.focus();
+    }
+  }
+
+  function formatCommentTime(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function renderComments() {
+    const comments = commentsByNotice.get(currentNoticeId) || [];
+    commentCountEl.textContent = String(comments.length);
+    commentListEl.innerHTML = "";
+    if (!comments.length) {
+      const empty = document.createElement("li");
+      empty.className = "notice-comment-empty";
+      empty.textContent = "아직 댓글이 없습니다. 첫 댓글을 남겨보세요.";
+      commentListEl.appendChild(empty);
+      return;
+    }
+    comments.forEach((c) => {
+      const li = document.createElement("li");
+      li.className = "notice-comment";
+      const head = document.createElement("div");
+      head.className = "notice-comment-head";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = c.name;
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "notice-comment-time";
+      timeSpan.textContent = c.time;
+      head.append(nameSpan, timeSpan);
+      const textP = document.createElement("p");
+      textP.className = "notice-comment-text";
+      textP.textContent = c.text;
+      li.append(head, textP);
+      commentListEl.appendChild(li);
+    });
+  }
+
+  function openModal(row, trigger) {
+    currentNoticeId = row.dataset.noticeId;
+    lastFocused = trigger || document.activeElement;
+
+    const titleBtn = row.querySelector("[data-notice-open]");
+    titleEl.textContent = titleBtn ? titleBtn.textContent.trim() : "";
+    bodyEl.textContent = row.dataset.noticeBody || "";
+
+    if (!commentsByNotice.has(currentNoticeId)) commentsByNotice.set(currentNoticeId, []);
+    renderComments();
+
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("notice-modal-open");
+    document.addEventListener("keydown", handleKeydown);
+    panel.focus();
+  }
+
+  function closeModal() {
+    if (!modal.classList.contains("is-open")) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("notice-modal-open");
+    document.removeEventListener("keydown", handleKeydown);
+    if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
+    lastFocused = null;
+    currentNoticeId = null;
+  }
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-notice-open]");
+    if (!trigger) return;
+    const row = trigger.closest(".notice-row");
+    if (!row) return;
+    openModal(row, trigger);
+  });
+
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+
+  if (commentForm) {
+    commentForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (currentNoticeId === null) return;
+      const name = nameInput.value.trim();
+      const text = textInput.value.trim();
+      if (!name || !text) return;
+      const comments = commentsByNotice.get(currentNoticeId) || [];
+      comments.push({ name, text, time: formatCommentTime(new Date()) });
+      commentsByNotice.set(currentNoticeId, comments);
+      renderComments();
+      commentForm.reset();
+      nameInput.focus();
+    });
+  }
 })();
