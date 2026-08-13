@@ -28,6 +28,7 @@ collections:
               - { label: "직책 (영문)", name: role, widget: string, hint: "예: CAPTAIN, VICE CAPTAIN, TRAINING DIRECTOR, TREASURER" }
               - { label: 이름, name: name, widget: string }
               - { label: "직책 (한글)", name: koRole, widget: string, hint: "예: 주장, 부주장, 훈련부장, 총무" }
+              - { label: "직책 (한글 — EN 페이지용 영문)", name: koRoleEn, widget: string, required: false, hint: "EN 화면에서 '직책 (한글)' 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다. 나중에 업로드하면 자동으로 교체됩니다." }
 
   - name: team
@@ -38,6 +39,7 @@ collections:
         file: content/team.json
         fields:
           - { label: "공용 안내 문구", name: membersNote, widget: text, hint: "LEADERSHIP · MEMBERS · LEGACY 세 탭 중 어느 하나라도 등록된 항목이 0개면, 해당 탭에 이 문구가 대신 표시됩니다." }
+          - { label: "공용 안내 문구 (영문)", name: membersNoteEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
           - label: 부원 명단
             name: members
             widget: list
@@ -47,7 +49,9 @@ collections:
             fields:
               - { label: 이름, name: name, widget: string }
               - { label: 소속(학과), name: department, widget: string, required: false }
+              - { label: "소속(학과) (영문)", name: departmentEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 학번/기수, name: year, widget: string, required: false }
+              - { label: "학번/기수 (영문)", name: yearEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다." }
 
   - name: legacy
@@ -66,6 +70,7 @@ collections:
             fields:
               - { label: 이름, name: name, widget: string }
               - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }
+              - { label: "내용 (영문)", name: bodyEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: "영문 캡션 (선택)", name: tag, widget: string, required: false, hint: "예: 2014 INCHEON ASIAN GAMES · WOMEN'S 4×100M MEDLEY RELAY · SILVER" }
 
   - name: training
@@ -83,13 +88,17 @@ collections:
               - { label: 요일, name: day, widget: select, options: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] }
               - { label: 시간, name: time, widget: string, hint: "예: 17:00–18:30" }
               - { label: 세션명, name: session, widget: string, hint: "예: REGULAR TRAINING" }
+              - { label: "세션명 (영문)", name: sessionEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 장소, name: location, widget: string }
+              - { label: "장소 (영문)", name: locationEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
           - label: 드라이랜드 훈련
             name: dryland
             widget: object
             fields:
               - { label: 제목, name: headline, widget: string, hint: "예: TBD, 또는 실제 훈련 요일/시간" }
+              - { label: "제목 (영문)", name: headlineEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 캡션, name: caption, widget: string, hint: "예: 추후 안내 예정" }
+              - { label: "캡션 (영문)", name: captionEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
 
   - name: schedule
     label: "일정 (SCHEDULE)"
@@ -105,9 +114,12 @@ collections:
             fields:
               - { label: 시작일, name: startDate, widget: datetime, type: date, format: "YYYY-MM-DD", hint: "시즌 분류(연도)와 정렬에 쓰입니다" }
               - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 2. – 5. 3." }
+              - { label: "표시용 날짜 (영문)", name: dateLabelEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 구분, name: type, widget: select, options: ["COMPETITION", "JOINT TRAINING", "EXCHANGE EVENT"] }
               - { label: 제목, name: title, widget: string }
+              - { label: "제목 (영문)", name: titleEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다. 로고 매칭(카이스트 등)은 이 한국어 제목을 기준으로 계속 동작합니다." }
               - { label: 결과, name: result, widget: string, required: false, hint: "비우면 — 로 표시됩니다" }
+              - { label: "결과 (영문)", name: resultEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
 
   - name: records
     label: "기록 (RECORDS)"
@@ -126,8 +138,10 @@ collections:
               - { label: 기록, name: time, widget: string, hint: "초 단위(24.43) 또는 분:초(1:07.35) — 정렬에 자동 반영됩니다" }
               - { label: 태그, name: tags, widget: list, required: false, hint: "예: PB, GR, GOLD, SILVER, BRONZE, 5위" }
               - { label: 대회명, name: meet, widget: string }
+              - { label: "대회명 (영문)", name: meetEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 날짜, name: date, widget: string, hint: "예: 2026. 3. 7." }
               - { label: 비고, name: detail, widget: string, required: false, hint: "예: 예선, 결승" }
+              - { label: "비고 (영문)", name: detailEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
 
   - name: relays
     label: "계영 기록 (RELAY)"
@@ -142,11 +156,14 @@ collections:
             summary: "{{event}} · {{time}}"
             fields:
               - { label: 종목, name: event, widget: string, hint: "예: 혼계영 200m" }
+              - { label: "종목 (영문)", name: eventEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 팀명, name: team, widget: string }
               - { label: 기록, name: time, widget: string }
               - { label: 대회명, name: meet, widget: string }
+              - { label: "대회명 (영문)", name: meetEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 날짜, name: date, widget: string }
               - { label: 참가 인원, name: members, widget: string, hint: "예: 12명" }
+              - { label: "참가 인원 (영문)", name: membersEn, widget: string, required: false, hint: "예: 12 swimmers. 비우면 한국어가 그대로 표시됩니다." }
 
   - name: gallery
     label: "갤러리 (GALLERY)"
@@ -163,7 +180,9 @@ collections:
               - { label: 카테고리, name: category, widget: select, options: ["training", "competition", "team", "events"], hint: "필터 버튼과 연결됩니다" }
               - { label: 라벨, name: label, widget: string, hint: "예: TRAINING, COMPETITION, TEAM, TEAM EVENT, EXCHANGE EVENT" }
               - { label: 제목, name: title, widget: string }
+              - { label: "제목 (영문)", name: titleEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 설명, name: meta, widget: string }
+              - { label: "설명 (영문)", name: metaEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 사진, name: image, widget: image }
               - { label: 원본 가로폭(px), name: w, widget: number, required: false, hint: "축소본(-sm.webp)을 별도로 준비해 올린 사진만 입력하세요. 비워두면 축소본 없이 원본이 그대로 표시됩니다." }
               - { label: 축소본 가로폭(px), name: sw, widget: number, required: false }
@@ -183,12 +202,17 @@ collections:
             fields:
               - { label: 시작일, name: startDate, widget: datetime, type: date, format: "YYYY-MM-DD", hint: "NEWS 섹션 정렬에 쓰입니다" }
               - { label: 표시용 날짜, name: dateLabel, widget: string, hint: "예: 2026. 5. 18. – 5. 21." }
+              - { label: "표시용 날짜 (영문)", name: dateLabelEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 구분, name: category, widget: select, options: ["COMPETITION", "EXCHANGE EVENT", "TEAM", "RECRUITMENT", "ANNOUNCEMENT"] }
               - { label: 제목, name: title, widget: string }
+              - { label: "제목 (영문)", name: titleEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 사진, name: image, widget: image }
               - { label: 사진 대체텍스트, name: alt, widget: string }
+              - { label: "사진 대체텍스트 (영문)", name: altEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: "성과 요약 (홈 리드 카드용)", name: result, widget: string, required: false, hint: "채우면 홈 캐러셀에서 이 카드가 'VIEW RESULTS' 링크로 표시됩니다. 비우면 'VIEW SCHEDULE' 링크가 표시됩니다." }
+              - { label: "성과 요약 (영문)", name: resultEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: "본문 (READ MORE 모달)", name: body, widget: text, required: false }
+              - { label: "본문 (영문)", name: bodyEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
 
   - name: notices
     label: "공지사항"
@@ -205,8 +229,10 @@ collections:
               - { label: 고유 ID, name: id, widget: string, hint: "각 공지를 구분하는 고유 식별자입니다. 영문/숫자/하이픈 권장 (예: 2026-08-13-recruitment)." }
               - { label: 날짜, name: date, widget: datetime, type: date, format: "YYYY-MM-DD" }
               - { label: 제목, name: title, widget: string }
+              - { label: "제목 (영문)", name: titleEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 작성자, name: author, widget: string }
               - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }
+              - { label: "내용 (영문)", name: bodyEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
 
   - name: weekly-training
     label: "이번 주 훈련 세션"
@@ -229,6 +255,10 @@ collections:
                 widget: object
                 fields:
                   - { label: Warm-up, name: warmup, widget: text }
+                  - { label: "Warm-up (영문)", name: warmupEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
                   - { label: Main Set, name: mainset, widget: text }
+                  - { label: "Main Set (영문)", name: mainsetEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
                   - { label: Events, name: events, widget: text }
+                  - { label: "Events (영문)", name: eventsEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
                   - { label: Cool-down, name: cooldown, widget: text }
+                  - { label: "Cool-down (영문)", name: cooldownEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }

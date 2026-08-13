@@ -42,16 +42,22 @@
     .gallery-media img{transition:transform .5s cubic-bezier(.22,1,.36,1)}.gallery-item:hover .gallery-media img{transform:scale(1.045)}
     .leadership-directory .leader .member-photo{overflow:hidden}.leadership-directory .leader .member-photo img{transition:transform .5s cubic-bezier(.22,1,.36,1)}.leadership-directory .leader:hover .member-photo img{transform:scale(1.04)}
     .notice-modal-divider{background:repeating-linear-gradient(90deg,var(--snu-blue) 0 10px,var(--snu-gold) 10px 14px,var(--snu-blue) 14px 24px,var(--snu-aqua) 24px 28px);height:3px;border:0}
+    .nav-sep{color:rgba(255,255,255,.4);font-weight:400;user-select:none}
+    .lang-switch{display:inline-flex;align-items:center;border:1px solid rgba(255,255,255,.45);border-radius:999px;overflow:hidden}
+    .lang-switch button{border:0;background:none;padding:5px 11px;font-family:var(--font-ui);font-size:10px;font-weight:700;letter-spacing:.07em;color:rgba(255,255,255,.55);line-height:1;cursor:pointer}
+    .lang-switch button[aria-pressed="true"]{background:var(--snu-gold);color:var(--snu-blue)}
+    .lang-switch button:focus-visible{outline:2px solid var(--snu-gold);outline-offset:2px}
+    @media(max-width:760px){.nav-sep{display:none}.lang-switch{margin-top:14px}.lang-switch button{padding:8px 16px;font-size:12px}}
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#about">본문으로 건너뛰기</a>
+  <a class="skip-link" href="#about" data-i18n="a11y.skipLink">본문으로 건너뛰기</a>
   <header class="site-header" data-header>
-    <nav class="nav shell" aria-label="주요 메뉴">
-      <a class="brand" href="#top" aria-label="서울대학교 수영부 메인으로 이동"><img src="./assets/images/university-logo.png" alt="서울대학교 로고"><span>서울대학교<br><b>SEOUL NATIONAL UNIVERSITY</b></span></a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-menu"><span class="sr-only">메뉴 열기</span><i></i><i></i></button>
+    <nav class="nav shell" aria-label="주요 메뉴" data-i18n-attr="aria-label:a11y.mainNav">
+      <a class="brand" href="#top" aria-label="서울대학교 수영부 메인으로 이동" data-i18n-attr="aria-label:a11y.brandHome"><img src="./assets/images/university-logo.png" alt="서울대학교 로고"><span>서울대학교<br><b>SEOUL NATIONAL UNIVERSITY</b></span></a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-menu"><span class="sr-only" data-i18n="a11y.openMenu">메뉴 열기</span><i></i><i></i></button>
       <div class="nav-menu" id="primary-menu">
-        <a href="#about">ABOUT</a><a href="#team">TEAM</a><a href="#training">TRAINING</a><a href="#schedule">SCHEDULE</a><a href="#records">RECORDS</a><a href="#news">NEWS</a><a href="#notices">공지사항</a><a href="#gallery">GALLERY</a><a href="#join">JOIN</a><a href="./admin/" data-admin-link hidden>ADMIN</a>
+        <a href="#about">ABOUT</a><a href="#team">TEAM</a><a href="#training">TRAINING</a><a href="#schedule">SCHEDULE</a><a href="#records">RECORDS</a><a href="#news">NEWS</a><a href="#notices" data-i18n="nav.notices">공지사항</a><a href="#gallery">GALLERY</a><a href="#join">JOIN</a><span class="nav-sep" aria-hidden="true">|</span><div class="lang-switch" role="group" aria-label="Language / 언어 선택"><button type="button" data-lang="ko" aria-pressed="true">KR</button><button type="button" data-lang="en" aria-pressed="false">EN</button></div><a href="./admin/" data-admin-link hidden>ADMIN</a>
       </div>
     </nav>
   </header>
@@ -65,7 +71,7 @@
       <div class="home-section-top"><p class="eyebrow accent">LATEST NEWS</p><a href="#news">ALL NEWS ↗</a></div>
       <h2 id="home-news-title">TEAM UPDATES</h2>
       <div class="home-news-carousel-wrap">
-        <div class="home-news-carousel" data-carousel aria-roledescription="carousel" aria-label="TEAM UPDATES 카드 슬라이드 (6초마다 자동 전환)">
+        <div class="home-news-carousel" data-carousel aria-roledescription="carousel" aria-label="TEAM UPDATES 카드 슬라이드 (6초마다 자동 전환)" data-i18n-attr="aria-label:carousel.homeAria">
           <div class="home-news-viewport">
             <div class="home-news-grid" data-carousel-track>
               <article class="home-news-lead"><img src="./assets/images/C32C.webp" alt="제31회 전국대학수영선수권대회 사진" loading="lazy"><p>2025. 11. 8. – 11. 9. · COMPETITION</p><h3>제31회 전국대학수영선수권대회</h3><span>공동 1위 (남자 2부 · 여자 2부)</span><a href="#records">VIEW RESULTS ↗</a></article>
@@ -73,12 +79,12 @@
               <article><img src="./assets/images/POLYU.webp" alt="서울대와 PolyU 교류 사진" loading="lazy"><p>2026. 5. 18. – 5. 21. · EXCHANGE EVENT</p><h3>서울대 × PolyU</h3><a href="#schedule">VIEW SCHEDULE ↗</a></article>
             </div>
           </div>
-          <button type="button" class="home-news-arrow home-news-arrow-prev" data-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button>
-          <button type="button" class="home-news-arrow home-news-arrow-next" data-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button>
+          <button type="button" class="home-news-arrow home-news-arrow-prev" data-carousel-prev aria-label="이전 카드" data-i18n-attr="aria-label:carousel.prev"><span aria-hidden="true">‹</span></button>
+          <button type="button" class="home-news-arrow home-news-arrow-next" data-carousel-next aria-label="다음 카드" data-i18n-attr="aria-label:carousel.next"><span aria-hidden="true">›</span></button>
         </div>
         <div class="home-news-carousel-controls">
-          <div class="home-news-dots" data-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div>
-          <button type="button" class="home-news-toggle" data-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-carousel-toggle-icon>❚❚</span><span data-carousel-toggle-label>일시정지</span></button>
+          <div class="home-news-dots" data-carousel-dots role="tablist" aria-label="카드로 바로 이동" data-i18n-attr="aria-label:carousel.dotsAria"></div>
+          <button type="button" class="home-news-toggle" data-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-carousel-toggle-icon>❚❚</span><span data-carousel-toggle-label data-i18n="carousel.pause">일시정지</span></button>
         </div>
         <p class="sr-only" data-carousel-status role="status" aria-live="off"></p>
       </div>
@@ -90,7 +96,7 @@
 
     <section class="home-contact"><div class="shell contact-layout"><div><p class="eyebrow">STAY CONNECTED</p><h2>SWIM<br>WITH US.</h2></div><div class="contact-details"><a href="https://www.instagram.com/snu_swimming/" target="_blank" rel="noopener noreferrer"><span>INSTAGRAM · KOREA</span><b>@snu_swimming</b> ↗</a><a href="https://www.instagram.com/snuswimmingteam/" target="_blank" rel="noopener noreferrer"><span>INSTAGRAM · GLOBAL</span><b>@snuswimmingteam</b> ↗</a><a href="mailto:kmcsfc0@snu.ac.kr?subject=%5B%EC%88%98%EC%98%81%EB%B6%80%20%EB%AC%B8%EC%9D%98%5D"><span>EMAIL</span><b>kmcsfc0@snu.ac.kr</b> ↗</a><p>Please begin the subject line with <b>[수영부 문의]</b> or <b>[Swimming team]</b>.</p><a href="https://docs.google.com/forms/d/e/1FAIpQLSf19kkZ86q6pD0cDGsQB55hXEhcXQGjLvPc1k5JUbmQVnT3Jg/closedform" target="_blank" rel="noopener noreferrer"><span>RECRUITMENT</span><b>JOIN THE TEAM</b> ↗</a></div></div></section>
 
-    <section class="section about content-section" id="about" aria-labelledby="about-title"><div class="shell two-col reveal"><p class="section-number">01</p><div><p class="eyebrow accent">ABOUT US</p><h2 id="about-title">BUILT<br>LANE BY LANE.</h2><p class="lead">서울대학교 수영부는 1983년 창단된 서울대학교의 대표 수영 운동부입니다. 오랜 전통을 바탕으로 개인의 기록 향상과 체력 증진을 추구하는 동시에, 함께 훈련하며 책임감과 팀워크를 기르는 것을 목표로 하고 있습니다.</p><p class="body-copy">현재 약 30~40명의 부원이 활동하고 있으며, 선수 경력자부터 수영을 체계적으로 배우고자 하는 학생들까지 다양한 구성원이 함께하고 있습니다. 체계적인 훈련과 상호 피드백을 통해 각자의 목표에 맞춰 꾸준히 성장하고 있습니다.</p><dl class="facts"><div><dt>IDENTITY</dt><dd>TRADITION · PERFORMANCE · TEAMWORK</dd></div><div><dt>PHILOSOPHY</dt><dd>TRAIN TOGETHER. GROW TOGETHER.</dd></div><div><dt>UNIVERSITY</dt><dd>SEOUL NATIONAL<br>UNIVERSITY</dd></div></dl></div></div></section>
+    <section class="section about content-section" id="about" aria-labelledby="about-title"><div class="shell two-col reveal"><p class="section-number">01</p><div><p class="eyebrow accent">ABOUT US</p><h2 id="about-title">BUILT<br>LANE BY LANE.</h2><p class="lead" data-i18n="about.lead">서울대학교 수영부는 1983년 창단된 서울대학교의 대표 수영 운동부입니다. 오랜 전통을 바탕으로 개인의 기록 향상과 체력 증진을 추구하는 동시에, 함께 훈련하며 책임감과 팀워크를 기르는 것을 목표로 하고 있습니다.</p><p class="body-copy" data-i18n="about.body">현재 약 30~40명의 부원이 활동하고 있으며, 선수 경력자부터 수영을 체계적으로 배우고자 하는 학생들까지 다양한 구성원이 함께하고 있습니다. 체계적인 훈련과 상호 피드백을 통해 각자의 목표에 맞춰 꾸준히 성장하고 있습니다.</p><dl class="facts"><div><dt>IDENTITY</dt><dd>TRADITION · PERFORMANCE · TEAMWORK</dd></div><div><dt>PHILOSOPHY</dt><dd>TRAIN TOGETHER. GROW TOGETHER.</dd></div><div><dt>UNIVERSITY</dt><dd>SEOUL NATIONAL<br>UNIVERSITY</dd></div></dl></div></div></section>
 
     <section class="section team surface content-section" id="team" aria-labelledby="team-title"><div class="shell reveal"><div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2 id="team-title">ONE TEAM.<br>ONE WATER.</h2></div><div class="filter-bar" role="tablist" aria-label="팀 구성"><button class="is-active" role="tab" aria-selected="true">ALL</button><button role="tab" aria-selected="false">LEADERSHIP</button><button role="tab" aria-selected="false">MEMBERS</button></div><div class="roster-grid"><article class="member"><div class="member-photo">PHOTO</div><p>CAPTAIN</p><h3>[NAME]</h3><span>[DEPARTMENT] · [YEAR]</span><small>[SPECIALTY / STROKE]</small></article><article class="member"><div class="member-photo">PHOTO</div><p>VICE CAPTAIN</p><h3>[NAME]</h3><span>[DEPARTMENT] · [YEAR]</span><small>[SPECIALTY / STROKE]</small></article><article class="member"><div class="member-photo">PHOTO</div><p>MEMBER</p><h3>[NAME]</h3><span>[DEPARTMENT] · [YEAR]</span><small>[SPECIALTY / STROKE]</small></article><article class="member"><div class="member-photo">PHOTO</div><p>MEMBER</p><h3>[NAME]</h3><span>[DEPARTMENT] · [YEAR]</span><small>[SPECIALTY / STROKE]</small></article></div></div></section>
 
@@ -106,11 +112,11 @@
 
     <section class="section gallery dark" id="gallery" aria-labelledby="gallery-title"><div class="shell reveal"><div class="section-head"><div><p class="section-number">07</p><p class="eyebrow">GALLERY</p></div><h2 id="gallery-title">IN<br>MOTION.</h2></div><div class="gallery-filter" role="tablist"><button class="is-active">ALL</button><button>TRAINING</button><button>COMPETITION</button><button>TEAM</button><button>EVENTS</button></div><div class="photo-grid"></div></div></section>
 
-    <section class="section join" id="join" aria-labelledby="join-title"><div class="shell reveal"><p class="section-number">08</p><p class="eyebrow accent">JOIN US</p><div class="join-layout"><div><h2 id="join-title">MAKE<br>A SPLASH.</h2><p class="lead">서울대학교 공식 수영부와 함께 훈련하고 활동할 새로운 팀원을 모집합니다.</p></div><dl class="join-details"><div><dt>ELIGIBILITY</dt><dd>서울대학교 소속 구성원</dd></div><div><dt>COMMITMENT</dt><dd>한 학기</dd></div><div><dt>SWIMMING REQUIREMENT</dt><dd>2가지 이상의 영법을 구사</dd></div><div><dt>HOW TO APPLY</dt><dd>JOIN THE TEAM 설문 참여</dd></div></dl></div><div class="join-actions"><a class="button primary" href="https://docs.google.com/forms/d/e/1FAIpQLSf19kkZ86q6pD0cDGsQB55hXEhcXQGjLvPc1k5JUbmQVnT3Jg/closedform" target="_blank" rel="noopener noreferrer">JOIN THE TEAM <span>↗</span></a><a class="button" href="#" aria-label="추후 모집 상세 정보 연결">RECRUITMENT INFO <span>↗</span></a></div></div></section>
+    <section class="section join" id="join" aria-labelledby="join-title"><div class="shell reveal"><p class="section-number">08</p><p class="eyebrow accent">JOIN US</p><div class="join-layout"><div><h2 id="join-title">MAKE<br>A SPLASH.</h2><p class="lead" data-i18n="join.lead">서울대학교 공식 수영부와 함께 훈련하고 활동할 새로운 팀원을 모집합니다.</p></div><dl class="join-details"><div><dt>ELIGIBILITY</dt><dd data-i18n="join.eligibility">서울대학교 소속 구성원</dd></div><div><dt>COMMITMENT</dt><dd data-i18n="join.commitment">한 학기</dd></div><div><dt>SWIMMING REQUIREMENT</dt><dd data-i18n="join.requirement">2가지 이상의 영법을 구사</dd></div><div><dt>HOW TO APPLY</dt><dd data-i18n="join.howToApply">JOIN THE TEAM 설문 참여</dd></div></dl></div><div class="join-actions"><a class="button primary" href="https://docs.google.com/forms/d/e/1FAIpQLSf19kkZ86q6pD0cDGsQB55hXEhcXQGjLvPc1k5JUbmQVnT3Jg/closedform" target="_blank" rel="noopener noreferrer">JOIN THE TEAM <span>↗</span></a><a class="button" href="#" aria-label="추후 모집 상세 정보 연결" data-i18n-attr="aria-label:join.recruitmentInfoAria">RECRUITMENT INFO <span>↗</span></a></div></div></section>
 
     <div class="news-modal" data-news-modal aria-hidden="true">
       <div class="news-modal-panel" role="dialog" aria-modal="true" aria-labelledby="news-modal-title" aria-describedby="news-modal-body" tabindex="-1" data-news-modal-panel>
-        <button type="button" class="news-modal-close" data-news-modal-close aria-label="닫기">&times;</button>
+        <button type="button" class="news-modal-close" data-news-modal-close aria-label="닫기" data-i18n-attr="aria-label:common.close">&times;</button>
         <img class="news-modal-image" data-news-modal-image alt="" hidden>
         <p class="news-modal-meta" data-news-modal-meta></p>
         <h2 id="news-modal-title" data-news-modal-title></h2>
@@ -121,7 +127,7 @@
 
     <div class="notice-modal" data-notice-modal aria-hidden="true">
       <div class="notice-modal-panel" role="dialog" aria-modal="true" aria-labelledby="notice-modal-title" tabindex="-1" data-notice-modal-panel>
-        <button type="button" class="notice-modal-close" data-notice-modal-close aria-label="닫기">&times;</button>
+        <button type="button" class="notice-modal-close" data-notice-modal-close aria-label="닫기" data-i18n-attr="aria-label:common.close">&times;</button>
         <h2 id="notice-modal-title" class="notice-modal-title" data-notice-modal-title></h2>
         <hr class="notice-modal-divider">
         <div class="notice-modal-body" data-notice-modal-body></div>
@@ -129,6 +135,6 @@
     </div>
   </main>
 
-  <footer class="footer"><div class="shell"><div class="footer-brand">SEOUL NATIONAL UNIVERSITY<br><b>OFFICIAL SWIMMING TEAM</b></div><div class="footer-links"><a href="#about">ABOUT</a><a href="#team">TEAM</a><a href="#training">TRAINING</a><a href="#schedule">SCHEDULE</a><a href="#records">RECORDS</a><a href="#news">NEWS</a><a href="#notices">공지사항</a><a href="#gallery">GALLERY</a><a href="#join">JOIN</a></div><div class="footer-contact"><a href="https://www.instagram.com/snu_swimming/" target="_blank" rel="noopener noreferrer">INSTAGRAM · KOREA</a><a href="https://www.instagram.com/snuswimmingteam/" target="_blank" rel="noopener noreferrer">INSTAGRAM · GLOBAL</a><a href="mailto:kmcsfc0@snu.ac.kr?subject=%5B%EC%88%98%EC%98%81%EB%B6%80%20%EB%AC%B8%EC%9D%98%5D">kmcsfc0@snu.ac.kr</a><small>Please begin the subject line with [수영부 문의] or [Swimming team].</small></div><p>© <span data-year></span> SEOUL NATIONAL UNIVERSITY OFFICIAL SWIMMING TEAM</p></div></footer>
+  <footer class="footer"><div class="shell"><div class="footer-brand">SEOUL NATIONAL UNIVERSITY<br><b>OFFICIAL SWIMMING TEAM</b></div><div class="footer-links"><a href="#about">ABOUT</a><a href="#team">TEAM</a><a href="#training">TRAINING</a><a href="#schedule">SCHEDULE</a><a href="#records">RECORDS</a><a href="#news">NEWS</a><a href="#notices" data-i18n="nav.notices">공지사항</a><a href="#gallery">GALLERY</a><a href="#join">JOIN</a></div><div class="footer-contact"><a href="https://www.instagram.com/snu_swimming/" target="_blank" rel="noopener noreferrer">INSTAGRAM · KOREA</a><a href="https://www.instagram.com/snuswimmingteam/" target="_blank" rel="noopener noreferrer">INSTAGRAM · GLOBAL</a><a href="mailto:kmcsfc0@snu.ac.kr?subject=%5B%EC%88%98%EC%98%81%EB%B6%80%20%EB%AC%B8%EC%9D%98%5D">kmcsfc0@snu.ac.kr</a><small>Please begin the subject line with [수영부 문의] or [Swimming team].</small><a href="https://www.snu.ac.kr/" target="_blank" rel="noopener noreferrer" data-i18n="footer.snuHomepage">SNU HOMEPAGE</a></div><p>© <span data-year></span> <span data-i18n="footer.copyrightSuffix">SEOUL NATIONAL UNIVERSITY OFFICIAL SWIMMING TEAM. All rights reserved.</span></p></div></footer>
   <script src="./js/main.js" type="module"></script>
 </body></html>

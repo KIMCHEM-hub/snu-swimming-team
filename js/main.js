@@ -1,3 +1,17 @@
+import { initLang, applyStaticTranslations, t, pick } from "./i18n.js";
+
+// ---- RE-RENDER TEARDOWN REGISTRY ----
+// renderAll() (see CONTENT LOADING below) re-runs on every language switch — cheap since
+// both languages already live in the same fetched JSON, no re-fetch needed. But several
+// init*() functions build closures (carousel autoplay timers, modal keydown listeners,
+// reveal IntersectionObservers) that would otherwise stack a duplicate copy on top of the
+// previous render's. Those functions register a cleanup callback here; runTeardowns()
+// clears all of them right before a re-render starts.
+const teardowns = [];
+function runTeardowns() {
+  teardowns.splice(0).forEach((fn) => { try { fn(); } catch (err) { /* one bad teardown shouldn't block the rest */ } });
+}
+
 const header = document.querySelector("[data-header]");
 const toggle = document.querySelector(".menu-toggle");
 const menu = document.querySelector("#primary-menu");
@@ -152,11 +166,16 @@ function scheduleStatusClass(status) {
   return "competition";
 }
 function renderScheduleRow(event) {
-  const { dateLabel, type, title, result } = event;
-  const logos = getScheduleLogos(title);
+  const { type } = event;
+  // Logo matching keys off the raw (Korean) title, not the translated display title —
+  // scheduleLogoRules' match strings ("카이스트" etc.) only ever appear in event.title.
+  const logos = getScheduleLogos(event.title);
   const logosHtml = logos.length
     ? logos.map((l, i) => `${i > 0 ? '<span class="schedule-logo-mark">×</span>' : ""}<img src="./assets/images/${l.src}" alt="${l.alt}" loading="lazy">`).join("")
     : "";
+  const dateLabel = pick(event, "dateLabel");
+  const title = pick(event, "title");
+  const result = pick(event, "result");
   return `<article class="schedule-row" role="row"><time>${dateLabel}</time><div class="schedule-logos${logos.length ? " has-logos" : ""}">${logosHtml}</div><div><p class="status ${scheduleStatusClass(type)}">${type}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
 }
 function renderSeasonAccordion(year, events, isOpen) {
@@ -212,19 +231,21 @@ function renderRecords(recordEntries, relayEntries) {
   function renderRecordsTable(eventName) {
     if (eventName === "RELAY") {
       const rows = relayEntries.slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time)).map((r) =>
-        `<tr><td>${r.event}</td><td>${r.team}</td><td>${r.time}</td><td>${r.meet}</td><td>${r.date}</td><td>${r.members}</td></tr>`
+        `<tr><td>${pick(r, "event")}</td><td>${r.team}</td><td>${r.time}</td><td>${pick(r, "meet")}</td><td>${r.date}</td><td>${pick(r, "members")}</td></tr>`
       ).join("");
       return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
     const entries = (recordsByEvent[eventName] || []).slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time));
-    const rows = entries.map((r) =>
-      `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${r.meet}${r.detail ? ` · ${r.detail}` : ""}</td><td>${r.date}</td></tr>`
-    ).join("");
-    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">빠른 기록 순으로 정렬되어 있습니다.</p>`;
+    const rows = entries.map((r) => {
+      const meet = pick(r, "meet");
+      const detail = pick(r, "detail");
+      return `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
+    }).join("");
+    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">${t("records.sortNote")}</p>`;
   }
 
   const tabsHtml = recordEventOrder.map((name, i) => `<button type="button" class="${i === 0 ? "is-active" : ""}" data-event-tab="${name}">${name}</button>`).join("");
-  recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="종목 선택">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
+  recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="${t("records.eventTabsAria")}">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
   const tableWrapEl = recordsAppEl.querySelector("[data-records-table]");
   recordsAppEl.querySelectorAll("[data-event-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -250,27 +271,39 @@ function assetPath(name) {
 // full version. CMS uploads won't have one, so srcset is only added when both w/sw are
 // present in the data — otherwise we fall back to a plain <img> instead of a 404 srcset.
 const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
-function galleryImgHtml(card) {
+function galleryImgHtml(card, title) {
   if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
   const large = assetPath(card.image);
   if (card.w && card.sw) {
     const small = assetPath(card.image.replace(".webp", "-sm.webp"));
-    return `<img src="${large}" srcset="${small} ${card.sw}w, ${large} ${card.w}w" sizes="${GALLERY_SIZES}" alt="${card.title}" loading="lazy">`;
+    return `<img src="${large}" srcset="${small} ${card.sw}w, ${large} ${card.w}w" sizes="${GALLERY_SIZES}" alt="${title}" loading="lazy">`;
   }
-  return `<img src="${large}" alt="${card.title}" loading="lazy">`;
+  return `<img src="${large}" alt="${title}" loading="lazy">`;
 }
 function renderGallery(cards) {
   const galleryGrid = document.querySelector("#gallery .photo-grid");
   const galleryFilter = document.querySelector("#gallery .gallery-filter");
   if (!galleryGrid || !galleryFilter) return;
-  galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${galleryImgHtml(card)}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>해당 카테고리의 사진이 아직 없습니다.</p>';
-  galleryFilter.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
-    const category = button.textContent.trim().toLowerCase();
-    galleryFilter.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
-    let visible = 0;
-    galleryGrid.querySelectorAll(".gallery-item").forEach((card) => { const show = category === "all" || card.dataset.category === category; card.hidden = !show; if (show) visible += 1; });
-    galleryGrid.querySelector(".gallery-empty").hidden = visible !== 0;
-  }));
+  galleryGrid.innerHTML = cards.map((card) => {
+    const title = pick(card, "title");
+    const meta = pick(card, "meta");
+    return `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${galleryImgHtml(card, title)}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${title}</h3><span class="gallery-card-meta">${meta}</span></figcaption></figure>`;
+  }).join("") + `<p class="gallery-empty" hidden>${t("gallery.empty")}</p>`;
+  // Unlike galleryGrid, these filter buttons are static markup in index.html (not
+  // regenerated here), so a re-render (e.g. on langchange) would stack a second listener
+  // on the same nodes. Cloning replaces each button with an identical, listener-free copy
+  // before attaching this render's handler.
+  galleryFilter.querySelectorAll("button").forEach((original) => {
+    const button = original.cloneNode(true);
+    original.replaceWith(button);
+    button.addEventListener("click", () => {
+      const category = button.textContent.trim().toLowerCase();
+      galleryFilter.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
+      let visible = 0;
+      galleryGrid.querySelectorAll(".gallery-item").forEach((card) => { const show = category === "all" || card.dataset.category === category; card.hidden = !show; if (show) visible += 1; });
+      galleryGrid.querySelector(".gallery-empty").hidden = visible !== 0;
+    });
+  });
 }
 
 // ---- NEWS ----
@@ -280,11 +313,11 @@ function renderGallery(cards) {
 // #news 섹션 캐러셀은 최신순 정렬이다.
 function homeNewsCardHtml(item, isLead) {
   const leadAttr = isLead ? ' class="home-news-lead"' : "";
-  const img = `<img src="${assetPath(item.image)}" alt="${item.alt}" loading="lazy">`;
-  const meta = `<p>${item.dateLabel} · ${item.category}</p>`;
-  const heading = `<h3>${item.title}</h3>`;
+  const img = `<img src="${assetPath(item.image)}" alt="${pick(item, "alt")}" loading="lazy">`;
+  const meta = `<p>${pick(item, "dateLabel")} · ${item.category}</p>`;
+  const heading = `<h3>${pick(item, "title")}</h3>`;
   if (item.result) {
-    return `<article${leadAttr}>${img}${meta}${heading}<span>${item.result}</span><a href="#records">VIEW RESULTS ↗</a></article>`;
+    return `<article${leadAttr}>${img}${meta}${heading}<span>${pick(item, "result")}</span><a href="#records">VIEW RESULTS ↗</a></article>`;
   }
   return `<article${leadAttr}>${img}${meta}${heading}<a href="#schedule">VIEW SCHEDULE ↗</a></article>`;
 }
@@ -298,8 +331,11 @@ function renderNewsSection(items) {
   const newsGrid = document.querySelector("#news .news-grid");
   if (!newsGrid) return;
   const sorted = items.slice().sort((a, b) => b.startDate.localeCompare(a.startDate));
-  const slidesHtml = sorted.map((item) => `<article class="feature-news" data-news-body="${(item.body || "").replace(/"/g, "&quot;")}"><div class="news-image"><img src="${assetPath(item.image)}" alt="${item.alt}" loading="lazy"></div><div><p class="news-meta">${item.dateLabel} · ${item.category}</p><h3>${item.title}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`).join("");
-  newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="NEWS 카드 슬라이드 (6초마다 자동 전환)"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="이전 카드"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="다음 카드"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="카드로 바로 이동"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>일시정지</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
+  const slidesHtml = sorted.map((item) => {
+    const body = pick(item, "body");
+    return `<article class="feature-news" data-news-body="${(body || "").replace(/"/g, "&quot;")}"><div class="news-image"><img src="${assetPath(item.image)}" alt="${pick(item, "alt")}" loading="lazy"></div><div><p class="news-meta">${pick(item, "dateLabel")} · ${item.category}</p><h3>${pick(item, "title")}</h3><a href="#" data-news-read-more aria-haspopup="dialog">READ MORE ↗</a></div></article>`;
+  }).join("");
+  newsGrid.innerHTML = `<div class="news-carousel-wrap"><div class="news-carousel" data-news-carousel aria-roledescription="carousel" aria-label="${t("carousel.newsAria")}"><div class="news-carousel-viewport"><div class="news-carousel-track" data-news-carousel-track>${slidesHtml}</div></div><button type="button" class="news-carousel-arrow news-carousel-arrow-prev" data-news-carousel-prev aria-label="${t("carousel.prev")}"><span aria-hidden="true">‹</span></button><button type="button" class="news-carousel-arrow news-carousel-arrow-next" data-news-carousel-next aria-label="${t("carousel.next")}"><span aria-hidden="true">›</span></button></div><div class="news-carousel-controls"><div class="news-carousel-dots" data-news-carousel-dots role="tablist" aria-label="${t("carousel.dotsAria")}"></div><button type="button" class="news-carousel-toggle" data-news-carousel-toggle aria-pressed="false"><span aria-hidden="true" data-news-carousel-toggle-icon>❚❚</span><span data-news-carousel-toggle-label>${t("carousel.pause")}</span></button></div><p class="sr-only" data-news-carousel-status role="status" aria-live="off"></p></div>`;
 }
 
 // ---- NOTICES ----
@@ -316,7 +352,7 @@ function renderNotices(items) {
 
   noticeList.innerHTML = "";
   if (!items.length) {
-    noticeList.innerHTML = '<p class="notice-empty">등록된 공지사항이 없습니다.</p>';
+    noticeList.innerHTML = `<p class="notice-empty">${t("notices.empty")}</p>`;
     return;
   }
   const sorted = items.slice().sort((a, b) => b.date.localeCompare(a.date));
@@ -336,7 +372,7 @@ function renderNotices(items) {
     btn.className = "notice-title-btn";
     btn.setAttribute("data-notice-open", "");
     btn.setAttribute("aria-haspopup", "dialog");
-    btn.textContent = n.title;
+    btn.textContent = pick(n, "title");
     h3.appendChild(btn);
 
     const author = document.createElement("span");
@@ -354,19 +390,23 @@ function renderNotices(items) {
 // note. GROUPS/STRUCTURE stay hardcoded here — they describe the enduring training
 // philosophy/format rather than an operational detail that changes week to week.
 function trainingRowHtml(row) {
-  return `<div class="table-row" role="row"><span>${row.day || ""}</span><span>${row.time || ""}</span><span>${row.session || ""}</span><span>${row.location || ""}</span></div>`;
+  const session = pick(row, "session");
+  const location = pick(row, "location");
+  return `<div class="table-row" role="row"><span>${row.day || ""}</span><span>${row.time || ""}</span><span>${session}</span><span>${location}</span></div>`;
 }
 function renderTraining(schedule, dryland) {
   const training = document.querySelector("#training");
   if (!training) return;
   const introEl = training.querySelector(".section-intro");
-  if (introEl) introEl.textContent = "정기 팀 훈련은 레인별 운동 강도와 각자의 목표를 고려해 운영됩니다.";
+  if (introEl) introEl.textContent = t("training.intro");
   const rowsContainer = training.querySelector("[data-training-rows]");
   if (rowsContainer) rowsContainer.innerHTML = schedule.map(trainingRowHtml).join("");
   const notes = training.querySelectorAll(".training-notes > div");
-  if (notes[0]) notes[0].innerHTML = `<b>GROUPS</b><p><strong>상급 레인</strong><br><strong>중급/하급 레인</strong><br><small>ADVANCED LANE · INTERMEDIATE / DEVELOPMENT LANE</small></p>`;
-  if (notes[1]) notes[1].innerHTML = `<b>STRUCTURE</b><p>다양한 Drill · Interval 중심 훈련<br><small>DRILLS · INTERVALS · TECHNIQUE · ENDURANCE</small></p>`;
-  if (notes[2]) notes[2].innerHTML = `<b>DRYLAND</b><p><strong>${(dryland && dryland.headline) || "TBD"}</strong><br><small>${(dryland && dryland.caption) || "추후 안내 예정"}</small></p>`;
+  if (notes[0]) notes[0].innerHTML = `<b>GROUPS</b><p><strong>${t("training.groups.advanced")}</strong><br><strong>${t("training.groups.intermediate")}</strong><br><small>ADVANCED LANE · INTERMEDIATE / DEVELOPMENT LANE</small></p>`;
+  if (notes[1]) notes[1].innerHTML = `<b>STRUCTURE</b><p>${t("training.structure.body")}<br><small>DRILLS · INTERVALS · TECHNIQUE · ENDURANCE</small></p>`;
+  const drylandHeadline = pick(dryland, "headline") || "TBD";
+  const drylandCaption = pick(dryland, "caption") || t("training.dryland.captionFallback");
+  if (notes[2]) notes[2].innerHTML = `<b>DRYLAND</b><p><strong>${drylandHeadline}</strong><br><small>${drylandCaption}</small></p>`;
 }
 
 // ---- WEEKLY TRAINING SESSIONS ----
@@ -376,12 +416,13 @@ function renderTraining(schedule, dryland) {
 // whole file is empty, the entire block stays hidden — no empty grid between the tables.
 const WEEKLY_TRAINING_DAYS = ["화", "목"];
 function weeklyTrainingCardHtml(day, session) {
+  const dayLabel = t(`weekly.day.${day}`);
   if (!session) {
-    return `<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${day}요일</p><p class="weekly-session-empty">이번 주 훈련 세션 준비 중</p></article>`;
+    return `<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${dayLabel}</p><p class="weekly-session-empty">${t("weekly.pending")}</p></article>`;
   }
   const d = session.details || {};
   const distance = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
-  return `<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${day}요일</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${d.warmup || ""}</dd></div><div><dt>MAIN SET</dt><dd>${d.mainset || ""}</dd></div><div><dt>EVENTS</dt><dd>${d.events || ""}</dd></div><div><dt>COOL-DOWN</dt><dd>${d.cooldown || ""}</dd></div></dl></article>`;
+  return `<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${dayLabel}</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${pick(d, "warmup")}</dd></div><div><dt>MAIN SET</dt><dd>${pick(d, "mainset")}</dd></div><div><dt>EVENTS</dt><dd>${pick(d, "events")}</dd></div><div><dt>COOL-DOWN</dt><dd>${pick(d, "cooldown")}</dd></div></dl></article>`;
 }
 function renderWeeklyTraining(sessions) {
   const container = document.querySelector("[data-weekly-training]");
@@ -411,32 +452,40 @@ if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow acce
 // rendered as cards when it has entries; when a collection is empty (admin hasn't
 // registered anyone yet), that tab alone falls back to the shared notice text from
 // content/team.json's `membersNote` — the other tabs are unaffected either way.
-const MEMBERS_NOTE_FALLBACK = "Verified member information will be added as it becomes available.";
+// t()/pick() called lazily inside these functions (not as a module-level const) so the
+// text always reflects the language active at render time, not at module load time.
 function emptyTeamStateHtml(label, note) {
-  return `<div class="member-directory"><p>${label}</p><p>${note || MEMBERS_NOTE_FALLBACK}</p></div>`;
+  return `<div class="member-directory"><p>${label}</p><p>${note || t("team.membersNoteFallback")}</p></div>`;
 }
 function leaderCardHtml(leader) {
-  const { role, name, koRole, photo } = leader;
+  const { role, name, photo } = leader;
+  const koRole = pick(leader, "koRole");
+  const photoAlt = t("team.profilePhotoAlt", { name });
   const photoHtml = photo
-    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${name} 프로필 사진" loading="lazy"></div>`
+    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p></article>`;
 }
 function memberCardHtml(member) {
-  const { name, department, year, photo } = member;
+  const { name, photo } = member;
+  const department = pick(member, "department");
+  const year = pick(member, "year");
+  const photoAlt = t("team.profilePhotoAlt", { name });
   const photoHtml = photo
-    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${name} 프로필 사진" loading="lazy"></div>`
+    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   const meta = [department, year].filter(Boolean).join(" · ");
   return `<article class="leader">${photoHtml}<h3>${name}</h3><p class="ko-role">${meta}</p></article>`;
 }
 function legacyEntryHtml(entry) {
-  const { name, body, tag } = entry;
+  const { name, tag } = entry;
+  const body = pick(entry, "body");
   return `<article class="legacy-note"><div><p class="eyebrow">TEAM LEGACY</p><strong>${name}</strong></div><div><p>${body}</p>${tag ? `<p class="legacy-pending">${tag}</p>` : ""}</div></article>`;
 }
-function renderTeam(membersNote, leaders, members, legacyEntries) {
+function renderTeam(team, leaders, members, legacyEntries) {
   const teamShell = document.querySelector("#team .shell");
   if (!teamShell) return;
+  const membersNote = pick(team, "membersNote");
 
   const leadershipHtml = (leaders && leaders.length)
     ? `<div class="leadership-directory">${leaders.map(leaderCardHtml).join("")}</div>`
@@ -481,6 +530,10 @@ function initHomeNewsCarousel() {
     return;
   }
 
+  // Aborts every listener registered below (via { signal: ac.signal }) in one call — used
+  // by the teardown registered at the bottom so a language switch's re-render doesn't
+  // stack a second set of listeners/timers on top of this one.
+  const ac = new AbortController();
   let index = 0;
   let timer = null;
   let isPlaying = true;
@@ -492,7 +545,7 @@ function initHomeNewsCarousel() {
   });
 
   dotsWrap.innerHTML = slides
-    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}번째 카드로 이동" data-carousel-dot="${i}"></button>`)
+    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${t("carousel.goToCard", { n: i + 1 })}" data-carousel-dot="${i}"></button>`)
     .join("");
   const dots = Array.from(dotsWrap.querySelectorAll("[data-carousel-dot]"));
 
@@ -537,51 +590,53 @@ function initHomeNewsCarousel() {
     if (statusEl) statusEl.setAttribute("aria-live", playing ? "off" : "polite");
     if (toggleBtn) {
       toggleBtn.setAttribute("aria-pressed", String(!playing));
-      toggleBtn.setAttribute("aria-label", playing ? "자동 재생 일시정지" : "자동 재생 시작");
-      if (toggleLabel) toggleLabel.textContent = playing ? "일시정지" : "재생";
+      toggleBtn.setAttribute("aria-label", playing ? t("carousel.pauseAutoplay") : t("carousel.startAutoplay"));
+      if (toggleLabel) toggleLabel.textContent = playing ? t("carousel.pause") : t("carousel.play");
       if (toggleIcon) toggleIcon.textContent = playing ? "❚❚" : "▶";
     }
     if (playing) startAutoplay(); else stopAutoplay();
   }
 
-  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.carouselDot)); if (isPlaying) startAutoplay(); }));
-  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); });
-  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); });
-  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying));
+  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.carouselDot)); if (isPlaying) startAutoplay(); }, { signal: ac.signal }));
+  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); }, { signal: ac.signal });
+  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); }, { signal: ac.signal });
+  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying), { signal: ac.signal });
 
   // Pause on hover, resume on mouse leave.
-  root.addEventListener("mouseenter", stopAutoplay);
-  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); });
+  root.addEventListener("mouseenter", stopAutoplay, { signal: ac.signal });
+  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); }, { signal: ac.signal });
   // Pause while any control/link inside has keyboard focus; resume once focus leaves.
-  root.addEventListener("focusin", stopAutoplay);
+  root.addEventListener("focusin", stopAutoplay, { signal: ac.signal });
   root.addEventListener("focusout", (event) => {
     if (isPlaying && !root.contains(event.relatedTarget)) startAutoplay();
-  });
+  }, { signal: ac.signal });
 
   // Touch swipe (mobile): left swipe -> next, right swipe -> previous.
   let touchStartX = 0;
   let touchStartY = 0;
   let touchTracking = false;
   track.addEventListener("touchstart", (event) => {
-    const t = event.touches[0];
-    touchStartX = t.clientX; touchStartY = t.clientY; touchTracking = true;
+    const touch = event.touches[0];
+    touchStartX = touch.clientX; touchStartY = touch.clientY; touchTracking = true;
     stopAutoplay();
-  }, { passive: true });
+  }, { passive: true, signal: ac.signal });
   track.addEventListener("touchend", (event) => {
     if (!touchTracking) return;
     touchTracking = false;
-    const t = event.changedTouches[0];
-    const deltaX = t.clientX - touchStartX;
-    const deltaY = t.clientY - touchStartY;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
     const SWIPE_THRESHOLD = 40;
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
       if (deltaX < 0) next(); else prev();
     }
     if (isPlaying) startAutoplay();
-  }, { passive: true });
+  }, { passive: true, signal: ac.signal });
 
   goTo(0);
   setPlaying(true);
+
+  teardowns.push(() => { ac.abort(); stopAutoplay(); });
 }
 
 // ---- NEWS MODAL ----
@@ -601,7 +656,9 @@ function initNewsModal() {
   const leadEl = modal.querySelector("[data-news-modal-lead]");
   const bodyEl = modal.querySelector("[data-news-modal-body]");
   const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  const BODY_FALLBACK = "자세한 본문은 준비되는 대로 업데이트됩니다.";
+  const BODY_FALLBACK = t("news.bodyFallback");
+  // See initHomeNewsCarousel's ac comment — same purpose here.
+  const ac = new AbortController();
   let lastFocused = null;
 
   function readCardData(article) {
@@ -666,7 +723,7 @@ function initNewsModal() {
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("news-modal-open");
-    document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("keydown", handleKeydown, { signal: ac.signal });
     panel.focus();
   }
 
@@ -687,10 +744,12 @@ function initNewsModal() {
     if (!article) return;
     event.preventDefault();
     openModal(article, trigger);
-  });
+  }, { signal: ac.signal });
 
-  if (closeBtn) closeBtn.addEventListener("click", closeModal);
-  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+  if (closeBtn) closeBtn.addEventListener("click", closeModal, { signal: ac.signal });
+  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); }, { signal: ac.signal });
+
+  teardowns.push(() => { closeModal(); ac.abort(); });
 }
 
 // ---- NEWS CAROUSEL ----
@@ -722,6 +781,10 @@ function initNewsCarousel() {
     return;
   }
 
+  // Aborts every listener registered below (via { signal: ac.signal }) in one call — used
+  // by the teardown registered at the bottom so a language switch's re-render doesn't
+  // stack a second set of listeners/timers on top of this one.
+  const ac = new AbortController();
   let index = 0;
   let timer = null;
   let isPlaying = true;
@@ -733,7 +796,7 @@ function initNewsCarousel() {
   });
 
   dotsWrap.innerHTML = slides
-    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}번째 카드로 이동" data-news-carousel-dot="${i}"></button>`)
+    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${t("carousel.goToCard", { n: i + 1 })}" data-news-carousel-dot="${i}"></button>`)
     .join("");
   const dots = Array.from(dotsWrap.querySelectorAll("[data-news-carousel-dot]"));
 
@@ -778,51 +841,53 @@ function initNewsCarousel() {
     if (statusEl) statusEl.setAttribute("aria-live", playing ? "off" : "polite");
     if (toggleBtn) {
       toggleBtn.setAttribute("aria-pressed", String(!playing));
-      toggleBtn.setAttribute("aria-label", playing ? "자동 재생 일시정지" : "자동 재생 시작");
-      if (toggleLabel) toggleLabel.textContent = playing ? "일시정지" : "재생";
+      toggleBtn.setAttribute("aria-label", playing ? t("carousel.pauseAutoplay") : t("carousel.startAutoplay"));
+      if (toggleLabel) toggleLabel.textContent = playing ? t("carousel.pause") : t("carousel.play");
       if (toggleIcon) toggleIcon.textContent = playing ? "❚❚" : "▶";
     }
     if (playing) startAutoplay(); else stopAutoplay();
   }
 
-  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.newsCarouselDot)); if (isPlaying) startAutoplay(); }));
-  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); });
-  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); });
-  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying));
+  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.newsCarouselDot)); if (isPlaying) startAutoplay(); }, { signal: ac.signal }));
+  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); }, { signal: ac.signal });
+  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); }, { signal: ac.signal });
+  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying), { signal: ac.signal });
 
   // Pause on hover, resume on mouse leave.
-  root.addEventListener("mouseenter", stopAutoplay);
-  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); });
+  root.addEventListener("mouseenter", stopAutoplay, { signal: ac.signal });
+  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); }, { signal: ac.signal });
   // Pause while any control/link inside has keyboard focus; resume once focus leaves.
-  root.addEventListener("focusin", stopAutoplay);
+  root.addEventListener("focusin", stopAutoplay, { signal: ac.signal });
   root.addEventListener("focusout", (event) => {
     if (isPlaying && !root.contains(event.relatedTarget)) startAutoplay();
-  });
+  }, { signal: ac.signal });
 
   // Touch swipe (mobile): left swipe -> next, right swipe -> previous.
   let touchStartX = 0;
   let touchStartY = 0;
   let touchTracking = false;
   track.addEventListener("touchstart", (event) => {
-    const t = event.touches[0];
-    touchStartX = t.clientX; touchStartY = t.clientY; touchTracking = true;
+    const touch = event.touches[0];
+    touchStartX = touch.clientX; touchStartY = touch.clientY; touchTracking = true;
     stopAutoplay();
-  }, { passive: true });
+  }, { passive: true, signal: ac.signal });
   track.addEventListener("touchend", (event) => {
     if (!touchTracking) return;
     touchTracking = false;
-    const t = event.changedTouches[0];
-    const deltaX = t.clientX - touchStartX;
-    const deltaY = t.clientY - touchStartY;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
     const SWIPE_THRESHOLD = 40;
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
       if (deltaX < 0) next(); else prev();
     }
     if (isPlaying) startAutoplay();
-  }, { passive: true });
+  }, { passive: true, signal: ac.signal });
 
   goTo(0);
   setPlaying(true);
+
+  teardowns.push(() => { ac.abort(); stopAutoplay(); });
 }
 
 // ---- NOTICE MODAL (공지사항 상세) ----
@@ -839,6 +904,8 @@ function initNoticeModal() {
   const titleEl = modal.querySelector("[data-notice-modal-title]");
   const bodyEl = modal.querySelector("[data-notice-modal-body]");
   const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  // See initHomeNewsCarousel's ac comment — same purpose here.
+  const ac = new AbortController();
   let lastFocused = null;
 
   function getFocusable() {
@@ -863,13 +930,13 @@ function initNoticeModal() {
     lastFocused = trigger || document.activeElement;
 
     const notice = noticesById.get(row.dataset.noticeId);
-    titleEl.textContent = notice ? notice.title : "";
-    bodyEl.textContent = notice ? notice.body : "";
+    titleEl.textContent = notice ? pick(notice, "title") : "";
+    bodyEl.textContent = notice ? pick(notice, "body") : "";
 
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("notice-modal-open");
-    document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("keydown", handleKeydown, { signal: ac.signal });
     panel.focus();
   }
 
@@ -889,19 +956,27 @@ function initNoticeModal() {
     const row = trigger.closest(".notice-row");
     if (!row) return;
     openModal(row, trigger);
-  });
+  }, { signal: ac.signal });
 
-  if (closeBtn) closeBtn.addEventListener("click", closeModal);
-  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+  if (closeBtn) closeBtn.addEventListener("click", closeModal, { signal: ac.signal });
+  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); }, { signal: ac.signal });
+
+  teardowns.push(() => { closeModal(); ac.abort(); });
 }
 
 // ---- SCROLL REVEAL ----
 // Registered after content render so it can observe elements that only exist once the
-// fetched JSON has been rendered (e.g. .home-news-grid article cards).
+// fetched JSON has been rendered (e.g. .home-news-grid article cards). Most of the
+// elements observed here (.reveal section wrappers, homepage groups below) are static
+// markup that persists across re-renders, so without disconnecting the previous call's
+// observers, a language switch would stack a fresh pair of IntersectionObservers on the
+// same nodes every time — harmless in effect (all the callbacks are idempotent) but an
+// unbounded leak, hence the teardown at the bottom.
 function setupRevealObservers() {
   const revealItems = document.querySelectorAll(".reveal");
+  let observer = null;
   if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } }), { threshold: 0.08 });
+    observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } }), { threshold: 0.08 });
     revealItems.forEach((item) => observer.observe(item));
   } else revealItems.forEach((item) => item.classList.add("is-visible"));
 
@@ -922,16 +997,19 @@ function setupRevealObservers() {
     item.style.setProperty("--reveal-delay", `${index * 90}ms`);
     homeRevealItems.push(item);
   }));
+  let homeRevealObserver = null;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
     homeRevealItems.forEach((item) => item.classList.add("is-visible"));
   } else {
-    const homeRevealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    homeRevealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
       if (!entry.isIntersecting || document.body.classList.contains("detail-mode")) return;
       entry.target.classList.add("is-visible");
       homeRevealObserver.unobserve(entry.target);
     }), { threshold: 0.12 });
     homeRevealItems.forEach((item) => homeRevealObserver.observe(item));
   }
+
+  teardowns.push(() => { if (observer) observer.disconnect(); if (homeRevealObserver) homeRevealObserver.disconnect(); });
 }
 
 // ---- CONTENT LOADING ----
@@ -950,7 +1028,12 @@ async function fetchJson(path, fallback) {
   }
 }
 
-async function loadContentAndRender() {
+// contentCache holds the last successful fetch so a language switch can re-render from
+// it directly — every content/*.json file already carries both languages (sibling
+// `<field>En` keys), so switching never needs a second round-trip to the server.
+let contentCache = null;
+
+async function loadContent() {
   const [schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy] = await Promise.all([
     fetchJson("./content/schedule.json", { events: [] }),
     fetchJson("./content/records.json", { entries: [] }),
@@ -964,6 +1047,14 @@ async function loadContentAndRender() {
     fetchJson("./content/leadership.json", { members: [] }),
     fetchJson("./content/legacy.json", { entries: [] })
   ]);
+  contentCache = { schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy };
+}
+
+function renderAll() {
+  if (!contentCache) return;
+  const { schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy } = contentCache;
+
+  runTeardowns();
 
   renderSchedule(schedule.events || []);
   renderRecords(records.entries || [], relays.entries || []);
@@ -972,7 +1063,7 @@ async function loadContentAndRender() {
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
   renderWeeklyTraining(weeklyTraining.sessions || []);
-  renderTeam(team.membersNote, leadership.members || [], team.members || [], legacy.entries || []);
+  renderTeam(team, leadership.members || [], team.members || [], legacy.entries || []);
   renderTraining(training.schedule || [], training.dryland || {});
 
   initHomeNewsCarousel();
@@ -983,4 +1074,13 @@ async function loadContentAndRender() {
   setupRevealObservers();
 }
 
-loadContentAndRender();
+initLang();
+applyStaticTranslations();
+loadContent().then(renderAll);
+
+// Re-render CMS-driven sections (and static [data-i18n] text) in place when the KR/EN
+// toggle fires. No re-fetch, no page reload, current section (#hash) untouched.
+window.addEventListener("langchange", () => {
+  applyStaticTranslations();
+  renderAll();
+});
