@@ -1,3 +1,15 @@
 {
-  "sessions": []
+  "sessions": [
+    {
+      "date": "2026-09-01",
+      "day": "화",
+      "totalDistance": 1000,
+      "details": {
+        "warmup": "TBD",
+        "mainset": "TBD",
+        "events": "기존+신입 부원 기록 측정",
+        "cooldown": "TBD"
+      }
+    }
+  ]
 }
