@@ -28,6 +28,54 @@ document.querySelector("[data-year]").textContent = new Date().getFullYear();
 const brandName = document.querySelector(".brand span");
 if (brandName && brandName.firstChild) brandName.firstChild.textContent = "\uC11C\uC6B8\uB300\uD559\uAD50 \uC218\uC601\uBD80";
 
+// ---- HERO PARALLAX ----
+// Desktop/tablet only. Background image is pinned via CSS `background-attachment:fixed`
+// (see .hero in css/style.css); this just fades + lifts the hero text/logo as the user
+// scrolls through the hero's own height, so the next section reads as rising up over it.
+// Disabled on mobile (\u2264760px, matching the site's other mobile breakpoints) and under
+// prefers-reduced-motion \u2014 in both cases the CSS custom properties are cleared so
+// .hero-content falls back to its normal static position/opacity. Never touches
+// anything under .home-news-carousel (the TEAM UPDATES slider).
+(function initHeroParallax() {
+  const hero = document.querySelector(".hero");
+  const heroContent = document.querySelector(".hero-content");
+  if (!hero || !heroContent) return;
+
+  const MAX_SHIFT_PX = 90;
+  const mobileQuery = window.matchMedia("(max-width: 760px)");
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let ticking = false;
+
+  function clearParallax() {
+    heroContent.style.removeProperty("--parallax-shift");
+    heroContent.style.removeProperty("--parallax-opacity");
+  }
+
+  function applyParallax() {
+    ticking = false;
+    if (mobileQuery.matches || reducedMotionQuery.matches || document.body.classList.contains("detail-mode")) {
+      clearParallax();
+      return;
+    }
+    const heroHeight = hero.offsetHeight || window.innerHeight;
+    const progress = Math.min(1, Math.max(0, window.scrollY / heroHeight));
+    heroContent.style.setProperty("--parallax-shift", `${-progress * MAX_SHIFT_PX}px`);
+    heroContent.style.setProperty("--parallax-opacity", String(1 - progress));
+  }
+
+  function requestUpdate() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(applyParallax);
+  }
+
+  window.addEventListener("scroll", requestUpdate, { passive: true });
+  window.addEventListener("resize", requestUpdate);
+  mobileQuery.addEventListener("change", applyParallax);
+  reducedMotionQuery.addEventListener("change", applyParallax);
+  applyParallax();
+})();
+
 
 const scheduleEvents = [
   ["2025. 5. 11.", "JOINT TRAINING", "서울대 × 한국외대 수영부 연합훈련", "—"],
