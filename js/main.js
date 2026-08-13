@@ -8,11 +8,16 @@ contentSections.forEach((section) => section.classList.add("content-section"));
 const setMenu = (open) => { menu.classList.toggle("is-open", open); toggle.setAttribute("aria-expanded", String(open)); document.body.classList.toggle("menu-open", open); };
 toggle.addEventListener("click", () => setMenu(!menu.classList.contains("is-open")));
 
+// Reassigned once initNewsVideoAutoStop() runs (see below); a no-op until then so early
+// calls to showPage() (e.g. the initial page load a few lines down) never throw.
+let pauseNewsVideo = () => {};
+
 function showPage(id) {
   const isDetail = sectionIds.includes(id);
   document.body.classList.toggle("detail-mode", isDetail);
   contentSections.forEach((section) => section.classList.toggle("is-current", section.id === id));
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  pauseNewsVideo();
 }
 
 document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener("click", (event) => {
@@ -42,6 +47,35 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "서�
     // localStorage 접근 불가(프라이빗 모드 등) 시 안전하게 숨김 유지
   }
 })();
+
+// ---- NEWS VIDEO AUTO-STOP ----
+// The embedded YouTube video (static markup in #news, not JSON-driven) keeps playing in
+// the background if the user scrolls it out of view or navigates to another section —
+// this stops it via the YouTube postMessage API in both cases. Only ever sends "pause",
+// never touches autoplay/seek, and never reaches into the iframe's own player UI.
+function initNewsVideoAutoStop() {
+  const iframe = document.querySelector(".news-video-frame iframe");
+  if (!iframe) return;
+
+  function pause() {
+    if (!iframe.src) return;
+    try {
+      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+    } catch (err) {
+      // Player may not be ready yet (postMessage before the YT iframe finishes loading) — harmless.
+    }
+  }
+
+  pauseNewsVideo = pause;
+
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => { if (!entry.isIntersecting) pause(); });
+    }, { threshold: 0 });
+    observer.observe(iframe);
+  }
+}
+initNewsVideoAutoStop();
 
 // ---- HERO PARALLAX ----
 // Desktop/tablet only. Background image is pinned via CSS `background-attachment:fixed`
