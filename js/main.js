@@ -198,15 +198,25 @@ const galleryGrid = document.querySelector("#gallery .photo-grid");
 const galleryFilter = document.querySelector("#gallery .gallery-filter");
 if (galleryGrid && galleryFilter) {
   const cards = [
-    { category:"training", label:"TRAINING", title:"\uC815\uAE30 \uD6C8\uB828", meta:"\uC11C\uC6B8\uB300\uD3EC\uC2A4\uCF54\uC218\uC601\uC7A5 (3F)", image:"trainp01.png" },
-    { category:"competition", label:"COMPETITION", title:"\uB300\uD68C \uCD9C\uC804", meta:"COMPETITION PHOTO 02", image:"cp02.webp" },
-    { category:"team", label:"TEAM", title:"\uD300 \uC0AC\uC9C4", meta:"TEAM PHOTO 03", image:"Teamphoto03.jpg" },
-    { category:"events", label:"TEAM EVENT", title:"\uD300 \uD589\uC0AC", meta:"TEAM EVENT \u00B7 PHOTO 04", image:"tev04.jpg" },
-    { category:"competition", label:"COMPETITION", title:"\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", meta:"2025. 11. 8. \u2013 11. 9.", image:"C32C.jpg" },
-    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 \uCE74\uC774\uC2A4\uD2B8 \uC5F0\uD569\uAD50\uB958\uC804", meta:"2026. 5. 2. \u2013 5. 3.", image:"KAIST.jpg" },
-    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 PolyU", meta:"2026. 5. 18. \u2013 5. 21.", image:"POLYU.jpg" }
+    { category:"training", label:"TRAINING", title:"\uC815\uAE30 \uD6C8\uB828", meta:"\uC11C\uC6B8\uB300\uD3EC\uC2A4\uCF54\uC218\uC601\uC7A5 (3F)", image:"trainp01.webp", w:1422, sw:711 },
+    { category:"competition", label:"COMPETITION", title:"\uB300\uD68C \uCD9C\uC804", meta:"COMPETITION PHOTO 02", image:"cp02.webp", w:1439, sw:899 },
+    { category:"team", label:"TEAM", title:"\uD300 \uC0AC\uC9C4", meta:"TEAM PHOTO 03", image:"Teamphoto03.webp", w:1800, sw:900 },
+    { category:"events", label:"TEAM EVENT", title:"\uD300 \uD589\uC0AC", meta:"TEAM EVENT \u00B7 PHOTO 04", image:"tev04.webp", w:1800, sw:900 },
+    { category:"competition", label:"COMPETITION", title:"\uC81C31\uD68C \uC804\uAD6D\uB300\uD559\uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", meta:"2025. 11. 8. \u2013 11. 9.", image:"C32C.webp", w:1440, sw:900 },
+    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 \uCE74\uC774\uC2A4\uD2B8 \uC5F0\uD569\uAD50\uB958\uC804", meta:"2026. 5. 2. \u2013 5. 3.", image:"KAIST.webp", w:1800, sw:900 },
+    { category:"events", label:"EXCHANGE EVENT", title:"\uC11C\uC6B8\uB300 \u00D7 PolyU", meta:"2026. 5. 18. \u2013 5. 21.", image:"POLYU.webp", w:1800, sw:900 }
   ];
-  galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${card.image ? `<img src="./assets/images/${card.image}" alt="${card.title}" loading="lazy">` : card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING"}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>해당 카테고리의 사진이 아직 없습니다.</p>';
+  // Every gallery photo ships a ~900px-wide "-sm" WebP companion next to the ~1800px
+  // full version, so narrow viewports fetch the smaller file instead of the large one.
+  // Sizes mirrors the actual grid: near-full-width on mobile, ~1/3 of the shell on desktop.
+  const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
+  function galleryImgHtml(card) {
+    if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
+    const large = `./assets/images/${card.image}`;
+    const small = `./assets/images/${card.image.replace(".webp", "-sm.webp")}`;
+    return `<img src="${large}" srcset="${small} ${card.sw}w, ${large} ${card.w}w" sizes="${GALLERY_SIZES}" alt="${card.title}" loading="lazy">`;
+  }
+  galleryGrid.innerHTML = cards.map((card) => `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${galleryImgHtml(card)}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${card.title}</h3><span class="gallery-card-meta">${card.meta}</span></figcaption></figure>`).join("") + '<p class="gallery-empty" hidden>해당 카테고리의 사진이 아직 없습니다.</p>';
   galleryFilter.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
     const category = button.textContent.trim().toLowerCase();
     galleryFilter.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
