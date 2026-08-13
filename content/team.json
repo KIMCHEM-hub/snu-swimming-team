@@ -1,4 +1,17 @@
 {
   "membersNote": "Verified member information will be added as it becomes available.",
-  "members": []
+  "members": [
+    {
+      "name": "이소은",
+      "department": "경영학과",
+      "year": "Private / 26-2",
+      "photo": ""
+    },
+    {
+      "name": "김허준",
+      "department": "체육교육과",
+      "year": "Private / 26-2",
+      "photo": ""
+    }
+  ]
 }
