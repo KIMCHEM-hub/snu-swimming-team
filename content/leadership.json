@@ -1,8 +1,28 @@
 {
   "members": [
-    { "role": "CAPTAIN", "name": "김민찬", "koRole": "주장", "photo": "" },
-    { "role": "VICE CAPTAIN", "name": "이정행", "koRole": "부주장", "photo": "lee1.png" },
-    { "role": "TRAINING DIRECTOR", "name": "신재원", "koRole": "훈련부장", "photo": "SHINPROF.png" },
-    { "role": "TREASURER", "name": "최세나", "koRole": "총무", "photo": "" }
+    {
+      "role": "CAPTAIN",
+      "name": "김민찬",
+      "koRole": "주장",
+      "photo": "/assets/images/증명사진_2023.jpg"
+    },
+    {
+      "role": "VICE CAPTAIN",
+      "name": "이정행",
+      "koRole": "부주장",
+      "photo": "lee1.png"
+    },
+    {
+      "role": "TRAINING DIRECTOR",
+      "name": "신재원",
+      "koRole": "훈련부장",
+      "photo": "SHINPROF.png"
+    },
+    {
+      "role": "TREASURER",
+      "name": "최세나",
+      "koRole": "총무",
+      "photo": ""
+    }
   ]
 }
