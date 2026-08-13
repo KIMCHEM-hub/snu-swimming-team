@@ -286,3 +286,134 @@ const meetNames = {
   seoulTrials:"2026 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804 \uC11C\uC6B8\uC2DC\uB300\uD45C\uC120\uBC1C\uC804", national:"2026 \uC804\uAD6D\uC0DD\uD65C\uCCB4\uC721\uB300\uCD95\uC804",
   masters:"\uC81C30\uD68C \uC77C\uB958\uACBD\uC81C\uB3C4\uC2DC\uB300\uC804 \uC804\uAD6D\uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", barrel25:"2025 \uBC30\uB7F4 \uC2A4\uD504\uB9B0\uD2B8 \uCC54\uD53C\uC5B8\uC2ED", goyang:"2025 \uACE0\uC591 \uC804\uAD6D \uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", seoul11:"\uC81C11\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C (\uD55C\uC911 \uC2A4\uD3EC\uCE20\uAD50\uB958)", mayor45:"\uC81C45\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC7A5\uAE30 \uC218\uC601\uB300\uD68C", songpa8:"\uC81C8\uD68C \uC1A1\uD30C\uAD6C\uC5F0\uB9F9\uD68C\uC7A5\uAE30 \uC218\uC601\uB300\uD68C", barrel24:"2024 \uBC30\uB7F4 \uC2A4\uD504\uB9B0\uD2B8 \uCC54\uD53C\uC5B8\uC2ED", uni31:"\uC81C31\uD68C \uC804\uAD6D\uB300\uD559 \uC218\uC601\uC120\uC218\uAD8C\uB300\uD68C", arena:"2026 \uC544\uB808\uB098 \uB9C8\uC2A4\uD130\uC988 \uC218\uC601\uB300\uD68C", seoul12:"\uC81C12\uD68C \uC11C\uC6B8\uD2B9\uBCC4\uC2DC\uC5F0\uB9F9\uD68C\uC7A5\uBC30 \uC218\uC601\uB300\uD68C"
 };
+
+// ---- HOME "TEAM UPDATES" CAROUSEL ----
+// Slide count is read from the DOM (data-carousel-track children), so adding or
+// removing <article> cards in index.html is automatically reflected \u2014 nothing here
+// needs to change.
+(function initHomeNewsCarousel() {
+  const root = document.querySelector("[data-carousel]");
+  const track = root && root.querySelector("[data-carousel-track]");
+  if (!root || !track) return;
+
+  const slides = Array.from(track.children);
+  const dotsWrap = root.parentElement.querySelector("[data-carousel-dots]");
+  const toggleBtn = root.parentElement.querySelector("[data-carousel-toggle]");
+  const toggleLabel = toggleBtn && toggleBtn.querySelector("[data-carousel-toggle-label]");
+  const toggleIcon = toggleBtn && toggleBtn.querySelector("[data-carousel-toggle-icon]");
+  const statusEl = root.parentElement.querySelector("[data-carousel-status]");
+  const prevBtn = root.querySelector("[data-carousel-prev]");
+  const nextBtn = root.querySelector("[data-carousel-next]");
+  const AUTOPLAY_MS = 6000;
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (slides.length <= 1) {
+    if (dotsWrap) dotsWrap.hidden = true;
+    if (toggleBtn) toggleBtn.hidden = true;
+    if (prevBtn) prevBtn.hidden = true;
+    if (nextBtn) nextBtn.hidden = true;
+    return;
+  }
+
+  let index = 0;
+  let timer = null;
+  let isPlaying = true;
+
+  slides.forEach((slide, i) => {
+    slide.setAttribute("role", "group");
+    slide.setAttribute("aria-roledescription", "slide");
+    slide.setAttribute("aria-label", `${i + 1} / ${slides.length}`);
+  });
+
+  dotsWrap.innerHTML = slides
+    .map((_, i) => `<button type="button" role="tab" aria-selected="false" aria-label="${i + 1}\uBC88\uC9F8 \uCE74\uB4DC\uB85C \uC774\uB3D9" data-carousel-dot="${i}"></button>`)
+    .join("");
+  const dots = Array.from(dotsWrap.querySelectorAll("[data-carousel-dot]"));
+
+  function setSlideFocusability(activeIndex) {
+    slides.forEach((slide, s) => {
+      const active = s === activeIndex;
+      slide.setAttribute("aria-hidden", String(!active));
+      slide.querySelectorAll("a, button").forEach((el) => {
+        if (active) el.removeAttribute("tabindex");
+        else el.setAttribute("tabindex", "-1");
+      });
+    });
+  }
+
+  function goTo(i) {
+    index = (i + slides.length) % slides.length;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    setSlideFocusability(index);
+    dots.forEach((dot, d) => {
+      dot.classList.toggle("is-active", d === index);
+      dot.setAttribute("aria-selected", String(d === index));
+    });
+    if (statusEl) {
+      const heading = slides[index].querySelector("h3");
+      statusEl.textContent = `${index + 1} / ${slides.length}${heading ? `: ${heading.textContent}` : ""}`;
+    }
+  }
+
+  function next() { goTo(index + 1); }
+  function prev() { goTo(index - 1); }
+
+  function stopAutoplay() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+  function startAutoplay() {
+    stopAutoplay();
+    if (prefersReducedMotion) return;
+    timer = setInterval(next, AUTOPLAY_MS);
+  }
+  function setPlaying(playing) {
+    isPlaying = playing;
+    if (statusEl) statusEl.setAttribute("aria-live", playing ? "off" : "polite");
+    if (toggleBtn) {
+      toggleBtn.setAttribute("aria-pressed", String(!playing));
+      toggleBtn.setAttribute("aria-label", playing ? "\uC790\uB3D9 \uC7AC\uC0DD \uC77C\uC2DC\uC815\uC9C0" : "\uC790\uB3D9 \uC7AC\uC0DD \uC2DC\uC791");
+      if (toggleLabel) toggleLabel.textContent = playing ? "\uC77C\uC2DC\uC815\uC9C0" : "\uC7AC\uC0DD";
+      if (toggleIcon) toggleIcon.textContent = playing ? "\u275A\u275A" : "\u25B6";
+    }
+    if (playing) startAutoplay(); else stopAutoplay();
+  }
+
+  dots.forEach((dot) => dot.addEventListener("click", () => { goTo(Number(dot.dataset.carouselDot)); if (isPlaying) startAutoplay(); }));
+  if (prevBtn) prevBtn.addEventListener("click", () => { prev(); if (isPlaying) startAutoplay(); });
+  if (nextBtn) nextBtn.addEventListener("click", () => { next(); if (isPlaying) startAutoplay(); });
+  if (toggleBtn) toggleBtn.addEventListener("click", () => setPlaying(!isPlaying));
+
+  // Pause on hover, resume on mouse leave.
+  root.addEventListener("mouseenter", stopAutoplay);
+  root.addEventListener("mouseleave", () => { if (isPlaying) startAutoplay(); });
+  // Pause while any control/link inside has keyboard focus; resume once focus leaves.
+  root.addEventListener("focusin", stopAutoplay);
+  root.addEventListener("focusout", (event) => {
+    if (isPlaying && !root.contains(event.relatedTarget)) startAutoplay();
+  });
+
+  // Touch swipe (mobile): left swipe -> next, right swipe -> previous.
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchTracking = false;
+  track.addEventListener("touchstart", (event) => {
+    const t = event.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY; touchTracking = true;
+    stopAutoplay();
+  }, { passive: true });
+  track.addEventListener("touchend", (event) => {
+    if (!touchTracking) return;
+    touchTracking = false;
+    const t = event.changedTouches[0];
+    const deltaX = t.clientX - touchStartX;
+    const deltaY = t.clientY - touchStartY;
+    const SWIPE_THRESHOLD = 40;
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX < 0) next(); else prev();
+    }
+    if (isPlaying) startAutoplay();
+  }, { passive: true });
+
+  goTo(0);
+  setPlaying(true);
+})();
