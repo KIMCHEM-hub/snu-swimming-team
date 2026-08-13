@@ -76,7 +76,7 @@ function renderScheduleRow([date, status, title, result]) {
   const logosHtml = logos.length
     ? logos.map((l, i) => `${i > 0 ? '<span class="schedule-logo-mark">×</span>' : ""}<img src="./assets/images/${l.src}" alt="${l.alt}" loading="lazy">`).join("")
     : "";
-  return `<article class="schedule-row" role="row"><time>${date}</time><div class="schedule-logos">${logosHtml}</div><div><p class="status ${scheduleStatusClass(status)}">${status}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
+  return `<article class="schedule-row" role="row"><time>${date}</time><div class="schedule-logos${logos.length ? " has-logos" : ""}">${logosHtml}</div><div><p class="status ${scheduleStatusClass(status)}">${status}</p><h3>${title}</h3></div><p class="schedule-result">${result || ""}</p></article>`;
 }
 function renderSeasonAccordion(year, events, isOpen) {
   const rows = events.map(renderScheduleRow).join("");
