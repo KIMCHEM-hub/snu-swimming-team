@@ -11,6 +11,38 @@ media_folder: "assets/images"
 public_folder: "/assets/images"
 
 collections:
+  - name: team
+    label: "팀 (TEAM)"
+    files:
+      - name: team
+        label: "멤버 안내 문구"
+        file: content/team.json
+        fields:
+          - { label: "MEMBERS 탭 안내 문구", name: membersNote, widget: text, hint: "TEAM 섹션 MEMBERS 탭에 표시됩니다. 부원 명단이 준비되기 전까지 보여줄 안내 문구입니다." }
+
+  - name: training
+    label: "훈련 (TRAINING)"
+    files:
+      - name: training
+        label: "훈련 안내"
+        file: content/training.json
+        fields:
+          - label: 정기 훈련 일정
+            name: schedule
+            widget: list
+            summary: "{{day}} · {{time}}"
+            fields:
+              - { label: 요일, name: day, widget: select, options: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] }
+              - { label: 시간, name: time, widget: string, hint: "예: 17:00–18:30" }
+              - { label: 세션명, name: session, widget: string, hint: "예: REGULAR TRAINING" }
+              - { label: 장소, name: location, widget: string }
+          - label: 드라이랜드 훈련
+            name: dryland
+            widget: object
+            fields:
+              - { label: 제목, name: headline, widget: string, hint: "예: TBD, 또는 실제 훈련 요일/시간" }
+              - { label: 캡션, name: caption, widget: string, hint: "예: 추후 안내 예정" }
+
   - name: schedule
     label: "일정 (SCHEDULE)"
     files:

@@ -1,0 +1,10 @@
+{
+  "schedule": [
+    { "day": "TUE", "time": "17:00–18:30", "session": "REGULAR TRAINING", "location": "서울대포스코수영장 (3F)" },
+    { "day": "THU", "time": "17:00–18:30", "session": "REGULAR TRAINING", "location": "서울대포스코수영장 (3F)" }
+  ],
+  "dryland": {
+    "headline": "TBD",
+    "caption": "추후 안내 예정"
+  }
+}
