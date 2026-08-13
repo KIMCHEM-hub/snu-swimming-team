@@ -270,14 +270,20 @@ if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("Intersec
 }
 
 // Verified leadership and performance archive (Unicode escapes preserve Korean labels across local environments).
+// A 4th array item is an optional profile photo filename (in assets/images/); leaders without one fall back to the university-logo placeholder.
 const verifiedTeam = [
   ["CAPTAIN","\uAE40\uBBFC\uCC2C","\uC8FC\uC7A5"], ["VICE CAPTAIN","\uC774\uC815\uD589","\uBD80\uC8FC\uC7A5"],
-  ["TRAINING DIRECTOR","\uC2E0\uC7AC\uC6D0","\uD6C8\uB828\uBD80\uC7A5"], ["TREASURER","\uCD5C\uC138\uB098","\uCD1D\uBB34"]
+  ["TRAINING DIRECTOR","\uC2E0\uC7AC\uC6D0","\uD6C8\uB828\uBD80\uC7A5","SHINPROF.png"], ["TREASURER","\uCD5C\uC138\uB098","\uCD1D\uBB34"]
 ];
 
 if (teamShell) {
   const fallback = '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
-  const leaders = verifiedTeam.map(([role, name, ko]) => `<article class="leader">${fallback}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${ko}</p></article>`).join("");
+  const leaders = verifiedTeam.map(([role, name, ko, photo]) => {
+    const photoHtml = photo
+      ? `<div class="member-photo has-photo"><img src="./assets/images/${photo}" alt="${name} \uD504\uB85C\uD544 \uC0AC\uC9C4" loading="lazy"></div>`
+      : fallback;
+    return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${ko}</p></article>`;
+  }).join("");
   const legacy = `<article class="legacy-note"><div><p class="eyebrow">TEAM LEGACY</p><strong>이다린</strong></div><div><p>서울대학교 수영부에는 국가대표 및 상비군 출신 부원들이 함께해 왔으며, 이다린 선수는 2014 인천아시안게임 여자 400m 혼계영에 출전해 한국신기록 4분 04초 82를 세우며 은메달을 획득했습니다.</p><p class="legacy-pending">2014 INCHEON ASIAN GAMES · WOMEN'S 4×100M MEDLEY RELAY · SILVER</p></div></article>`;
   teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="is-active" data-team-tab="leadership">LEADERSHIP</button><button data-team-tab="members">MEMBERS</button><button data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership"><div class="leadership-directory">${leaders}</div></div><div class="team-directory-view member-directory" data-team-view="members" hidden><p>MEMBER DIRECTORY</p><p>Verified member information will be added as it becomes available.</p></div><div class="team-directory-view" data-team-view="legacy" hidden>${legacy}</div>`;
   teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => { const tab=button.dataset.teamTab; teamShell.querySelectorAll("[data-team-tab]").forEach((item)=>item.classList.toggle("is-active",item===button)); teamShell.querySelectorAll("[data-team-view]").forEach((view)=>view.hidden=view.dataset.teamView!==tab); }));
