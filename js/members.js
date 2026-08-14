@@ -49,6 +49,17 @@ const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
 const adminRequestList = document.querySelector("[data-admin-request-list]");
+const adminMemberSection = document.createElement("section");
+const adminMemberStatus = document.createElement("p");
+const adminMemberList = document.createElement("div");
+adminMemberSection.className = "members-coach-section";
+adminMemberStatus.className = "members-coach-status";
+adminMemberStatus.hidden = true;
+adminMemberList.className = "members-admin-list";
+const adminMemberHeading = document.createElement("h3");
+adminMemberHeading.textContent = "MEMBER STATUS";
+adminMemberSection.append(adminMemberHeading, adminMemberStatus, adminMemberList);
+adminRequestList.after(adminMemberSection);
 const popupAdminForm = document.querySelector("[data-popup-admin-form]");
 const popupAdminStatus = document.querySelector("[data-popup-admin-status]");
 const popupAdminNewButton = document.querySelector("[data-popup-admin-new]");
@@ -226,7 +237,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
@@ -343,6 +354,66 @@ async function loadPendingRequests() {
 function setAdminStatus(message = "") {
   adminStatus.textContent = message;
   adminStatus.hidden = !message;
+}
+
+function setAdminMemberStatus(message = "") {
+  adminMemberStatus.textContent = message;
+  adminMemberStatus.hidden = !message;
+}
+
+function renderAdminMemberDirectory(members) {
+  adminMemberList.replaceChildren();
+  members.forEach((member) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const name = document.createElement("p");
+    name.className = "members-admin-requester";
+    name.textContent = member.name || "—";
+    const actions = document.createElement("div");
+    actions.className = "members-admin-actions";
+    ["active", "OB"].forEach((nextStatus) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "members-button members-admin-action";
+      button.textContent = nextStatus;
+      button.disabled = (member.status || "active") === nextStatus;
+      button.addEventListener("click", () => setMemberStatus(member.id, nextStatus));
+      actions.append(button);
+    });
+    card.append(name, actions);
+    adminMemberList.append(card);
+  });
+}
+
+async function loadAdminMemberDirectory() {
+  if (currentMember?.role !== "admin") return;
+  setAdminMemberStatus("Loading member status…");
+  const { data, error } = await supabase.rpc("admin_member_directory");
+  if (error) {
+    setAdminMemberStatus(`Could not load member status: ${error.message}`);
+    return;
+  }
+  renderAdminMemberDirectory(data || []);
+  setAdminMemberStatus();
+}
+
+async function setMemberStatus(memberId, nextStatus) {
+  if (currentMember?.role !== "admin" || !["active", "OB"].includes(nextStatus)) return;
+  setAdminMemberStatus("Saving member status…");
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Administrator session required.");
+    const response = await fetch(APPROVE_REQUEST_WORKER_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_member_status", member_id: memberId, status: nextStatus })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
+    await loadAdminMemberDirectory();
+  } catch (error) {
+    setAdminMemberStatus(`Could not save member status: ${error.message || "Request failed."}`);
+  }
 }
 
 function setLegacyPhotoStatus(key = "") {
@@ -1260,7 +1331,7 @@ async function showDashboard(user) {
 
   const { data: member, error } = await supabase
     .from("members")
-    .select("id, name, student_id, contact, role")
+    .select("id, name, student_id, contact, role, status")
     .eq("email", user.email)
     .maybeSingle();
 

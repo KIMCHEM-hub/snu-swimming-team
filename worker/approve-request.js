@@ -71,7 +71,57 @@ async function verifyAdmin(request, env) {
   );
   const members = await readJson(memberResponse, "Could not verify administrator role.");
   if (!members?.[0] || members[0].role !== "admin") throw new HttpError(403, "Administrator role required.");
-  return user;
+  return { user, authorization };
+}
+
+async function setMemberStatus(memberId, status, authorization, env) {
+  if (!memberId || !["active", "OB"].includes(status)) {
+    throw new HttpError(400, "member_id and a valid status are required.");
+  }
+  const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/rest/v1/rpc/set_member_status`, {
+    method: "POST",
+    headers: restHeaders(env, authorization),
+    body: JSON.stringify({ p_member_id: memberId, p_status: status })
+  });
+  const updated = await readJson(response, "Could not update member status.");
+  const member = updated?.[0];
+  if (!member?.id || !member?.name) throw new HttpError(404, "Member not found.");
+  return member;
+}
+
+async function updatePublicTeamMemberStatus(member, env) {
+  const repository = requiredEnv(env, "GITHUB_REPOSITORY");
+  const branch = env.GITHUB_BRANCH || "main";
+  const githubHeaders = {
+    Authorization: `Bearer ${requiredEnv(env, "GITHUB_TOKEN")}`,
+    "User-Agent": "snu-swim-approve-request-worker",
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "content-type": "application/json"
+  };
+  const fileUrl = `https://api.github.com/repos/${repository}/contents/content/team.json?ref=${encodeURIComponent(branch)}`;
+  const file = await readJson(await fetch(fileUrl, { headers: githubHeaders }), "Could not load content/team.json from GitHub.");
+  let team;
+  try {
+    team = JSON.parse(decodeBase64Utf8(file.content));
+  } catch {
+    throw new HttpError(502, "GitHub returned an invalid team.json file.");
+  }
+  const teamMember = team?.members?.find((entry) => entry.name === member.name);
+  if (!teamMember) throw new HttpError(404, "Matching public team member was not found.");
+  if ((teamMember.status || "active") === member.status) return;
+  teamMember.status = member.status;
+  const commitResponse = await fetch(fileUrl.replace(`?ref=${encodeURIComponent(branch)}`, ""), {
+    method: "PUT",
+    headers: githubHeaders,
+    body: JSON.stringify({
+      message: `Set member status ${member.id} to ${member.status}`,
+      content: encodeBase64Utf8(`${JSON.stringify(team, null, 2)}\n`),
+      sha: file.sha,
+      branch
+    })
+  });
+  await readJson(commitResponse, "Could not commit content/team.json to GitHub.");
 }
 
 async function getRequest(requestId, env) {
@@ -230,8 +280,13 @@ export default {
     if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
     try {
-      await verifyAdmin(request, env);
+      const admin = await verifyAdmin(request, env);
       const body = await request.json();
+      if (body?.action === "set_member_status") {
+        const member = await setMemberStatus(body.member_id, body.status, admin.authorization, env);
+        await updatePublicTeamMemberStatus(member, env);
+        return json({ member_id: member.id, status: member.status });
+      }
       const requestId = body?.request_id;
       const action = body?.action;
       if (!requestId || !["approve", "reject"].includes(action)) {

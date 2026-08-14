@@ -791,13 +791,14 @@ function memberCardHtml(member) {
   const year = pick(member, "year");
   const bio = pick(member, "bio");
   const sns = pick(member, "sns");
+  const status = member.status === "OB" ? "OB" : "active";
   const photoAlt = t("team.profilePhotoAlt", { name });
   const photoHtml = photo
     ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   const meta = [department, year].filter(Boolean).join(" · ");
   const extras = bio || sns ? `<div class="member-extra">${bio ? `<div class="member-bio"><span>${t("team.bio")}</span><p>${bio}</p></div>` : ""}${sns ? `<div class="member-sns"><span>${t("team.sns")}</span><p>${sns}</p></div>` : ""}</div>` : "";
-  return `<article class="leader">${photoHtml}<h3>${name}</h3><p class="ko-role">${meta}</p>${extras}</article>`;
+  return `<article class="leader">${photoHtml}<p class="leader-role">${status}</p><h3>${name}</h3><p class="ko-role">${meta}</p>${extras}</article>`;
 }
 function legacyEntryHtml(entry) {
   const { name, tag, photo } = entry;
