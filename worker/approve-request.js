@@ -107,9 +107,10 @@ async function updatePublicTeamMemberStatus(member, env) {
   } catch {
     throw new HttpError(502, "GitHub returned an invalid team.json file.");
   }
-  const teamMember = team?.members?.find((entry) => entry.name === member.name);
-  if (!teamMember) throw new HttpError(404, "Matching public team member was not found.");
-  if ((teamMember.status || "active") === member.status) return;
+  const teamMember = team?.members?.find((entry) => entry.memberId === member.id)
+    || team?.members?.find((entry) => entry.name === member.name);
+  if (!teamMember) return "pending";
+  if ((teamMember.status || "active") === member.status) return "updated";
   teamMember.status = member.status;
   const commitResponse = await fetch(fileUrl.replace(`?ref=${encodeURIComponent(branch)}`, ""), {
     method: "PUT",
@@ -122,6 +123,7 @@ async function updatePublicTeamMemberStatus(member, env) {
     })
   });
   await readJson(commitResponse, "Could not commit content/team.json to GitHub.");
+  return "updated";
 }
 
 async function getRequest(requestId, env) {
@@ -284,8 +286,8 @@ export default {
       const body = await request.json();
       if (body?.action === "set_member_status") {
         const member = await setMemberStatus(body.member_id, body.status, admin.authorization, env);
-        await updatePublicTeamMemberStatus(member, env);
-        return json({ member_id: member.id, status: member.status });
+        const publicMirror = await updatePublicTeamMemberStatus(member, env);
+        return json({ member_id: member.id, status: member.status, public_mirror: publicMirror });
       }
       const requestId = body?.request_id;
       const action = body?.action;

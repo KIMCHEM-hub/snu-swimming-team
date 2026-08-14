@@ -411,6 +411,9 @@ async function setMemberStatus(memberId, nextStatus) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
     await loadAdminMemberDirectory();
+    if (payload.public_mirror === "pending") {
+      setAdminMemberStatus("DB 상태는 변경됐지만 공개 TEAM 반영은 보류됨");
+    }
   } catch (error) {
     setAdminMemberStatus(`Could not save member status: ${error.message || "Request failed."}`);
   }

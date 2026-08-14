@@ -44,7 +44,7 @@
 | 파일 | 최상위 키 | 내용 |
 |---|---|---|
 | `content/leadership.json` | `members[]` | 리더십(주장/부주장 등): role, name, koRole, koRoleEn?, photo? |
-| `content/team.json` | `membersNote`, `membersNoteEn?`, `members[]` | 부원 명단(name, department?, year?, photo?, status?) + 3탭 공용 폴백 문구. `status`가 없으면 공개 표시는 active로 처리하며, 실제 기준은 `public.members.status`. |
+| `content/team.json` | `membersNote`, `membersNoteEn?`, `members[]` | 부원 명단(name, department?, year?, photo?, status?, memberId?) + 3탭 공용 폴백 문구. `memberId`는 `public.members.id` UUID의 optional 공개 미러 식별자이며, 없으면 기존 이름 fallback을 쓴다. `status`가 없으면 공개 표시는 active로 처리하며, 실제 기준은 `public.members.status`. |
 | `content/legacy.json` | `entries[]` | 레거시 스토리: name, photo?, body, bodyEn?, tag?(영문 캡션) |
 | `content/training.json` | `schedule[]`, `dryland{}` | 정기 훈련 요일/시간/세션/장소, 드라이랜드 headline/caption |
 | `content/schedule.json` | `events[]` | startDate, dateLabel, type(COMPETITION/JOINT TRAINING/EXCHANGE EVENT), title, result? |
@@ -121,7 +121,7 @@
 
 **role 3단계 + 출석 시스템 전면 구축**
 - `members.role`을 `member`/`coach`/`admin` 3단계로 확장(`supabase/training-evaluations.sql`). RLS 재귀 방지용 `current_member_role()`/`is_coach()`/`is_admin()`/`coach_member_directory()` `SECURITY DEFINER` 함수 도입.
-- 회원 상태는 `public.members.status`의 `active`/`OB`로 별도 관리한다(`supabase/member-status.sql`). 기존 회원은 `active`로 백필하며 role과 독립적이다. OB는 로그인·비밀번호 재설정·프로필·기존 이력 조회를 유지하지만, active 전용 신규 활동/평가와 코치 명단·월별 출석률에서는 제외된다. 관리자 전용 `admin_member_directory()`/`set_member_status()` RPC와 기존 승인 Worker가 상태 변경 및 `content/team.json` 공개 미러를 처리한다.
+- 회원 상태는 `public.members.status`의 `active`/`OB`로 별도 관리한다(`supabase/member-status.sql`). 기존 회원은 `active`로 백필하며 role과 독립적이다. OB는 로그인·비밀번호 재설정·프로필·기존 이력 조회를 유지하지만, active 전용 신규 활동/평가와 코치 명단·월별 출석률에서는 제외된다. 관리자 전용 `admin_member_directory()`/`set_member_status()` RPC와 기존 승인 Worker가 상태 변경 및 `content/team.json` 공개 미러를 처리한다. Worker는 optional `memberId` UUID를 우선 사용하고 이름 fallback을 쓴다. 둘 다 없으면 DB 변경은 성공시키고 `public_mirror: "pending"`을 반환한다.
 - 훈련 평가를 점수(`score`) 방식에서 **출석 방식**으로 전환(`supabase/attendance-schema.sql`): `training_evaluations.attendance_type`(`출석`/`지각`/`인정결석`/`미인정결석`, 가중치 1.0/0.8/0.5/0으로 JS·SQL 양쪽에 CASE 문 정의). 신규 테이블 `self_reported_activities`(자유수영/4인모임 **자가기록** + `status` pending/approved/rejected **승인 플로우** — member는 본인 pending만 insert/select, 수정·삭제 불가, admin이 승인 처리). 월별 출석률은 뷰 대신 `monthly_attendance_rates()` `SECURITY DEFINER` 함수(RLS 우회 방지)로 계산 — coach/admin은 전체 부원, member는 본인만 조회, 분모는 그 달 전체 세션 수(누락 평가는 0점).
 - UI: 코치 평가 입력 폼(출결 드롭다운), member "훈련 평가" 탭(이번 달 출석률 %, 50% 미만 경고 스타일 + 자가기록 제출/목록), 코치·관리자 공용 부원별 월별 출석률 목록, 관리자 자가기록 승인 대기 큐. 실제 부주장 계정으로 전체 플로우(평가입력 → 자가기록 제출 → 승인 → 재확인) 스모크 테스트 통과.
 
