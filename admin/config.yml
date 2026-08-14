@@ -73,6 +73,7 @@ collections:
             hint: "여기에 아무것도 등록하지 않으면 LEGACY 탭에는 TEAM 컬렉션의 공용 안내 문구가 대신 표시됩니다."
             fields:
               - { label: 이름, name: name, widget: string }
+              - { label: 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다." }
               - { label: 내용, name: body, widget: text, hint: "여러 줄 입력 가능" }
               - { label: "내용 (영문)", name: bodyEn, widget: text, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: "영문 캡션 (선택)", name: tag, widget: string, required: false, hint: "예: 2014 INCHEON ASIAN GAMES · WOMEN'S 4×100M MEDLEY RELAY · SILVER" }

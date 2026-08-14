@@ -800,9 +800,12 @@ function memberCardHtml(member) {
   return `<article class="leader">${photoHtml}<h3>${name}</h3><p class="ko-role">${meta}</p>${extras}</article>`;
 }
 function legacyEntryHtml(entry) {
-  const { name, tag } = entry;
+  const { name, tag, photo } = entry;
   const body = pick(entry, "body");
-  return `<article class="legacy-note"><div><p class="eyebrow">TEAM LEGACY</p><strong>${name}</strong></div><div><p>${body}</p>${tag ? `<p class="legacy-pending">${tag}</p>` : ""}</div></article>`;
+  const photoHtml = photo
+    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${t("team.profilePhotoAlt", { name })}" loading="lazy" data-legacy-photo></div>`
+    : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
+  return `<article class="legacy-note"><div>${photoHtml}<p class="eyebrow">TEAM LEGACY</p><strong>${name}</strong></div><div><p>${body}</p>${tag ? `<p class="legacy-pending">${tag}</p>` : ""}</div></article>`;
 }
 function renderTeam(team, leaders, members, legacyEntries) {
   const teamShell = document.querySelector("#team .shell");
@@ -822,6 +825,11 @@ function renderTeam(team, leaders, members, legacyEntries) {
     : emptyTeamStateHtml("TEAM LEGACY", membersNote);
 
   teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="is-active" data-team-tab="leadership">LEADERSHIP</button><button data-team-tab="members">MEMBERS</button><button data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership">${leadershipHtml}</div><div class="team-directory-view" data-team-view="members" hidden>${membersHtml}</div><div class="team-directory-view" data-team-view="legacy" hidden>${legacyHtml}</div>`;
+  teamShell.querySelectorAll("[data-legacy-photo]").forEach((image) => image.addEventListener("error", () => {
+    image.src = "./assets/images/university-logo.png";
+    image.alt = "Seoul National University logo";
+    image.parentElement.className = "member-photo no-photo";
+  }, { once: true }));
   teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => { const tab=button.dataset.teamTab; teamShell.querySelectorAll("[data-team-tab]").forEach((item)=>item.classList.toggle("is-active",item===button)); teamShell.querySelectorAll("[data-team-view]").forEach((view)=>view.hidden=view.dataset.teamView!==tab); }));
 }
 

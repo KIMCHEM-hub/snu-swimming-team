@@ -45,7 +45,7 @@
 |---|---|---|
 | `content/leadership.json` | `members[]` | 리더십(주장/부주장 등): role, name, koRole, koRoleEn?, photo? |
 | `content/team.json` | `membersNote`, `membersNoteEn?`, `members[]` | 부원 명단(name, department?, year?, photo?) + 3탭 공용 폴백 문구 |
-| `content/legacy.json` | `entries[]` | 레거시 스토리: name, body, bodyEn?, tag?(영문 캡션) |
+| `content/legacy.json` | `entries[]` | 레거시 스토리: name, photo?, body, bodyEn?, tag?(영문 캡션) |
 | `content/training.json` | `schedule[]`, `dryland{}` | 정기 훈련 요일/시간/세션/장소, 드라이랜드 headline/caption |
 | `content/schedule.json` | `events[]` | startDate, dateLabel, type(COMPETITION/JOINT TRAINING/EXCHANGE EVENT), title, result? |
 | `content/records.json` | `entries[]` | event, athlete, time("24.43" 또는 "1:07.35"), tags[], meet, date, detail? |
@@ -160,15 +160,20 @@
 - 로그인 연장은 버튼 클릭으로만 10분을 다시 시작한다. 마감 시 Supabase 로그아웃 후 로그인 화면으로 이동한다.
 - 같은 브라우저의 여러 탭은 저장소 이벤트로 마감 시각·로그아웃을 맞춘다. 백그라운드 탭이 다시 표시될 때도 즉시 만료 여부를 확인한다.
 
+### 공통 이미지 업로드 + Legacy 사진 (2026-08-14)
+
+- `js/members.js`의 `uploadPublicImage()`가 프로필, 팝업, Legacy 사진의 MIME/확장자·5MB 검사, `profile-photos` bucket 업로드, public URL 생성을 공통 처리한다. 경로는 각각 `${currentMember.id}-${Date.now()}.${extension}`, `popup-${Date.now()}.${extension}`, `legacy-${Date.now()}.${extension}`이다.
+- Legacy `photo`는 선택 필드다. `js/main.js`는 사진이 없거나 읽기에 실패하면 기존 `./assets/images/university-logo.png` fallback을 표시한다. `admin/config.yml`에도 같은 선택 사진 필드를 추가했다.
+- 관리자 탭에서 Legacy 사진 변경 요청을 만들면 기존 `profile_edit_requests`의 public 요청으로 저장한다. `field_name`은 `legacy_photo`, `old_value`는 기존 Legacy 이름이며, `worker/approve-request.js`의 승인 흐름이 `content/legacy.json`을 갱신한다. bucket/RLS/SQL 변경은 없다.
+
 ### 다음 작업 (우선순위 순)
 
 1. 내비게이션 바가 좁은 화면에서 줄바꿈되는 버그를 수정한다.
-2. 사진 업로드 기능을 프로필과 TEAM LEGACY 양쪽에서 통합 사용할 수 있도록 정리한다(현재는 프로필 사진 업로드만 구현됨).
-3. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
-4. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-5. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
-6. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
-7. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
+2. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
+3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+4. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
+5. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
+6. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.

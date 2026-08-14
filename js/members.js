@@ -94,11 +94,18 @@ let resetSessionReady = false;
 let pendingRequestCount = 0;
 let profilePhotoUrl = "";
 let profilePhotoUploading = false;
+let legacyPhotoForm;
+let legacyPhotoEntry;
+let legacyPhotoInput;
+let legacyPhotoPreview;
+let legacyPhotoStatus;
+let legacyPhotoUrl = "";
+let legacyPhotoUploading = false;
 let coachSessions = [];
 let currentCoachEvaluation = null;
-const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-const PROFILE_PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+const IMAGE_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const IMAGE_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ATTENDANCE_TYPES = ["출석", "지각", "인정결석", "미인정결석"];
 const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "4인모임"];
 const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
@@ -219,7 +226,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadPopupAdminData(); loadSelfReportAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
@@ -247,41 +254,40 @@ function resetProfilePhotoSelection() {
   profilePhotoPreview.hidden = true;
 }
 
-function profilePhotoExtension(file) {
+function imageExtension(file) {
   return file.name.split(".").pop()?.toLowerCase() || "";
 }
 
-async function uploadProfilePhoto(file) {
-  const extension = profilePhotoExtension(file);
-  if (!PROFILE_PHOTO_EXTENSIONS.has(extension) || !PROFILE_PHOTO_MIME_TYPES.has(file.type)) {
-    profilePhotoInput.value = "";
-    setRequestStatus("members.profilePhotoInvalidType");
-    return;
+async function uploadPublicImage(file, pathPrefix) {
+  const extension = imageExtension(file);
+  if (!IMAGE_UPLOAD_EXTENSIONS.has(extension) || !IMAGE_UPLOAD_MIME_TYPES.has(file.type)) {
+    return { errorKey: "members.profilePhotoInvalidType" };
   }
-  if (file.size > PROFILE_PHOTO_MAX_BYTES) {
-    profilePhotoInput.value = "";
-    setRequestStatus("members.profilePhotoTooLarge");
-    return;
-  }
+  if (file.size > IMAGE_UPLOAD_MAX_BYTES) return { errorKey: "members.profilePhotoTooLarge" };
 
-  profilePhotoUploading = true;
-  profilePhotoInput.disabled = true;
-  setRequestStatus("members.profilePhotoUploading");
-  const filePath = `${currentMember.id}-${Date.now()}.${extension}`;
+  const filePath = `${pathPrefix}-${Date.now()}.${extension}`;
   const { error } = await supabase.storage.from("profile-photos").upload(filePath, file, {
     contentType: file.type,
     upsert: false
   });
+  if (error) return { errorKey: "upload" };
+  return { publicUrl: supabase.storage.from("profile-photos").getPublicUrl(filePath).data.publicUrl };
+}
+
+async function uploadProfilePhoto(file) {
+  profilePhotoUploading = true;
+  profilePhotoInput.disabled = true;
+  setRequestStatus("members.profilePhotoUploading");
+  const result = await uploadPublicImage(file, currentMember.id);
   profilePhotoUploading = false;
   profilePhotoInput.disabled = false;
-  if (error) {
+  if (result.errorKey) {
     profilePhotoInput.value = "";
-    setRequestStatus("members.profilePhotoUploadFailed");
+    setRequestStatus(result.errorKey === "upload" ? "members.profilePhotoUploadFailed" : result.errorKey);
     return;
   }
 
-  const { data } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
-  profilePhotoUrl = data.publicUrl;
+  profilePhotoUrl = result.publicUrl;
   profilePhotoPreview.src = profilePhotoUrl;
   profilePhotoPreview.hidden = false;
   setRequestStatus();
@@ -337,6 +343,144 @@ async function loadPendingRequests() {
 function setAdminStatus(message = "") {
   adminStatus.textContent = message;
   adminStatus.hidden = !message;
+}
+
+function setLegacyPhotoStatus(key = "") {
+  legacyPhotoStatus.textContent = key ? t(key) : "";
+  legacyPhotoStatus.hidden = !key;
+}
+
+function resetLegacyPhotoSelection() {
+  legacyPhotoUrl = "";
+  legacyPhotoUploading = false;
+  legacyPhotoInput.value = "";
+  legacyPhotoPreview.removeAttribute("src");
+  legacyPhotoPreview.hidden = true;
+}
+
+function createLegacyPhotoForm() {
+  if (legacyPhotoForm) return;
+  const section = document.createElement("section");
+  section.className = "members-coach-section";
+  const heading = document.createElement("h3");
+  heading.textContent = t("members.legacyPhotoManagement");
+  const intro = document.createElement("p");
+  intro.textContent = t("members.legacyPhotoIntro");
+  legacyPhotoStatus = document.createElement("p");
+  legacyPhotoStatus.className = "members-coach-status";
+  legacyPhotoStatus.hidden = true;
+  legacyPhotoForm = document.createElement("form");
+  legacyPhotoForm.className = "members-coach-form";
+  const entryLabel = document.createElement("label");
+  entryLabel.className = "members-label";
+  const entryText = document.createElement("span");
+  entryText.textContent = t("members.legacyPhotoEntry");
+  legacyPhotoEntry = document.createElement("select");
+  legacyPhotoEntry.className = "members-input";
+  legacyPhotoEntry.required = true;
+  entryLabel.append(entryText, legacyPhotoEntry);
+  const imageLabel = document.createElement("label");
+  imageLabel.className = "members-label";
+  const imageText = document.createElement("span");
+  imageText.textContent = t("members.legacyPhoto");
+  legacyPhotoInput = document.createElement("input");
+  legacyPhotoInput.className = "members-input";
+  legacyPhotoInput.type = "file";
+  legacyPhotoInput.accept = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
+  legacyPhotoInput.required = true;
+  const hint = document.createElement("span");
+  hint.textContent = t("members.profilePhotoHint");
+  legacyPhotoPreview = document.createElement("img");
+  legacyPhotoPreview.className = "members-photo-preview";
+  legacyPhotoPreview.hidden = true;
+  imageLabel.append(imageText, legacyPhotoInput, hint, legacyPhotoPreview);
+  const actions = document.createElement("div");
+  actions.className = "members-coach-actions";
+  const submit = document.createElement("button");
+  submit.className = "members-button";
+  submit.type = "submit";
+  submit.textContent = t("members.sendRequest");
+  actions.append(submit);
+  legacyPhotoForm.append(entryLabel, imageLabel, actions);
+  section.append(heading, intro, legacyPhotoStatus, legacyPhotoForm);
+  adminRequestList.after(section);
+
+  legacyPhotoEntry.addEventListener("change", resetLegacyPhotoSelection);
+  legacyPhotoInput.addEventListener("change", async () => {
+    const [file] = legacyPhotoInput.files || [];
+    if (!file) return;
+    legacyPhotoUploading = true;
+    legacyPhotoInput.disabled = true;
+    setLegacyPhotoStatus("members.legacyPhotoUploading");
+    const result = await uploadPublicImage(file, "legacy");
+    legacyPhotoUploading = false;
+    legacyPhotoInput.disabled = false;
+    if (result.errorKey) {
+      legacyPhotoInput.value = "";
+      setLegacyPhotoStatus(result.errorKey === "upload" ? "members.legacyPhotoUploadFailed" : result.errorKey);
+      return;
+    }
+    legacyPhotoUrl = result.publicUrl;
+    legacyPhotoPreview.src = legacyPhotoUrl;
+    legacyPhotoPreview.hidden = false;
+    setLegacyPhotoStatus();
+  });
+  legacyPhotoForm.addEventListener("submit", submitLegacyPhotoRequest);
+}
+
+async function loadLegacyPhotoEntries() {
+  createLegacyPhotoForm();
+  legacyPhotoEntry.replaceChildren();
+  legacyPhotoEntry.disabled = true;
+  const loading = document.createElement("option");
+  loading.textContent = t("members.legacyPhotoLoading");
+  loading.value = "";
+  legacyPhotoEntry.append(loading);
+  try {
+    const response = await fetch("./content/legacy.json");
+    if (!response.ok) throw new Error("Could not load Legacy stories.");
+    const { entries = [] } = await response.json();
+    legacyPhotoEntry.replaceChildren();
+    entries.forEach((entry) => {
+      const option = document.createElement("option");
+      option.value = entry.name;
+      option.textContent = entry.name;
+      legacyPhotoEntry.append(option);
+    });
+    legacyPhotoEntry.disabled = !entries.length;
+    if (!entries.length) setLegacyPhotoStatus("members.legacyPhotoLoadFailed");
+    else setLegacyPhotoStatus();
+  } catch {
+    legacyPhotoEntry.disabled = true;
+    setLegacyPhotoStatus("members.legacyPhotoLoadFailed");
+  }
+}
+
+async function submitLegacyPhotoRequest(event) {
+  event.preventDefault();
+  if (currentMember?.role !== "admin" || legacyPhotoUploading) return;
+  if (!legacyPhotoUrl) {
+    setLegacyPhotoStatus("members.legacyPhotoRequired");
+    return;
+  }
+  const submitButton = legacyPhotoForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  const { error } = await supabase.from("profile_edit_requests").insert({
+    member_id: currentMember.id,
+    field_name: "legacy_photo",
+    old_value: legacyPhotoEntry.value,
+    new_value: legacyPhotoUrl,
+    status: "pending",
+    target_type: "public"
+  });
+  submitButton.disabled = false;
+  if (error) {
+    setLegacyPhotoStatus("members.requestFailed");
+    return;
+  }
+  resetLegacyPhotoSelection();
+  setLegacyPhotoStatus("members.legacyPhotoRequestSent");
+  loadAdminRequests();
 }
 
 function setCoachStatus(element, key = "") {
@@ -1289,13 +1433,11 @@ selfReportForm.addEventListener("submit", async (event) => {
 popupAdminNewButton.addEventListener("click", () => { popupAdminForm.reset(); popupAdminForm.elements.id.value = ""; });
 popupImageInput.addEventListener("change", async () => {
   const [file] = popupImageInput.files || []; if (!file) return;
-  const extension = profilePhotoExtension(file);
-  if (!PROFILE_PHOTO_EXTENSIONS.has(extension) || !PROFILE_PHOTO_MIME_TYPES.has(file.type) || file.size > PROFILE_PHOTO_MAX_BYTES) { popupImageInput.value = ""; setPopupAdminStatus(file.size > PROFILE_PHOTO_MAX_BYTES ? "members.profilePhotoTooLarge" : "members.profilePhotoInvalidType"); return; }
   popupImageInput.disabled = true; setPopupAdminStatus("members.popupImageUploading");
-  const path = `popup-${Date.now()}.${extension}`; const { error } = await supabase.storage.from("profile-photos").upload(path, file, { contentType: file.type, upsert: false });
+  const result = await uploadPublicImage(file, "popup");
   popupImageInput.disabled = false;
-  if (error) { setPopupAdminStatus("members.popupImageUploadFailed"); popupImageInput.value = ""; return; }
-  popupImageUrl = supabase.storage.from("profile-photos").getPublicUrl(path).data.publicUrl; popupImagePreview.src = popupImageUrl; popupImagePreview.hidden = false; setPopupAdminStatus();
+  if (result.errorKey) { setPopupAdminStatus(result.errorKey === "upload" ? "members.popupImageUploadFailed" : result.errorKey); popupImageInput.value = ""; return; }
+  popupImageUrl = result.publicUrl; popupImagePreview.src = popupImageUrl; popupImagePreview.hidden = false; setPopupAdminStatus();
 });
 popupAdminForm.addEventListener("submit", async (event) => {
   event.preventDefault();

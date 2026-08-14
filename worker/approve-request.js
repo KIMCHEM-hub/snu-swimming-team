@@ -4,7 +4,7 @@
 // Optional: GITHUB_BRANCH (defaults to "main").
 
 const PRIVATE_FIELDS = new Set(["student_id", "contact"]);
-const PUBLIC_FIELDS = new Set(["department", "bio", "sns", "photo"]);
+const PUBLIC_FIELDS = new Set(["department", "bio", "sns", "photo", "legacy_photo"]);
 // Replace "*" with "https://snuswimmingteam.org" before restricting production origins.
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +76,7 @@ async function verifyAdmin(request, env) {
 
 async function getRequest(requestId, env) {
   const response = await fetch(
-    `${requiredEnv(env, "SUPABASE_URL")}/rest/v1/profile_edit_requests?select=id,member_id,field_name,new_value,status,target_type&id=eq.${encodeFilter(requestId)}`,
+    `${requiredEnv(env, "SUPABASE_URL")}/rest/v1/profile_edit_requests?select=id,member_id,field_name,old_value,new_value,status,target_type&id=eq.${encodeFilter(requestId)}`,
     { headers: restHeaders(env) }
   );
   const requests = await readJson(response, "Could not load edit request.");
@@ -174,6 +174,43 @@ async function updatePublicTeamMember(editRequest, env) {
   await readJson(commitResponse, "Could not commit content/team.json to GitHub.");
 }
 
+async function updatePublicLegacyPhoto(editRequest, env) {
+  const repository = requiredEnv(env, "GITHUB_REPOSITORY");
+  const branch = env.GITHUB_BRANCH || "main";
+  const githubHeaders = {
+    Authorization: `Bearer ${requiredEnv(env, "GITHUB_TOKEN")}`,
+    "User-Agent": "snu-swim-approve-request-worker",
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "content-type": "application/json"
+  };
+  const fileUrl = `https://api.github.com/repos/${repository}/contents/content/legacy.json?ref=${encodeURIComponent(branch)}`;
+  const file = await readJson(await fetch(fileUrl, { headers: githubHeaders }), "Could not load content/legacy.json from GitHub.");
+
+  let legacy;
+  try {
+    legacy = JSON.parse(decodeBase64Utf8(file.content));
+  } catch {
+    throw new HttpError(502, "GitHub returned an invalid legacy.json file.");
+  }
+  const entry = legacy?.entries?.find((item) => item.name === editRequest.old_value);
+  if (!entry) throw new HttpError(404, "Matching Legacy entry was not found.");
+  if (entry.photo === editRequest.new_value) return;
+  entry.photo = editRequest.new_value;
+
+  const commitResponse = await fetch(fileUrl.replace(`?ref=${encodeURIComponent(branch)}`, ""), {
+    method: "PUT",
+    headers: githubHeaders,
+    body: JSON.stringify({
+      message: `Approve Legacy photo edit request ${editRequest.id}`,
+      content: encodeBase64Utf8(`${JSON.stringify(legacy, null, 2)}\n`),
+      sha: file.sha,
+      branch
+    })
+  });
+  await readJson(commitResponse, "Could not commit content/legacy.json to GitHub.");
+}
+
 async function markReviewed(editRequest, status, env) {
   const response = await fetch(
     `${requiredEnv(env, "SUPABASE_URL")}/rest/v1/profile_edit_requests?id=eq.${encodeFilter(editRequest.id)}&status=eq.pending`,
@@ -204,6 +241,7 @@ export default {
       const editRequest = await getRequest(requestId, env);
       if (action === "approve") {
         if (editRequest.target_type === "private") await updatePrivateMember(editRequest, env);
+        else if (editRequest.field_name === "legacy_photo") await updatePublicLegacyPhoto(editRequest, env);
         else await updatePublicTeamMember(editRequest, env);
         await markReviewed(editRequest, "approved", env);
       } else {
