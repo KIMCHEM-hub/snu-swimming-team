@@ -56,8 +56,14 @@ const coachSessionForm = document.querySelector("[data-coach-session-form]");
 const coachSessionSelect = document.querySelector("[data-coach-session-select]");
 const coachSessionNewButton = document.querySelector("[data-coach-session-new]");
 const coachSessionStatus = document.querySelector("[data-coach-session-status]");
-const sessionDetailsRowsEl = document.querySelector("[data-coach-session-details-rows]");
-const sessionDetailsAddButton = document.querySelector("[data-coach-session-details-add]");
+// One editor group per WARM-UP/MAIN SET/EVENTS/COOL-DOWN category, keyed by category.
+const sessionDetailGroups = Array.from(document.querySelectorAll("[data-coach-session-details]")).reduce((map, el) => {
+  map[el.dataset.coachSessionDetails] = {
+    rowsEl: el.querySelector("[data-session-details-rows]"),
+    addButton: el.querySelector("[data-session-details-add]")
+  };
+  return map;
+}, {});
 const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]");
 const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
 const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
@@ -81,8 +87,12 @@ const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ATTENDANCE_TYPES = ["출석", "지각", "인정결석", "미인정결석"];
 const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "4인모임"];
 const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
-const STROKE_TYPES = ["freestyle", "backstroke", "breaststroke", "butterfly", "drill"];
-const PACE_PATTERN = /^[0-9]{1,2}:[0-5][0-9]$/;
+const STROKE_TYPES = ["freestyle", "backstroke", "butterfly", "breaststroke", "drill"];
+const SESSION_DETAIL_CATEGORIES = ["warmup", "mainset", "events", "cooldown"];
+const SESSION_DETAIL_DISTANCES = [25, 50, 75, 100, 150, 200, 300, 400, 500, 800, 1000, 1500];
+const SESSION_DETAIL_SETS = Array.from({ length: 11 }, (_, i) => i); // 0..10
+const SESSION_DETAIL_PACE_UNITS = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, "0")); // "00".."99"
+const PACE_PATTERN = /^[0-9]{2}'[0-9]{2}"$/;
 
 function strokeLabel(value) {
   return STROKE_TYPES.includes(value) ? t(`training.stroke.${value}`) : value;
@@ -278,41 +288,72 @@ function sessionLabel(session) {
 }
 
 function resetSessionDetailsEditor() {
-  sessionDetailsRowsEl.replaceChildren();
+  SESSION_DETAIL_CATEGORIES.forEach((category) => { sessionDetailGroups[category].rowsEl.replaceChildren(); });
 }
 
-// row: {stroke, distance, sets, pace} — omitted fields default to an empty/blank input
+function pacePartsFromString(pace) {
+  const match = typeof pace === "string" ? pace.match(/^([0-9]{2})'([0-9]{2})"$/) : null;
+  return match ? [match[1], match[2]] : ["", ""];
+}
+
+// row: {stroke, distance, content, sets, pace} — omitted fields default to a blank input
 // so a freshly added row and one loaded from the DB share the same shape.
-function createSessionDetailRow(row = {}) {
+function createSessionDetailRow(category, row = {}) {
   const wrap = document.createElement("div");
   wrap.className = "members-session-detail-row";
 
+  const distanceSelect = document.createElement("select");
+  distanceSelect.className = "members-input";
+  distanceSelect.dataset.role = "distance";
+  appendOption(distanceSelect, "", "—");
+  SESSION_DETAIL_DISTANCES.forEach((d) => appendOption(distanceSelect, String(d), `${d}m`));
+  distanceSelect.value = SESSION_DETAIL_DISTANCES.includes(row.distance) ? String(row.distance) : "";
+
   const strokeSelect = document.createElement("select");
   strokeSelect.className = "members-input";
+  strokeSelect.dataset.role = "stroke";
   STROKE_TYPES.forEach((stroke) => appendOption(strokeSelect, stroke, strokeLabel(stroke)));
   strokeSelect.value = STROKE_TYPES.includes(row.stroke) ? row.stroke : STROKE_TYPES[0];
 
-  const distanceInput = document.createElement("input");
-  distanceInput.className = "members-input";
-  distanceInput.type = "number";
-  distanceInput.min = "1";
-  distanceInput.step = "1";
-  distanceInput.placeholder = t("members.sessionDetailDistance");
-  distanceInput.value = row.distance ?? "";
+  const contentInput = document.createElement("textarea");
+  contentInput.className = "members-input members-textarea members-textarea--compact";
+  contentInput.dataset.role = "content";
+  contentInput.rows = 2;
+  contentInput.maxLength = 120;
+  contentInput.placeholder = t("members.sessionDetailContent");
+  contentInput.value = row.content || "";
+  // Content is meant to stay short (~2 visual lines) — block hard line breaks rather
+  // than counting them, since the textarea already wraps at rows=2.
+  contentInput.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
 
-  const setsInput = document.createElement("input");
-  setsInput.className = "members-input";
-  setsInput.type = "number";
-  setsInput.min = "1";
-  setsInput.step = "1";
-  setsInput.placeholder = t("members.sessionDetailSets");
-  setsInput.value = row.sets ?? "";
+  const setsSelect = document.createElement("select");
+  setsSelect.className = "members-input";
+  setsSelect.dataset.role = "sets";
+  SESSION_DETAIL_SETS.forEach((n) => appendOption(setsSelect, String(n), String(n)));
+  setsSelect.value = Number.isInteger(row.sets) ? String(row.sets) : "0";
 
-  const paceInput = document.createElement("input");
-  paceInput.className = "members-input";
-  paceInput.type = "text";
-  paceInput.placeholder = t("members.sessionDetailPace");
-  paceInput.value = row.pace || "";
+  const [paceMinValue, paceSecValue] = pacePartsFromString(row.pace);
+  const paceWrap = document.createElement("span");
+  paceWrap.className = "members-pace-input";
+  const paceMin = document.createElement("select");
+  paceMin.className = "members-input members-input--small";
+  paceMin.dataset.role = "pace-min";
+  appendOption(paceMin, "", "—");
+  SESSION_DETAIL_PACE_UNITS.forEach((u) => appendOption(paceMin, u, u));
+  paceMin.value = paceMinValue;
+  const paceSep1 = document.createElement("span");
+  paceSep1.className = "members-pace-sep";
+  paceSep1.textContent = "'";
+  const paceSec = document.createElement("select");
+  paceSec.className = "members-input members-input--small";
+  paceSec.dataset.role = "pace-sec";
+  appendOption(paceSec, "", "—");
+  SESSION_DETAIL_PACE_UNITS.forEach((u) => appendOption(paceSec, u, u));
+  paceSec.value = paceSecValue;
+  const paceSep2 = document.createElement("span");
+  paceSep2.className = "members-pace-sep";
+  paceSep2.textContent = "\"";
+  paceWrap.append(paceMin, paceSep1, paceSec, paceSep2);
 
   const removeButton = document.createElement("button");
   removeButton.type = "button";
@@ -320,12 +361,12 @@ function createSessionDetailRow(row = {}) {
   removeButton.textContent = t("members.delete");
   removeButton.addEventListener("click", () => wrap.remove());
 
-  wrap.append(strokeSelect, distanceInput, setsInput, paceInput, removeButton);
+  wrap.append(distanceSelect, strokeSelect, contentInput, setsSelect, paceWrap, removeButton);
   return wrap;
 }
 
-function addSessionDetailRow(row = {}) {
-  sessionDetailsRowsEl.append(createSessionDetailRow(row));
+function addSessionDetailRow(category, row = {}) {
+  sessionDetailGroups[category].rowsEl.append(createSessionDetailRow(category, row));
 }
 
 async function loadSessionDetailsEditor(sessionId) {
@@ -333,31 +374,45 @@ async function loadSessionDetailsEditor(sessionId) {
   if (!sessionId) return;
   const { data, error } = await supabase
     .from("training_session_details")
-    .select("stroke, distance, sets, pace")
+    .select("category, stroke, distance, content, sets, pace")
     .eq("session_id", sessionId)
     .order("sort_order", { ascending: true });
   if (error || !data) return;
-  data.forEach((row) => addSessionDetailRow(row));
+  data.forEach((row) => {
+    if (SESSION_DETAIL_CATEGORIES.includes(row.category)) addSessionDetailRow(row.category, row);
+  });
 }
 
 function collectSessionDetailRows() {
-  return Array.from(sessionDetailsRowsEl.children).map((row, index) => {
-    const [strokeSelect, distanceInput, setsInput, paceInput] = row.querySelectorAll("select, input");
-    return {
-      stroke: strokeSelect.value,
-      distance: distanceInput.value === "" ? null : Number(distanceInput.value),
-      sets: setsInput.value === "" ? null : Number(setsInput.value),
-      pace: sanitizeInput(paceInput.value) || null,
-      sort_order: index
-    };
+  const rows = [];
+  SESSION_DETAIL_CATEGORIES.forEach((category) => {
+    Array.from(sessionDetailGroups[category].rowsEl.children).forEach((wrap, index) => {
+      const distance = wrap.querySelector('[data-role="distance"]').value;
+      const stroke = wrap.querySelector('[data-role="stroke"]').value;
+      const content = sanitizeInput(wrap.querySelector('[data-role="content"]').value) || null;
+      const sets = wrap.querySelector('[data-role="sets"]').value;
+      const paceMin = wrap.querySelector('[data-role="pace-min"]').value;
+      const paceSec = wrap.querySelector('[data-role="pace-sec"]').value;
+      rows.push({
+        category,
+        stroke,
+        distance: distance === "" ? null : Number(distance),
+        content,
+        sets: sets === "" ? null : Number(sets),
+        pace: paceMin && paceSec ? `${paceMin}'${paceSec}"` : null,
+        sort_order: index
+      });
+    });
   });
+  return rows;
 }
 
 function validateSessionDetailRows(rows) {
   return rows.every((row) =>
-    STROKE_TYPES.includes(row.stroke)
-    && Number.isInteger(row.distance) && row.distance > 0
-    && Number.isInteger(row.sets) && row.sets > 0
+    SESSION_DETAIL_CATEGORIES.includes(row.category)
+    && STROKE_TYPES.includes(row.stroke)
+    && SESSION_DETAIL_DISTANCES.includes(row.distance)
+    && Number.isInteger(row.sets) && row.sets >= 0 && row.sets <= 10
     && (row.pace === null || PACE_PATTERN.test(row.pace))
   );
 }
@@ -997,7 +1052,9 @@ profilePhotoInput.addEventListener("change", () => {
 coachSessionSelect.addEventListener("change", () => populateCoachSessionForm(coachSessionSelect.value));
 coachSessionNewButton.addEventListener("click", resetCoachSessionForm);
 
-sessionDetailsAddButton.addEventListener("click", () => addSessionDetailRow());
+SESSION_DETAIL_CATEGORIES.forEach((category) => {
+  sessionDetailGroups[category].addButton.addEventListener("click", () => addSessionDetailRow(category));
+});
 
 coachSessionForm.addEventListener("submit", async (event) => {
   event.preventDefault();

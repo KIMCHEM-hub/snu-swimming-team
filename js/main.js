@@ -547,17 +547,22 @@ function renderHomeWeeklyTraining(sessions) {
   container.replaceChildren(shell);
 }
 
-const STROKE_KEYS = ["freestyle", "backstroke", "breaststroke", "butterfly", "drill"];
+const STROKE_KEYS = ["freestyle", "backstroke", "butterfly", "breaststroke", "drill"];
 function strokeLabel(value) {
   return STROKE_KEYS.includes(value) ? t(`training.stroke.${value}`) : value;
 }
 
+const SESSION_DETAIL_CATEGORIES = ["warmup", "mainset", "events", "cooldown"];
+const SESSION_MODAL_CATEGORY_LABELS = { warmup: "WARM-UP", mainset: "MAIN SET", events: "EVENTS", cooldown: "COOL-DOWN" };
+
 // Shared by both the home "THIS WEEK'S SESSIONS" cards and the TRAINING section cards
-// (see appendWeeklyTrainingCards above). WARM-UP/MAIN SET/EVENTS/COOL-DOWN text comes
-// straight from the session object already in hand; the structured stroke/distance/
-// sets/pace breakdown only exists for coach-managed sessions (which carry an `id`) and is
-// fetched from Supabase lazily when the modal opens, matching the read-anyone RLS policy
-// on training_session_details.
+// (see appendWeeklyTrainingCards above). Each of WARM-UP/MAIN SET/EVENTS/COOL-DOWN is its
+// own section: the short theme text comes straight from the session object already in
+// hand, but the structured stroke/distance/content/sets/pace breakdown only exists for
+// coach-managed sessions (which carry an `id`) and is fetched from Supabase once when the
+// modal opens (single query, split by category client-side), matching the read-anyone RLS
+// policy on training_session_details. A section only becomes expandable when it actually
+// has rows — theme-only sections render as a static line, matching the pre-breakdown look.
 function initSessionModal() {
   const modal = document.querySelector("[data-session-modal]");
   const panel = modal && modal.querySelector("[data-session-modal-panel]");
@@ -566,11 +571,7 @@ function initSessionModal() {
   const closeBtn = modal.querySelector("[data-session-modal-close]");
   const titleEl = modal.querySelector("[data-session-modal-title]");
   const metaEl = modal.querySelector("[data-session-modal-meta]");
-  const textDetailsEl = modal.querySelector("[data-session-modal-text-details]");
-  const setsSection = modal.querySelector("[data-session-modal-sets]");
-  const setsStatusEl = modal.querySelector("[data-session-modal-sets-status]");
-  const setsTable = modal.querySelector("[data-session-modal-sets-table]");
-  const setsBody = modal.querySelector("[data-session-modal-sets-body]");
+  const sectionsEl = modal.querySelector("[data-session-modal-sections]");
   const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
   // See initHomeNewsCarousel's ac comment — same purpose here.
   const ac = new AbortController();
@@ -595,58 +596,127 @@ function initSessionModal() {
     }
   }
 
-  function renderTextDetails(session) {
-    textDetailsEl.replaceChildren();
-    const sessionDetails = session.details || {};
-    [["WARM-UP", "warmup"], ["MAIN SET", "mainset"], ["EVENTS", "events"], ["COOL-DOWN", "cooldown"]].forEach(([label, key]) => {
-      const value = pick(sessionDetails, key);
-      if (!value) return;
-      const row = document.createElement("div");
-      const term = document.createElement("dt");
-      const description = document.createElement("dd");
-      term.textContent = label;
-      description.textContent = value;
-      row.append(term, description);
-      textDetailsEl.append(row);
+  function buildDetailTable(rows) {
+    const table = document.createElement("table");
+    table.className = "session-modal-sets-table";
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    [
+      t("training.sessionModal.distanceColumn"),
+      t("training.sessionModal.strokeColumn"),
+      t("training.sessionModal.contentColumn"),
+      t("training.sessionModal.setsColumn"),
+      t("training.sessionModal.paceColumn")
+    ].forEach((label) => {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.append(th);
     });
-  }
-
-  function renderSetRows(rows) {
-    setsBody.replaceChildren();
+    thead.append(headRow);
+    const tbody = document.createElement("tbody");
     rows.forEach((row) => {
       const tr = document.createElement("tr");
-      const strokeTd = document.createElement("td");
-      strokeTd.textContent = strokeLabel(row.stroke);
       const distanceTd = document.createElement("td");
       distanceTd.textContent = row.distance ? `${Number(row.distance).toLocaleString()}m` : "—";
+      const strokeTd = document.createElement("td");
+      strokeTd.textContent = strokeLabel(row.stroke);
+      const contentTd = document.createElement("td");
+      contentTd.textContent = row.content || "—";
       const setsTd = document.createElement("td");
       setsTd.textContent = row.sets ?? "—";
       const paceTd = document.createElement("td");
       paceTd.textContent = row.pace || "—";
-      tr.append(strokeTd, distanceTd, setsTd, paceTd);
-      setsBody.append(tr);
+      tr.append(distanceTd, strokeTd, contentTd, setsTd, paceTd);
+      tbody.append(tr);
+    });
+    table.append(thead, tbody);
+    return table;
+  }
+
+  function renderSections(session, detailsByCategory) {
+    sectionsEl.replaceChildren();
+    SESSION_DETAIL_CATEGORIES.forEach((category) => {
+      const theme = pick(session.details || {}, category);
+      const rows = detailsByCategory[category] || [];
+      if (!theme && !rows.length) return;
+
+      const section = document.createElement("div");
+      section.className = "session-modal-section";
+
+      if (rows.length) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "session-modal-section-toggle";
+        button.setAttribute("aria-expanded", "false");
+
+        const labelEl = document.createElement("span");
+        labelEl.className = "session-modal-section-label";
+        labelEl.textContent = SESSION_MODAL_CATEGORY_LABELS[category];
+        const themeEl = document.createElement("span");
+        themeEl.className = "session-modal-section-theme";
+        themeEl.textContent = theme || "";
+        const hint = document.createElement("span");
+        hint.className = "session-modal-section-hint";
+        hint.setAttribute("aria-hidden", "true");
+        const hintText = document.createElement("span");
+        hintText.className = "session-modal-section-hint-text";
+        hintText.textContent = t("training.sessionModal.tapHint");
+        const chevron = document.createElement("span");
+        chevron.className = "session-modal-section-chevron";
+        chevron.textContent = "▾";
+        hint.append(hintText, chevron);
+        button.append(labelEl, themeEl, hint);
+
+        const detailPanel = document.createElement("div");
+        detailPanel.className = "session-modal-section-panel";
+        detailPanel.hidden = true;
+        detailPanel.append(buildDetailTable(rows));
+
+        button.addEventListener("click", () => {
+          const expanded = button.getAttribute("aria-expanded") === "true";
+          button.setAttribute("aria-expanded", String(!expanded));
+          detailPanel.hidden = expanded;
+        });
+
+        section.append(button, detailPanel);
+      } else {
+        const staticRow = document.createElement("div");
+        staticRow.className = "session-modal-section-static";
+        const labelEl = document.createElement("span");
+        labelEl.className = "session-modal-section-label";
+        labelEl.textContent = SESSION_MODAL_CATEGORY_LABELS[category];
+        const themeEl = document.createElement("span");
+        themeEl.className = "session-modal-section-theme";
+        themeEl.textContent = theme;
+        staticRow.append(labelEl, themeEl);
+        section.append(staticRow);
+      }
+
+      sectionsEl.append(section);
     });
   }
 
-  async function loadSetRows(session, token) {
-    setsTable.hidden = true;
-    setsStatusEl.hidden = false;
-    setsStatusEl.textContent = t("training.sessionModal.setsLoading");
+  async function loadSections(session, token) {
+    if (!session.id) {
+      renderSections(session, {});
+      return;
+    }
+    sectionsEl.replaceChildren();
+    const status = document.createElement("p");
+    status.className = "session-modal-sections-status";
+    status.textContent = t("training.sessionModal.setsLoading");
+    sectionsEl.append(status);
     const { data, error } = await supabase
       .from("training_session_details")
-      .select("stroke, distance, sets, pace")
+      .select("category, stroke, distance, content, sets, pace")
       .eq("session_id", session.id)
       .order("sort_order", { ascending: true });
     if (token !== openToken) return; // modal closed or reopened for a different session meanwhile
-    if (error || !data?.length) {
-      setsStatusEl.hidden = false;
-      setsStatusEl.textContent = t("training.sessionModal.setsEmpty");
-      setsTable.hidden = true;
-      return;
-    }
-    setsStatusEl.hidden = true;
-    setsTable.hidden = false;
-    renderSetRows(data);
+    const detailsByCategory = error || !data ? {} : data.reduce((map, row) => {
+      (map[row.category] || (map[row.category] = [])).push(row);
+      return map;
+    }, {});
+    renderSections(session, detailsByCategory);
   }
 
   function openModal(session, trigger) {
@@ -662,11 +732,7 @@ function initSessionModal() {
     metaEl.textContent = metaParts.join(" · ");
     metaEl.hidden = !metaParts.length;
 
-    renderTextDetails(session);
-
-    setsSection.hidden = !session.id;
-    setsBody.replaceChildren();
-    if (session.id) loadSetRows(session, token);
+    loadSections(session, token);
 
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
