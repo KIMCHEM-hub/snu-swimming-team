@@ -55,6 +55,8 @@ collections:
               - { label: 학번/기수, name: year, widget: string, required: false }
               - { label: "학번/기수 (영문)", name: yearEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다." }
+              - { label: 자기소개, name: bio, widget: text, required: false }
+              - { label: "SNS 링크", name: sns, widget: text, required: false }
 
   - name: legacy
     label: "팀 (TEAM > LEGACY)"
