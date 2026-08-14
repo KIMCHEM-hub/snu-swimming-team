@@ -239,7 +239,7 @@ function renderRecords(recordEntries, relayEntries) {
     const rows = entries.map((r) => {
       const meet = pick(r, "meet");
       const detail = pick(r, "detail");
-      return `<tr><td>${r.athlete}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
+      return `<tr><td>${pick(r, "athlete")}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
     }).join("");
     return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">${t("records.sortNote")}</p>`;
   }
@@ -458,7 +458,8 @@ function emptyTeamStateHtml(label, note) {
   return `<div class="member-directory"><p>${label}</p><p>${note || t("team.membersNoteFallback")}</p></div>`;
 }
 function leaderCardHtml(leader) {
-  const { role, name, photo } = leader;
+  const { role, photo } = leader;
+  const name = pick(leader, "name");
   const koRole = pick(leader, "koRole");
   const photoAlt = t("team.profilePhotoAlt", { name });
   const photoHtml = photo
@@ -467,7 +468,8 @@ function leaderCardHtml(leader) {
   return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p></article>`;
 }
 function memberCardHtml(member) {
-  const { name, photo } = member;
+  const { photo } = member;
+  const name = pick(member, "name");
   const department = pick(member, "department");
   const year = pick(member, "year");
   const photoAlt = t("team.profilePhotoAlt", { name });

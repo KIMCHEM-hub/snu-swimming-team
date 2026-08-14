@@ -3,157 +3,209 @@
   "members": [
     {
       "name": "이소은",
+      "nameEn": "Lee Soeun",
       "department": "경영학과",
+      "departmentEn": "Business Administration",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "김허준",
+      "nameEn": "Kim Heojun",
       "department": "체육교육과",
+      "departmentEn": "Physical Education",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "황인표",
+      "nameEn": "Hwang Inpyo",
       "department": "재료공학부",
+      "departmentEn": "Materials Science and Engineering",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "송성원",
+      "nameEn": "Song Seongwon",
       "department": "수리과학부",
+      "departmentEn": "Mathematical Sciences",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "문지성",
+      "nameEn": "Moon Jiseong",
       "department": "기계공학부",
+      "departmentEn": "Mechanical and Aerospace Engineering",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "엄재상",
+      "nameEn": "Eom Jaesang",
       "department": "체육교육과",
+      "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "김승규",
+      "nameEn": "Kim Seunggyu",
       "department": "물리교육과",
+      "departmentEn": "Physics Education",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "서재원",
+      "nameEn": "Seo Jaewon",
       "department": "원자핵공학과",
+      "departmentEn": "Nuclear Engineering",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "표영빈",
+      "nameEn": "Pyo Yeongbin",
       "department": "데이터사이언스대학원 / 데이터사이언스학과",
+      "departmentEn": "Graduate School of Data Science / Department of Data Science",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "김승호",
+      "nameEn": "Kim Seungho",
       "department": "컴퓨터공학부",
+      "departmentEn": "Computer Science and Engineering",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "원재희",
+      "nameEn": "Won Jaehee",
       "department": "자유전공학부",
+      "departmentEn": "College of Liberal Studies",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "전유연",
+      "nameEn": "Jeon Yuyeon",
       "department": "체육교육과",
+      "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "박준우",
+      "nameEn": "Park Junwoo",
       "department": "기계공학부",
+      "departmentEn": "Mechanical and Aerospace Engineering",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "김세연",
+      "nameEn": "Kim Seyeon",
       "department": "의학과",
+      "departmentEn": "Medicine",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "윤예진",
+      "nameEn": "Yoon Yejin",
       "department": "보건학과",
+      "departmentEn": "Department of Public Health",
       "year": "Private / 25-2~26-2",
       "photo": ""
     },
     {
       "name": "오영준",
+      "nameEn": "Oh Yeongjun",
       "department": "체육교육과",
+      "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "조아현",
+      "nameEn": "Jo Ahyeon",
       "department": "수의학과",
+      "departmentEn": "Veterinary Medicine",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "황지성",
+      "nameEn": "Hwang Jiseong",
       "department": "전기정보공학부",
+      "departmentEn": "Electrical and Computer Engineering",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "김미성",
+      "nameEn": "Kim Miseong",
       "department": "간호학과",
+      "departmentEn": "Nursing",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "이하정",
+      "nameEn": "Lee Hajung",
       "department": "건축학과",
+      "departmentEn": "Architecture and Architectural Engineering",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "이유나",
+      "nameEn": "Lee Yuna",
       "department": "재료공학부",
+      "departmentEn": "Materials Science and Engineering",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "전예림",
+      "nameEn": "Jeon Yerim",
       "department": "농경제사회학부",
+      "departmentEn": "Agricultural Economics and Rural Development",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "최아라",
+      "nameEn": "Choi Ara",
       "department": "사회학과",
+      "departmentEn": "Sociology",
       "year": "Private / 25-2~26-2",
       "photo": ""
     },
     {
       "name": "장명진",
+      "nameEn": "Jang Myeongjin",
       "department": "전기정보공학부",
+      "departmentEn": "Electrical and Computer Engineering",
       "year": "Private / 26-1~26-2",
       "photo": ""
     },
     {
       "name": "유서준",
+      "nameEn": "Yoo Seojun",
       "department": "물리천문학부",
+      "departmentEn": "Physics and Astronomy",
       "year": "Private / 26-2",
       "photo": ""
     },
     {
       "name": "CHENG, YU-JYUN",
+      "nameEn": "CHENG, YU-JYUN",
       "department": "어학당",
+      "departmentEn": "Language Education Institute",
       "year": "Private / 26-2",
       "photo": ""
     }

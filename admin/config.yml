@@ -27,6 +27,7 @@ collections:
             fields:
               - { label: "직책 (영문)", name: role, widget: string, hint: "예: CAPTAIN, VICE CAPTAIN, TRAINING DIRECTOR, TREASURER" }
               - { label: 이름, name: name, widget: string }
+              - { label: "이름 (영문)", name: nameEn, widget: string, required: false, hint: "EN 화면에서 이름 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: "직책 (한글)", name: koRole, widget: string, hint: "예: 주장, 부주장, 훈련부장, 총무" }
               - { label: "직책 (한글 — EN 페이지용 영문)", name: koRoleEn, widget: string, required: false, hint: "EN 화면에서 '직책 (한글)' 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다. 나중에 업로드하면 자동으로 교체됩니다." }
@@ -48,6 +49,7 @@ collections:
             hint: "여기에 아무도 등록하지 않으면 MEMBERS 탭에는 위 안내 문구만 표시됩니다."
             fields:
               - { label: 이름, name: name, widget: string }
+              - { label: "이름 (영문)", name: nameEn, widget: string, required: false, hint: "EN 화면에서 이름 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: 소속(학과), name: department, widget: string, required: false }
               - { label: "소속(학과) (영문)", name: departmentEn, widget: string, required: false, hint: "비우면 한국어가 그대로 표시됩니다." }
               - { label: 학번/기수, name: year, widget: string, required: false }
@@ -135,6 +137,7 @@ collections:
             fields:
               - { label: 종목, name: event, widget: string, hint: "예: 50 FREE, 100 FREE, 50 FLY, 100 FLY, 50 BREAST, 100 BREAST (자유 입력 — 새 종목도 탭에 자동으로 추가됩니다)" }
               - { label: 선수명, name: athlete, widget: string }
+              - { label: "선수명 (영문)", name: athleteEn, widget: string, required: false, hint: "EN 화면에서 선수명 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: 기록, name: time, widget: string, hint: "초 단위(24.43) 또는 분:초(1:07.35) — 정렬에 자동 반영됩니다" }
               - { label: 태그, name: tags, widget: list, required: false, hint: "예: PB, GR, GOLD, SILVER, BRONZE, 5위" }
               - { label: 대회명, name: meet, widget: string }
