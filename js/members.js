@@ -29,10 +29,31 @@ const profilePhotoPreview = document.querySelector("[data-profile-photo-preview]
 const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
+const trainingEvaluationsEl = document.querySelector("[data-member-training-evaluations]");
 const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
 const adminRequestList = document.querySelector("[data-admin-request-list]");
+const popupAdminForm = document.querySelector("[data-popup-admin-form]");
+const popupAdminStatus = document.querySelector("[data-popup-admin-status]");
+const popupAdminNewButton = document.querySelector("[data-popup-admin-new]");
+const generalPopupList = document.querySelector("[data-general-popup-list]");
+const attendanceWinnerPopupList = document.querySelector("[data-attendance-winner-popup-list]");
+const popupImageInput = popupAdminForm.querySelector('[name="image_url"]');
+const popupImagePreview = document.createElement("img");
+let popupImageUrl = "";
+popupImageInput.type = "file"; popupImageInput.name = "image"; popupImageInput.accept = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
+popupImagePreview.className = "members-photo-preview"; popupImagePreview.hidden = true; popupImageInput.after(popupImagePreview);
+const coachTab = document.querySelector("[data-coach-tab]");
+const coachPanel = document.querySelector('[data-member-panel="coach"]');
+const coachSessionForm = document.querySelector("[data-coach-session-form]");
+const coachSessionSelect = document.querySelector("[data-coach-session-select]");
+const coachSessionNewButton = document.querySelector("[data-coach-session-new]");
+const coachSessionStatus = document.querySelector("[data-coach-session-status]");
+const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]");
+const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
+const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
+const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 let currentUser = null;
 let currentMember = null;
@@ -41,6 +62,8 @@ let statusKey = "";
 let pendingRequestCount = 0;
 let profilePhotoUrl = "";
 let profilePhotoUploading = false;
+let coachSessions = [];
+let currentCoachEvaluation = null;
 const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -53,9 +76,12 @@ function setStatus(key = "") {
 
 function selectTab(tabName) {
   if (tabName === "admin" && currentMember?.role !== "admin") return;
+  if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") loadAdminRequests();
+  if (tabName === "admin") { loadAdminRequests(); loadPopupAdminData(); }
+  if (tabName === "coach") loadCoachData();
+  if (tabName === "training" && currentMember) loadTrainingEvaluations(currentMember);
 }
 
 function setRequestStatus(key = "") {
@@ -169,6 +195,126 @@ function setAdminStatus(message = "") {
   adminStatus.hidden = !message;
 }
 
+function setCoachStatus(element, key = "") {
+  element.textContent = key ? t(key) : "";
+  element.hidden = !key;
+}
+
+function isCoachOrAdmin() {
+  return ["coach", "admin"].includes(currentMember?.role);
+}
+
+function appendOption(select, value, label) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  select.append(option);
+}
+
+function sessionLabel(session) {
+  return `${session.date} · ${session.day} · ${session.total_distance ? `${Number(session.total_distance).toLocaleString()}m` : "—"}`;
+}
+
+function resetCoachSessionForm() {
+  coachSessionForm.reset();
+  coachSessionSelect.value = "";
+}
+
+function populateCoachSessionForm(sessionId) {
+  const session = coachSessions.find((item) => item.id === sessionId);
+  if (!session) {
+    resetCoachSessionForm();
+    return;
+  }
+  coachSessionForm.elements.date.value = session.date || "";
+  coachSessionForm.elements.day.value = session.day || "";
+  coachSessionForm.elements.total_distance.value = session.total_distance ?? "";
+  ["warmup", "mainset", "events", "cooldown"].forEach((field) => {
+    coachSessionForm.elements[field].value = session[field] || "";
+  });
+}
+
+function renderCoachSessionOptions() {
+  const selectedEditId = coachSessionSelect.value;
+  const selectedEvaluationId = coachEvaluationSession.value;
+  coachSessionSelect.replaceChildren();
+  coachEvaluationSession.replaceChildren();
+  appendOption(coachSessionSelect, "", t("members.newSession"));
+  appendOption(coachEvaluationSession, "", t("members.coachSelectSession"));
+  coachSessions.forEach((session) => {
+    const label = sessionLabel(session);
+    appendOption(coachSessionSelect, session.id, label);
+    appendOption(coachEvaluationSession, session.id, label);
+  });
+  coachSessionSelect.value = coachSessions.some((session) => session.id === selectedEditId) ? selectedEditId : "";
+  coachEvaluationSession.value = coachSessions.some((session) => session.id === selectedEvaluationId) ? selectedEvaluationId : "";
+}
+
+function renderCoachMemberOptions(members) {
+  const selectedMemberId = coachEvaluationMember.value;
+  coachEvaluationMember.replaceChildren();
+  appendOption(coachEvaluationMember, "", t("members.coachSelectMember"));
+  members.forEach((member) => appendOption(coachEvaluationMember, member.id, member.name));
+  coachEvaluationMember.value = members.some((member) => member.id === selectedMemberId) ? selectedMemberId : "";
+}
+
+async function loadCoachSessions() {
+  if (!isCoachOrAdmin() || !currentUser) return;
+  let query = supabase
+    .from("training_sessions")
+    .select("id, date, day, total_distance, warmup, mainset, events, cooldown, created_by")
+    .order("date", { ascending: false });
+  if (currentMember.role === "coach") query = query.eq("created_by", currentUser.id);
+  const { data, error } = await query;
+  if (error) {
+    setCoachStatus(coachSessionStatus, "members.sessionLoadFailed");
+    return;
+  }
+  coachSessions = data || [];
+  renderCoachSessionOptions();
+}
+
+async function loadCoachMemberDirectory() {
+  if (!isCoachOrAdmin()) return;
+  const { data, error } = await supabase.rpc("coach_member_directory");
+  if (error) {
+    setCoachStatus(coachEvaluationStatus, "members.coachDirectoryLoadFailed");
+    return;
+  }
+  renderCoachMemberOptions(data || []);
+}
+
+async function loadCoachEvaluation() {
+  const sessionId = coachEvaluationSession.value;
+  const memberId = coachEvaluationMember.value;
+  currentCoachEvaluation = null;
+  coachEvaluationForm.elements.score.value = "";
+  coachEvaluationForm.elements.comment.value = "";
+  if (!sessionId || !memberId) return;
+  let query = supabase
+    .from("training_evaluations")
+    .select("id, score, comment")
+    .eq("session_id", sessionId)
+    .eq("member_id", memberId);
+  if (currentMember.role === "coach") query = query.eq("created_by", currentUser.id);
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    setCoachStatus(coachEvaluationStatus, "members.evaluationLoadFailed");
+    return;
+  }
+  currentCoachEvaluation = data;
+  if (data) {
+    coachEvaluationForm.elements.score.value = data.score ?? "";
+    coachEvaluationForm.elements.comment.value = data.comment || "";
+  }
+}
+
+async function loadCoachData() {
+  if (!isCoachOrAdmin()) return;
+  await Promise.all([loadCoachSessions(), loadCoachMemberDirectory()]);
+  await loadCoachEvaluation();
+}
+
 function requestMemberName(request) {
   const relation = Array.isArray(request.members) ? request.members[0] : request.members;
   return relation?.name || "—";
@@ -279,11 +425,40 @@ async function reviewAdminRequest(requestId, action, card) {
   }
 }
 
+function setPopupAdminStatus(key = "") { popupAdminStatus.textContent = key ? t(key) : ""; popupAdminStatus.hidden = !key; }
+function renderPopupAdminList(container, items, readOnly = false) {
+  container.replaceChildren();
+  if (!items.length) { const empty = document.createElement("p"); empty.className = "members-records-empty"; empty.textContent = t("members.popupEmpty"); container.append(empty); return; }
+  items.forEach((popup) => {
+    const card = document.createElement("article"); card.className = "members-admin-request";
+    const title = document.createElement("p"); title.className = "members-admin-requester"; title.textContent = popup.title || popup.member_name || "—";
+    const details = document.createElement("dl"); details.className = "members-admin-detail";
+    appendAdminDetail(details, t("members.popupBody"), popup.body || "—"); appendAdminDetail(details, "DATE", `${popup.starts_at} → ${popup.ends_at}`);
+    if (readOnly) appendAdminDetail(details, t("members.name"), popup.member_name || "—");
+    card.append(title, details);
+    if (!readOnly) { const actions = document.createElement("div"); actions.className = "members-admin-actions";
+      const active = document.createElement("button"); active.type = "button"; active.className = "members-button members-admin-action"; active.textContent = popup.is_active ? t("members.popupActive") : t("members.popupInactive"); active.addEventListener("click", () => savePopup({ id: popup.id, is_active: !popup.is_active }));
+      const edit = document.createElement("button"); edit.type = "button"; edit.className = "members-button members-admin-action"; edit.textContent = t("members.edit"); edit.addEventListener("click", () => { popupAdminForm.elements.id.value = popup.id; ["title","body","starts_at","ends_at"].forEach((key) => popupAdminForm.elements[key].value = popup[key] || ""); popupImageUrl = popup.image_url || ""; popupImagePreview.src = popupImageUrl; popupImagePreview.hidden = !popupImageUrl; });
+      const remove = document.createElement("button"); remove.type = "button"; remove.className = "members-button members-admin-action members-admin-action--reject"; remove.textContent = t("members.delete"); remove.addEventListener("click", () => deletePopup(popup.id)); actions.append(active, edit, remove); card.append(actions); }
+    container.append(card);
+  });
+}
+async function loadPopupAdminData() {
+  const { data, error } = await supabase.from("popups").select("id,type,title,body,image_url,is_active,starts_at,ends_at,members!popups_member_id_fkey(name)").order("created_at", { ascending: false });
+  if (error) { setPopupAdminStatus("members.popupLoadFailed"); return; }
+  const items = (data || []).map((item) => ({ ...item, member_name: Array.isArray(item.members) ? item.members[0]?.name : item.members?.name }));
+  renderPopupAdminList(generalPopupList, items.filter((item) => item.type === "general")); renderPopupAdminList(attendanceWinnerPopupList, items.filter((item) => item.type === "attendance_winner"), true);
+}
+async function savePopup(values) { const { error } = await supabase.from("popups").update(values).eq("id", values.id); if (error) setPopupAdminStatus("members.popupSaveFailed"); else { await loadPopupAdminData(); setPopupAdminStatus("members.popupSaved"); } }
+async function deletePopup(id) { if (!window.confirm(t("members.delete"))) return; const { error } = await supabase.from("popups").delete().eq("id", id); if (error) setPopupAdminStatus("members.popupDeleteFailed"); else { await loadPopupAdminData(); setPopupAdminStatus("members.popupDeleted"); } }
+
 function showLogin(messageKey = "") {
   currentMember = null;
   currentTeamMember = null;
   adminTab.hidden = true;
   adminPanel.hidden = true;
+  coachTab.hidden = true;
+  coachPanel.hidden = true;
   adminRequestList.replaceChildren();
   setAdminStatus();
   loginView.hidden = false;
@@ -299,6 +474,61 @@ function renderRecords(records) {
   }
   const rows = records.map((record) => `<tr><td>${pick(record, "event")}</td><td>${record.time}</td><td>${pick(record, "meet")}${pick(record, "detail") ? ` · ${pick(record, "detail")}` : ""}</td><td>${record.date}</td></tr>`).join("");
   recordsEl.innerHTML = `<table class="members-records"><thead><tr><th>${t("members.recordEvent")}</th><th>${t("members.recordTime")}</th><th>${t("members.recordMeet")}</th><th>${t("members.recordDate")}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function trainingSessionForEvaluation(evaluation) {
+  return Array.isArray(evaluation.training_sessions)
+    ? evaluation.training_sessions[0]
+    : evaluation.training_sessions;
+}
+
+function renderTrainingEvaluations(evaluations) {
+  trainingEvaluationsEl.replaceChildren();
+  if (!evaluations.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.trainingEvaluationsEmpty");
+    trainingEvaluationsEl.append(empty);
+    return;
+  }
+  evaluations.forEach((evaluation) => {
+    const session = trainingSessionForEvaluation(evaluation);
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const heading = document.createElement("p");
+    heading.className = "members-admin-requester";
+    const sessionDate = session?.date || "—";
+    const sessionDay = session?.day ? ` (${session.day})` : "";
+    heading.textContent = `${t("members.trainingSession")}: ${sessionDate}${sessionDay}`;
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    appendAdminDetail(details, t("members.trainingScore"), evaluation.score ?? "—");
+    appendAdminDetail(details, t("members.trainingComment"), evaluation.comment || "—");
+    card.append(heading, details);
+    trainingEvaluationsEl.append(card);
+  });
+}
+
+function renderTrainingEvaluationsMessage(key) {
+  trainingEvaluationsEl.replaceChildren();
+  const message = document.createElement("p");
+  message.className = "members-records-empty";
+  message.textContent = t(key);
+  trainingEvaluationsEl.append(message);
+}
+
+async function loadTrainingEvaluations(member) {
+  renderTrainingEvaluationsMessage("members.loading");
+  const { data, error } = await supabase
+    .from("training_evaluations")
+    .select("id, score, comment, created_at, training_sessions!training_evaluations_session_id_fkey(date, day)")
+    .eq("member_id", member.id)
+    .order("created_at", { ascending: false });
+  if (error) {
+    renderTrainingEvaluationsMessage("members.trainingEvaluationsLoadFailed");
+    return;
+  }
+  renderTrainingEvaluations(data || []);
 }
 
 async function loadRecords(member) {
@@ -355,6 +585,8 @@ async function showDashboard(user) {
   pendingRequestCount = 0;
   adminTab.hidden = true;
   adminPanel.hidden = true;
+  coachTab.hidden = true;
+  coachPanel.hidden = true;
   adminRequestList.replaceChildren();
   setAdminStatus();
   setStatus();
@@ -381,6 +613,7 @@ async function showDashboard(user) {
   }
   currentMember = member;
   adminTab.hidden = member.role !== "admin";
+  coachTab.hidden = !["coach", "admin"].includes(member.role);
   nameEl.textContent = member.name || "—";
   studentIdEl.textContent = member.student_id || "—";
   contactEl.textContent = member.contact || "—";
@@ -402,6 +635,91 @@ profilePhotoInput.addEventListener("change", () => {
   const [file] = profilePhotoInput.files || [];
   resetProfilePhotoSelection();
   if (file) uploadProfilePhoto(file);
+});
+
+coachSessionSelect.addEventListener("change", () => populateCoachSessionForm(coachSessionSelect.value));
+coachSessionNewButton.addEventListener("click", resetCoachSessionForm);
+
+coachSessionForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!isCoachOrAdmin() || !currentUser) return;
+  const submitButton = coachSessionForm.querySelector("button[type=submit]");
+  const formData = new FormData(coachSessionForm);
+  const distance = formData.get("total_distance");
+  const payload = {
+    date: formData.get("date"),
+    day: formData.get("day"),
+    total_distance: distance === "" ? null : Number(distance),
+    warmup: sanitizeInput(formData.get("warmup")) || null,
+    mainset: sanitizeInput(formData.get("mainset")) || null,
+    events: sanitizeInput(formData.get("events")) || null,
+    cooldown: sanitizeInput(formData.get("cooldown")) || null
+  };
+  submitButton.disabled = true;
+  setCoachStatus(coachSessionStatus);
+  const sessionId = coachSessionSelect.value;
+  const { error } = sessionId
+    ? await supabase.from("training_sessions").update(payload).eq("id", sessionId)
+    : await supabase.from("training_sessions").insert({ ...payload, created_by: currentUser.id });
+  submitButton.disabled = false;
+  if (error) {
+    setCoachStatus(coachSessionStatus, "members.sessionSaveFailed");
+    return;
+  }
+  resetCoachSessionForm();
+  await loadCoachSessions();
+  setCoachStatus(coachSessionStatus, "members.sessionSaved");
+});
+
+coachEvaluationSession.addEventListener("change", loadCoachEvaluation);
+coachEvaluationMember.addEventListener("change", loadCoachEvaluation);
+coachEvaluationForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!isCoachOrAdmin() || !currentUser) return;
+  const submitButton = coachEvaluationForm.querySelector("button[type=submit]");
+  const formData = new FormData(coachEvaluationForm);
+  const score = formData.get("score");
+  const payload = {
+    score: score === "" ? null : Number(score),
+    comment: sanitizeInput(formData.get("comment")) || null
+  };
+  submitButton.disabled = true;
+  setCoachStatus(coachEvaluationStatus);
+  const { error } = currentCoachEvaluation?.id
+    ? await supabase.from("training_evaluations").update(payload).eq("id", currentCoachEvaluation.id)
+    : await supabase.from("training_evaluations").insert({
+      ...payload,
+      session_id: formData.get("session_id"),
+      member_id: formData.get("member_id"),
+      created_by: currentUser.id
+    });
+  submitButton.disabled = false;
+  if (error) {
+    setCoachStatus(coachEvaluationStatus, "members.evaluationSaveFailed");
+    return;
+  }
+  await loadCoachEvaluation();
+  setCoachStatus(coachEvaluationStatus, "members.evaluationSaved");
+});
+
+popupAdminNewButton.addEventListener("click", () => { popupAdminForm.reset(); popupAdminForm.elements.id.value = ""; });
+popupImageInput.addEventListener("change", async () => {
+  const [file] = popupImageInput.files || []; if (!file) return;
+  const extension = profilePhotoExtension(file);
+  if (!PROFILE_PHOTO_EXTENSIONS.has(extension) || !PROFILE_PHOTO_MIME_TYPES.has(file.type) || file.size > PROFILE_PHOTO_MAX_BYTES) { popupImageInput.value = ""; setPopupAdminStatus(file.size > PROFILE_PHOTO_MAX_BYTES ? "members.profilePhotoTooLarge" : "members.profilePhotoInvalidType"); return; }
+  popupImageInput.disabled = true; setPopupAdminStatus("members.popupImageUploading");
+  const path = `popup-${Date.now()}.${extension}`; const { error } = await supabase.storage.from("profile-photos").upload(path, file, { contentType: file.type, upsert: false });
+  popupImageInput.disabled = false;
+  if (error) { setPopupAdminStatus("members.popupImageUploadFailed"); popupImageInput.value = ""; return; }
+  popupImageUrl = supabase.storage.from("profile-photos").getPublicUrl(path).data.publicUrl; popupImagePreview.src = popupImageUrl; popupImagePreview.hidden = false; setPopupAdminStatus();
+});
+popupAdminForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(popupAdminForm); const id = formData.get("id");
+  const payload = { title: sanitizeInput(formData.get("title")), body: sanitizeInput(formData.get("body")), image_url: popupImageUrl || null, starts_at: formData.get("starts_at"), ends_at: formData.get("ends_at") };
+  const { error } = id ? await supabase.from("popups").update(payload).eq("id", id) : await supabase.from("popups").insert({ ...payload, type: "general", created_by: currentUser.id });
+  if (error) { setPopupAdminStatus("members.popupSaveFailed"); return; }
+  popupAdminForm.reset(); popupImageUrl = ""; popupImagePreview.hidden = true; await loadPopupAdminData(); setPopupAdminStatus("members.popupSaved");
 });
 
 requestForm.addEventListener("submit", async (event) => {
@@ -490,6 +808,7 @@ window.addEventListener("langchange", () => {
   if (currentMember) {
     loadRecords(currentMember);
     loadPendingRequests();
+    if (!document.querySelector('[data-member-panel="training"]').hidden) loadTrainingEvaluations(currentMember);
     if (currentMember.role === "admin" && !adminPanel.hidden) loadAdminRequests();
   }
 });

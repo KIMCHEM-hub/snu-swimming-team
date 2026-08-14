@@ -1,4 +1,8 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase-config.js";
 import { initLang, applyStaticTranslations, t, pick } from "./i18n.js";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---- RE-RENDER TEARDOWN REGISTRY ----
 // renderAll() (see CONTENT LOADING below) re-runs on every language switch — cheap since
@@ -415,23 +419,67 @@ function renderTraining(schedule, dryland) {
 // same day (e.g. admin forgot to remove last week's), the most recent date wins. If the
 // whole file is empty, the entire block stays hidden — no empty grid between the tables.
 const WEEKLY_TRAINING_DAYS = ["화", "목"];
-function weeklyTrainingCardHtml(day, session, href = "") {
-  const dayLabel = t(`weekly.day.${day}`);
-  const linkStart = href ? `<a class="weekly-session-link" href="${href}" aria-label="${t("weekly.viewTraining", { day: dayLabel })}">` : "";
-  const linkEnd = href ? "</a>" : "";
-  if (!session) {
-    return `${linkStart}<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${dayLabel}</p><p class="weekly-session-empty">${t("weekly.pending")}</p></article>${linkEnd}`;
-  }
-  const d = session.details || {};
-  const distance = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
-  return `${linkStart}<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${dayLabel}</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${pick(d, "warmup")}</dd></div><div><dt>MAIN SET</dt><dd>${pick(d, "mainset")}</dd></div><div><dt>EVENTS</dt><dd>${pick(d, "events")}</dd></div><div><dt>COOL-DOWN</dt><dd>${pick(d, "cooldown")}</dd></div></dl></article>${linkEnd}`;
-}
-function weeklyTrainingCardsHtml(sessions, href = "") {
+function latestWeeklyTrainingByDay(sessions) {
   const latestByDay = {};
   sessions.forEach((s) => {
-    if (!latestByDay[s.day] || String(s.date) > String(latestByDay[s.day].date)) latestByDay[s.day] = s;
+    if (!latestByDay[s.day] || String(s.date) >= String(latestByDay[s.day].date)) latestByDay[s.day] = s;
   });
-  return WEEKLY_TRAINING_DAYS.map((day) => weeklyTrainingCardHtml(day, latestByDay[day], href)).join("");
+  return latestByDay;
+}
+function appendWeeklyTrainingCards(container, sessions, href = "") {
+  const latestByDay = latestWeeklyTrainingByDay(sessions);
+  WEEKLY_TRAINING_DAYS.forEach((day) => {
+    const session = latestByDay[day];
+    const dayLabel = t(`weekly.day.${day}`);
+    const article = document.createElement("article");
+    article.className = `weekly-session${session ? "" : " weekly-session--empty"}`;
+    const dayEl = document.createElement("p");
+    dayEl.className = "weekly-session-day";
+    dayEl.textContent = dayLabel;
+    article.append(dayEl);
+    if (!session) {
+      const emptyEl = document.createElement("p");
+      emptyEl.className = "weekly-session-empty";
+      emptyEl.textContent = t("weekly.pending");
+      article.append(emptyEl);
+    } else {
+      const head = document.createElement("div");
+      head.className = "weekly-session-head";
+      head.append(dayEl);
+      const date = document.createElement("time");
+      date.className = "weekly-session-date";
+      date.textContent = session.date || "";
+      head.append(date);
+      article.append(head);
+      const distance = document.createElement("p");
+      distance.className = "weekly-session-distance";
+      distance.textContent = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
+      article.append(distance);
+      const details = document.createElement("dl");
+      details.className = "weekly-session-details";
+      const sessionDetails = session.details || {};
+      [["WARM-UP", "warmup"], ["MAIN SET", "mainset"], ["EVENTS", "events"], ["COOL-DOWN", "cooldown"]].forEach(([label, key]) => {
+        const row = document.createElement("div");
+        const term = document.createElement("dt");
+        const description = document.createElement("dd");
+        term.textContent = label;
+        description.textContent = pick(sessionDetails, key);
+        row.append(term, description);
+        details.append(row);
+      });
+      article.append(details);
+    }
+    if (href) {
+      const link = document.createElement("a");
+      link.className = "weekly-session-link";
+      link.href = href;
+      link.setAttribute("aria-label", t("weekly.viewTraining", { day: dayLabel }));
+      link.append(article);
+      container.append(link);
+    } else {
+      container.append(article);
+    }
+  });
 }
 function renderWeeklyTraining(sessions) {
   const container = document.querySelector("[data-weekly-training]");
@@ -441,14 +489,29 @@ function renderWeeklyTraining(sessions) {
     container.innerHTML = "";
     return;
   }
-  const cards = weeklyTrainingCardsHtml(sessions);
-  container.innerHTML = `<p class="weekly-training-title">THIS WEEK'S SESSIONS</p><div class="weekly-training-grid">${cards}</div>`;
+  const title = document.createElement("p");
+  title.className = "weekly-training-title";
+  title.textContent = "THIS WEEK'S SESSIONS";
+  const grid = document.createElement("div");
+  grid.className = "weekly-training-grid";
+  appendWeeklyTrainingCards(grid, sessions);
+  container.replaceChildren(title, grid);
   container.hidden = false;
 }
 function renderHomeWeeklyTraining(sessions) {
   const container = document.querySelector("[data-home-weekly-training]");
   if (!container) return;
-  container.innerHTML = `<div class="shell"><a class="weekly-training-title home-weekly-training-title" href="#training">THIS WEEK'S SESSIONS</a><div class="weekly-training-grid">${weeklyTrainingCardsHtml(sessions, "#training")}</div></div>`;
+  const shell = document.createElement("div");
+  shell.className = "shell";
+  const title = document.createElement("a");
+  title.className = "weekly-training-title home-weekly-training-title";
+  title.href = "#training";
+  title.textContent = "THIS WEEK'S SESSIONS";
+  const grid = document.createElement("div");
+  grid.className = "weekly-training-grid";
+  appendWeeklyTrainingCards(grid, sessions, "#training");
+  shell.append(title, grid);
+  container.replaceChildren(shell);
 }
 
 const infoItems = document.querySelectorAll(".info-grid article");
@@ -1043,6 +1106,73 @@ async function fetchJson(path, fallback) {
   }
 }
 
+async function fetchTrainingSessions() {
+  const { data, error } = await supabase
+    .from("training_sessions")
+    .select("date, day, total_distance, warmup, mainset, events, cooldown")
+    .order("date", { ascending: true });
+  if (error) {
+    console.warn("훈련 세션을 불러오지 못했습니다:", error.message);
+    return [];
+  }
+  return (data || []).map((session) => ({
+    date: session.date,
+    day: session.day,
+    totalDistance: session.total_distance,
+    details: {
+      warmup: session.warmup || "",
+      mainset: session.mainset || "",
+      events: session.events || "",
+      cooldown: session.cooldown || ""
+    }
+  }));
+}
+
+function localDateKey() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function renderActivePopups(popups, teamMembers) {
+  const visible = popups.filter((popup) => !localStorage.getItem(`popup_dismissed_${popup.id}_${localDateKey()}`));
+  if (!visible.length) return;
+  let index = 0;
+  const host = document.createElement("div");
+  host.className = "site-popup";
+  host.setAttribute("role", "dialog");
+  host.setAttribute("aria-modal", "true");
+  const showNext = () => {
+    const popup = visible[index++];
+    if (!popup) { host.remove(); return; }
+    const panel = document.createElement("section"); panel.className = "site-popup-panel";
+    const close = document.createElement("button"); close.className = "site-popup-close"; close.type = "button"; close.textContent = "×"; close.setAttribute("aria-label", t("common.close"));
+    const title = document.createElement("h2"); const body = document.createElement("p");
+    let imageUrl = popup.image_url;
+    if (popup.type === "attendance_winner") {
+      title.textContent = popup.member_name || "—";
+      const member = teamMembers.find((item) => item.name === popup.member_name);
+      imageUrl = member?.photo ? assetPath(member.photo) : "./assets/images/university-logo.png";
+    } else title.textContent = popup.title;
+    body.textContent = popup.body;
+    panel.append(close);
+    if (imageUrl) { const image = document.createElement("img"); image.src = imageUrl; image.alt = title.textContent; panel.append(image); }
+    panel.append(title, body);
+    const actions = document.createElement("div"); actions.className = "site-popup-actions";
+    const dismiss = document.createElement("button"); dismiss.type = "button"; dismiss.textContent = "오늘 하루 안 보기";
+    const next = () => { panel.remove(); showNext(); };
+    close.addEventListener("click", next); dismiss.addEventListener("click", () => { localStorage.setItem(`popup_dismissed_${popup.id}_${localDateKey()}`, "1"); next(); });
+    actions.append(dismiss); panel.append(actions); host.replaceChildren(panel);
+  };
+  document.body.append(host); showNext();
+}
+
+async function loadActivePopups(teamMembers) {
+  const { data, error } = await supabase.rpc("active_popups");
+  if (!error) renderActivePopups(data || [], teamMembers || []);
+}
+
 // contentCache holds the last successful fetch so a language switch can re-render from
 // it directly — every content/*.json file already carries both languages (sibling
 // `<field>En` keys), so switching never needs a second round-trip to the server.
@@ -1050,7 +1180,7 @@ let contentCache = null;
 let contentLoadPromise = null;
 
 async function loadContent() {
-  const [schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy] = await Promise.all([
+  const [schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy] = await Promise.all([
     fetchJson("./content/schedule.json", { events: [] }),
     fetchJson("./content/records.json", { entries: [] }),
     fetchJson("./content/relays.json", { entries: [] }),
@@ -1058,17 +1188,20 @@ async function loadContent() {
     fetchJson("./content/news.json", { items: [] }),
     fetchJson("./content/notices.json", { items: [] }),
     fetchJson("./content/weekly-training.json", { sessions: [] }),
+    fetchTrainingSessions(),
     fetchJson("./content/team.json", { membersNote: "", members: [] }),
     fetchJson("./content/training.json", { schedule: [], dryland: {} }),
     fetchJson("./content/leadership.json", { members: [] }),
     fetchJson("./content/legacy.json", { entries: [] })
   ]);
-  contentCache = { schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy };
+  contentCache = { schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy };
+  loadActivePopups(team.members || []);
 }
 
 function renderAll() {
   if (!contentCache) return;
-  const { schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy } = contentCache;
+  const { schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy } = contentCache;
+  const mergedWeeklyTraining = [...(weeklyTraining.sessions || []), ...(trainingSessions || [])];
 
   runTeardowns();
 
@@ -1078,8 +1211,8 @@ function renderAll() {
   renderHomeNewsCarousel(news.items || []);
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
-  renderWeeklyTraining(weeklyTraining.sessions || []);
-  renderHomeWeeklyTraining(weeklyTraining.sessions || []);
+  renderWeeklyTraining(mergedWeeklyTraining);
+  renderHomeWeeklyTraining(mergedWeeklyTraining);
   renderTeam(team, leadership.members || [], team.members || [], legacy.entries || []);
   renderTraining(training.schedule || [], training.dryland || {});
 
