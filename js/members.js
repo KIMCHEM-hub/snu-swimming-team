@@ -54,6 +54,7 @@ const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]
 const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
 const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
 const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
+let coachSubtabButtons = [];
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 let currentUser = null;
 let currentMember = null;
@@ -203,6 +204,27 @@ function setCoachStatus(element, key = "") {
 function isCoachOrAdmin() {
   return ["coach", "admin"].includes(currentMember?.role);
 }
+
+function initCoachSubtabs() {
+  const views = coachPanel.querySelectorAll(":scope > .members-coach-section");
+  if (views.length < 2) return;
+  const tabList = document.createElement("div");
+  tabList.className = "members-coach-actions";
+  tabList.setAttribute("role", "tablist");
+  const keys = ["members.coachTabSessions", "members.coachTabEvaluations"];
+  coachSubtabButtons = keys.map((key, index) => {
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "members-edit-button"; button.setAttribute("role", "tab");
+    button.addEventListener("click", () => selectCoachSubtab(index)); tabList.append(button); return { button, key };
+  });
+  views[0].before(tabList);
+  window.selectCoachSubtab = (index) => { views.forEach((view, viewIndex) => { view.hidden = viewIndex !== index; }); coachSubtabButtons.forEach((item, buttonIndex) => item.button.setAttribute("aria-selected", String(buttonIndex === index))); };
+  window.selectCoachSubtab(0);
+  renderCoachSubtabs();
+}
+
+function selectCoachSubtab(index) { window.selectCoachSubtab?.(index); }
+function renderCoachSubtabs() { coachSubtabButtons.forEach((item) => { item.button.textContent = t(item.key); }); }
 
 function appendOption(select, value, label) {
   const option = document.createElement("option");
@@ -802,8 +824,10 @@ supabase.auth.onAuthStateChange((_event, session) => {
 
 initLang();
 applyStaticTranslations();
+initCoachSubtabs();
 window.addEventListener("langchange", () => {
   applyStaticTranslations();
+  renderCoachSubtabs();
   setStatus(statusKey);
   if (currentMember) {
     loadRecords(currentMember);
