@@ -24,6 +24,8 @@ const requestForm = document.querySelector("[data-edit-request-form]");
 const requestStatus = document.querySelector("[data-edit-request-status]");
 const requestOpenButton = document.querySelector("[data-edit-request-open]");
 const requestCloseButtons = document.querySelectorAll("[data-edit-request-close]");
+const profilePhotoInput = document.querySelector("[data-profile-photo-input]");
+const profilePhotoPreview = document.querySelector("[data-profile-photo-preview]");
 const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
@@ -37,6 +39,11 @@ let currentMember = null;
 let currentTeamMember = null;
 let statusKey = "";
 let pendingRequestCount = 0;
+let profilePhotoUrl = "";
+let profilePhotoUploading = false;
+const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 
 function setStatus(key = "") {
   statusKey = key;
@@ -63,6 +70,53 @@ function sanitizeInput(value) {
     .trim();
 }
 
+function resetProfilePhotoSelection() {
+  profilePhotoUrl = "";
+  profilePhotoUploading = false;
+  profilePhotoPreview.removeAttribute("src");
+  profilePhotoPreview.hidden = true;
+}
+
+function profilePhotoExtension(file) {
+  return file.name.split(".").pop()?.toLowerCase() || "";
+}
+
+async function uploadProfilePhoto(file) {
+  const extension = profilePhotoExtension(file);
+  if (!PROFILE_PHOTO_EXTENSIONS.has(extension) || !PROFILE_PHOTO_MIME_TYPES.has(file.type)) {
+    profilePhotoInput.value = "";
+    setRequestStatus("members.profilePhotoInvalidType");
+    return;
+  }
+  if (file.size > PROFILE_PHOTO_MAX_BYTES) {
+    profilePhotoInput.value = "";
+    setRequestStatus("members.profilePhotoTooLarge");
+    return;
+  }
+
+  profilePhotoUploading = true;
+  profilePhotoInput.disabled = true;
+  setRequestStatus("members.profilePhotoUploading");
+  const filePath = `${currentMember.id}-${Date.now()}.${extension}`;
+  const { error } = await supabase.storage.from("profile-photos").upload(filePath, file, {
+    contentType: file.type,
+    upsert: false
+  });
+  profilePhotoUploading = false;
+  profilePhotoInput.disabled = false;
+  if (error) {
+    profilePhotoInput.value = "";
+    setRequestStatus("members.profilePhotoUploadFailed");
+    return;
+  }
+
+  const { data } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+  profilePhotoUrl = data.publicUrl;
+  profilePhotoPreview.src = profilePhotoUrl;
+  profilePhotoPreview.hidden = false;
+  setRequestStatus();
+}
+
 function openRequestModal() {
   if (!currentUser || !currentMember) return;
   if (pendingRequestCount > 0) {
@@ -70,6 +124,7 @@ function openRequestModal() {
     return;
   }
   requestForm.reset();
+  resetProfilePhotoSelection();
   setRequestStatus();
   requestModal.hidden = false;
 }
@@ -343,10 +398,19 @@ tabs.forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.
 requestOpenButton.addEventListener("click", openRequestModal);
 requestCloseButtons.forEach((button) => button.addEventListener("click", closeRequestModal));
 requestModal.addEventListener("click", (event) => { if (event.target === requestModal) closeRequestModal(); });
+profilePhotoInput.addEventListener("change", () => {
+  const [file] = profilePhotoInput.files || [];
+  resetProfilePhotoSelection();
+  if (file) uploadProfilePhoto(file);
+});
 
 requestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentUser || !currentMember) return;
+  if (profilePhotoUploading) {
+    setRequestStatus("members.profilePhotoUploading");
+    return;
+  }
   const formData = new FormData(requestForm);
   const fields = [
     { name: "department", targetType: "public", oldValue: currentTeamMember?.department || "" },
@@ -356,6 +420,12 @@ requestForm.addEventListener("submit", async (event) => {
     { name: "contact", targetType: "private", oldValue: currentMember.contact || "" }
   ];
   const requests = fields.map((field) => ({ ...field, newValue: sanitizeInput(formData.get(field.name)) })).filter((field) => field.newValue);
+  if (profilePhotoUrl) requests.unshift({
+    name: "photo",
+    targetType: "public",
+    oldValue: currentTeamMember?.photo || "",
+    newValue: profilePhotoUrl
+  });
   if (!requests.length) {
     setRequestStatus("members.requestRequired");
     return;

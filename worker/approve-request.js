@@ -4,7 +4,7 @@
 // Optional: GITHUB_BRANCH (defaults to "main").
 
 const PRIVATE_FIELDS = new Set(["student_id", "contact"]);
-const PUBLIC_FIELDS = new Set(["department", "bio", "sns"]);
+const PUBLIC_FIELDS = new Set(["department", "bio", "sns", "photo"]);
 // Replace "*" with "https://snuswimmingteam.org" before restricting production origins.
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
