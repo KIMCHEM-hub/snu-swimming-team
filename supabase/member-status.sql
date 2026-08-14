@@ -107,7 +107,8 @@ with check (
   and approved_at is null
 );
 
--- Only active members can be the target of a new or changed evaluation. Existing rows stay.
+-- Only active members can be the target of a new or changed evaluation. Existing rows stay,
+-- including their original coach/admin DELETE permissions.
 drop policy if exists "Coaches create their own evaluations" on public.training_evaluations;
 drop policy if exists "Coaches update their own evaluations" on public.training_evaluations;
 drop policy if exists "Coaches delete their own evaluations" on public.training_evaluations;
@@ -117,6 +118,8 @@ drop policy if exists "Coaches update evaluations for active members" on public.
 drop policy if exists "Admins read all training evaluations" on public.training_evaluations;
 drop policy if exists "Admins create evaluations for active members" on public.training_evaluations;
 drop policy if exists "Admins update evaluations for active members" on public.training_evaluations;
+drop policy if exists "Coaches delete evaluations" on public.training_evaluations;
+drop policy if exists "Admins delete all training evaluations" on public.training_evaluations;
 
 create policy "Coaches create evaluations for active members"
 on public.training_evaluations for insert
@@ -133,6 +136,11 @@ to authenticated
 using (public.is_coach() and created_by = auth.uid() and public.member_is_active(member_id))
 with check (public.is_coach() and created_by = auth.uid() and public.member_is_active(member_id));
 
+create policy "Coaches delete evaluations"
+on public.training_evaluations for delete
+to authenticated
+using (public.is_coach() and created_by = auth.uid());
+
 create policy "Admins read all training evaluations"
 on public.training_evaluations for select
 to authenticated
@@ -148,6 +156,11 @@ on public.training_evaluations for update
 to authenticated
 using (public.is_admin() and public.member_is_active(member_id))
 with check (public.is_admin() and public.member_is_active(member_id));
+
+create policy "Admins delete all training evaluations"
+on public.training_evaluations for delete
+to authenticated
+using (public.is_admin());
 
 -- monthly_attendance_rates intentionally returns active members only.
 create or replace function public.monthly_attendance_rates(p_year int default null, p_month int default null)
