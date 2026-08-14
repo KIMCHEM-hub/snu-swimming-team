@@ -114,42 +114,50 @@
 
 ### 완료
 
-- 부원 로그인, 프로필, 대회 실적, 수정요청, 관리자 승인 시스템을 구현했다.
-- Supabase `members`, `profile_edit_requests` 테이블과 RLS 정책을 구성했다. 관리자 권한은 `role = admin`으로 처리하며, `members.html`은 관리자 전용 승인 탭에서 pending 요청을 조회하고 승인·거절 확인창을 거쳐 처리한다.
-- `worker/approve-request.js`에 Cloudflare Worker 승인 자동화 코드를 추가했다. private 필드는 Supabase `members` 테이블을 직접 갱신하고, public 필드는 GitHub API로 `content/team.json`을 자동 커밋한다. 실제 Worker 이름은 `snu-swim-approve-request`이다.
-- Worker 환경변수는 Cloudflare 대시보드에서 관리한다: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`. 값은 코드나 리포에 저장하지 않는다.
-- CMS의 `content/team.json` 스키마에 `bio`, `sns` 필드를 추가했다.
-- 홈페이지 히어로와 `TEAM UPDATES` 사이에 “THIS WEEK'S SESSIONS” 섹션을 추가했다. `content/weekly-training.json`의 화/목 세션을 기존 카드·fallback 방식으로 표시하고, 각 카드는 `#training`으로 이동한다.
-- 구버전 멀티페이지 파일 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`을 삭제했다.
-- 기본 보안 점검을 완료하고 `CLAUDE.md`에 모든 세션에서 준수할 보안 원칙을 추가했다.
-- **프로필 사진 업로드**(`4c33548`): Supabase Storage 버킷 `profile-photos`(public read)를 `supabase/profile-photos.sql`로 구성 — 업로드/삭제는 `owner_id = auth.uid()`로 RLS 제한. `members.html` 수정요청 폼에 파일 입력을 추가했고, `js/members.js`가 업로드 후 `photo` 필드를 공개 정보 수정요청(public, 관리자 승인 대상)으로 큐잉한다. 확장자(`jpg/jpeg/png/webp`)·MIME 타입·5MB 용량 제한을 클라이언트에서 검증.
-- **role 3단계 확장 + 훈련 평가(점수 방식)**(`9fa7317`, `supabase/training-evaluations.sql`): `members.role` 체크 제약을 `member`/`coach`/`admin`으로 확장하고 `ghftl136@snu.ac.kr`(부주장)을 `coach`로 지정. RLS 재귀를 피하기 위해 `current_member_role()`/`current_member_id()`/`is_coach()`/`is_admin()`/`coach_member_directory()` `SECURITY DEFINER` 함수를 도입. `training_sessions`(날짜별 누적, `warmup`/`mainset`/`events`/`cooldown`/`total_distance`)와 `training_evaluations`(`session_id`+`member_id` 유니크, `score` numeric + `comment`) 테이블을 신설 — 코치는 본인이 만든 세션·평가만 CRUD, 관리자는 전체 관리, 부원은 본인 평가만 조회 가능. `js/members.js`에 코치 전용 세션 등록/수정 폼과 부원별 평가 입력 UI를 추가(`members.html` 코치 탭).
-- **팝업 공지 시스템**(`9fa7317`, `supabase/popups.sql`): `popups` 테이블 신설 — `type`은 `general`(전체 공지, 이미지 업로드 가능, `profile-photos` 버킷 재사용)과 `attendance_winner`(부원 지정형, 이미지 없음) 두 종류를 체크 제약으로 구분. 공개 조회는 `is_active`이고 오늘이 `starts_at`~`ends_at` 사이인 행만 노출하며, `member_name`을 안전하게 붙여 반환하는 `active_popups()` `SECURITY DEFINER` 함수로 `members` 테이블 직접 노출을 막았다. 관리자 탭에 general/attendance_winner 목록, 생성·수정·활성토글·삭제 UI를 추가.
-- **YouTube 자동정지 신뢰성 보강**(`4f41308`): 기존 §5에 기록된 이론적 결함(오리진 미설정 낙관적 postMessage)을 실제로 수정. iframe src에 `origin` 쿼리 파라미터를 추가하고, `postMessage`의 대상 오리진도 `"*"` 대신 명시적 origin으로 좁혔다. `onReady` 메시지를 기다렸다가 pause를 보내는 방식으로 전환했고, 플레이어 준비 전에 pause가 요청되면 최대 12회(250ms 간격, 총 3초) 재시도 후 강제 전송하는 fallback을 추가. §5의 해당 이슈는 해결된 것으로 간주.
-- **코치 탭 서브탭 UI 정리**(`44da75a`): 코치 패널의 "세션 관리"/"평가 입력" 두 뷰를 탭(`role=tablist`)으로 분리해 한 화면에 두 폼이 동시에 노출되던 문제를 정리했다.
-- **출석 스키마 전환**(`supabase/attendance-schema.sql`, Supabase에 실행 완료·스모크 테스트 통과): `training_evaluations.score`를 폐기하고 `attendance_type text not null`(`출석`/`지각`/`인정결석`/`미인정결석`, CHECK 제약)로 교체했다. 가중치(출석=1.0/지각=0.8/인정결석=0.5/미인정결석=0)는 JS와 SQL 양쪽에 CASE 문으로 중복 정의. 신규 테이블 `self_reported_activities`(자유수영/4인모임 자가기록, `status` pending/approved/rejected)를 추가 — member는 본인 pending 기록만 insert·select 가능(UPDATE 정책 자체가 없어 제출 후 수정·삭제 불가), coach는 전체 select, admin은 전체 select + 승인 처리(status/approved_by/approved_at) update. 월별 출석률은 뷰가 아니라 `monthly_attendance_rates()` `SECURITY DEFINER` 함수로 구현(일반 뷰는 RLS를 우회할 수 있어 지양) — 호출자가 coach/admin이면 전체 부원, 일반 member면 본인 행만 반환하며, 분모는 그 달 전체 세션 수(코치가 평가를 누락한 세션도 0점으로 집계). `js/members.js`/`members.html`/`js/i18n.js` 갱신: 코치 평가 입력 폼을 출결 드롭다운으로 교체, member "훈련 평가" 탭에 이번 달 출석률(50% 미만 시 경고 스타일)과 자가 기록 제출 폼·목록을 추가, 코치/관리자 공용 코치 패널에 부원별 월별 출석률 목록(3번째 서브탭, 50% 미만 행 강조)을 추가, 관리자 탭에 자가기록 승인 대기 큐를 추가. 실제 부주장 계정으로 코치 평가입력 → 부원 출석률/자가기록 제출 → 관리자 승인 → 부원 재확인 전체 플로우를 스모크 테스트해 정상 동작을 확인했다.
-- **TRAINING 세션 상세 뷰 개편**(`supabase/session-details.sql` + `supabase/session-details-categories.sql`, **Supabase에 아직 미실행** — 다음 작업 1번 참고): `training_sessions`에 nullable `theme`(세션 전체 테마) 컬럼을 추가하고, 세션당 여러 세부 항목을 담는 1:N 자식 테이블 `training_session_details`를 신설했다. 이후 요청으로 이 테이블을 **WARM-UP/MAIN SET/EVENTS/COOL-DOWN 카테고리별로 재구조화**: `category` CHECK enum 컬럼 추가, `content`(세부 내용, nullable) 컬럼 추가, `distance`는 CHECK로 표준 거리(25/50/75/100/150/200/300/400/500/800/1000/1500)만 허용, `sets`는 0~10로 완화(기존 `>0`에서 변경), `pace`는 `"x:xx"`에서 `"xx'xx""` 형식(양쪽 모두 정확히 2자리, 00~99)으로 정규식 CHECK 갱신. `training_sessions.warmup`/`mainset`/`events`/`cooldown` 컬럼은 스키마 변경 없이 "섹션별 짧은 테마" 용도로 의미만 재해석(전체 세션 테마인 `theme`와는 별개). RLS는 `training_sessions`와 동일한 소유권 모델(공개 read, 코치 본인 세션 CRUD, 관리자 전체) 유지 — 컬럼 추가는 RLS 정책에 영향 없음.
-  - 홈 "THIS WEEK'S SESSIONS"·TRAINING 섹션 카드는 요일/날짜/총거리/세션 테마 요약만 표시(변경 없음, `<a href="#training">` 대신 `<button>`으로 클릭 시 공용 모달 오픈은 직전 작업에서 이미 반영).
-  - 모달(`initSessionModal()`, `js/main.js`)을 아코디언 구조로 재작성: 세션에 `id`가 있으면 열릴 때 해당 세션의 `training_session_details`를 한 번에 fetch해 카테고리별로 그룹핑. 각 섹션은 카테고리 테마 텍스트를 보여주고, 해당 카테고리에 detail 행이 있을 때만 클릭/탭으로 펼쳐지는 표(거리·영법·내용·세트·페이스)를 갖는다(행이 없으면 테마만 정적 표시, 테마도 행도 없으면 섹션 자체를 숨김 — 레거시 `content/weekly-training.json` 항목은 `id`가 없어 펼침 UI 없이 테마만 정적 표시). 펼침 가능한 섹션은 데스크톱에서 `:hover` 배경색 변화 + 회전 화살표 아이콘, 모바일(`max-width:760px`)에서는 항상 보이는 "탭하여 상세 보기" 텍스트로 클릭 가능함을 알린다.
-  - 코치 세션 관리 폼: 기존 WARM-UP/MAIN SET/EVENTS/COOL-DOWN 텍스트칸(이제 섹션 테마 용도)은 유지하고, 각 칸 아래에 카테고리별로 독립된 "세부사항 추가" 버튼 + 행 편집기(거리 드롭다운·영법 드롭다운(자유형/배영/접영/평영/드릴)·내용 텍스트(2줄 제한, Enter 키 차단)·세트수 드롭다운(0~10)·페이스(00~99 두 자리 드롭다운 2개 조합)·행 삭제)를 4세트 배치했다. 저장 시 4개 카테고리의 행을 모두 모아 값 유효성(거리 표준값·영법 enum·세트 0~10·페이스 정규식)을 검증한 뒤, 해당 세션의 기존 detail 행을 전부 삭제하고 category 태깅된 현재 목록을 재삽입한다.
-  - `node --check`(main.js/members.js/i18n.js), HTML 태그·CSS 중괄호 균형(두 HTML 파일 모두 다중 `<style>` 블록 합산 확인), ko/en 사전 키 216개 완전 동기화, `git diff --check`를 모두 통과했다.
+**기반 시스템(부원 페이지 전반)**
+- 부원 로그인, 프로필(자기소개/SNS/프로필 사진 포함), 대회 실적, 정보 수정요청 → 관리자 승인 플로우를 구현했다. Supabase `members`/`profile_edit_requests` 테이블 + RLS, `worker/approve-request.js`(Cloudflare Worker, 이름 `snu-swim-approve-request`)가 private 필드는 `members` 테이블 직접 갱신, public 필드는 GitHub API로 `content/team.json` 자동 커밋을 담당한다. Worker 환경변수(`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`GITHUB_TOKEN`/`GITHUB_REPOSITORY`)는 Cloudflare 대시보드에서만 관리, 코드·리포에 저장하지 않는다.
+- 프로필 사진 업로드: Supabase Storage 버킷 `profile-photos`(public read, `owner_id = auth.uid()` RLS)를 `supabase/profile-photos.sql`로 구성.
+- 홈페이지 "THIS WEEK'S SESSIONS" 섹션, 구버전 멀티페이지 파일(`about.html` 등) 삭제, `CLAUDE.md` 보안 원칙 추가.
+
+**role 3단계 + 출석 시스템 전면 구축**
+- `members.role`을 `member`/`coach`/`admin` 3단계로 확장(`supabase/training-evaluations.sql`). RLS 재귀 방지용 `current_member_role()`/`is_coach()`/`is_admin()`/`coach_member_directory()` `SECURITY DEFINER` 함수 도입.
+- 훈련 평가를 점수(`score`) 방식에서 **출석 방식**으로 전환(`supabase/attendance-schema.sql`): `training_evaluations.attendance_type`(`출석`/`지각`/`인정결석`/`미인정결석`, 가중치 1.0/0.8/0.5/0으로 JS·SQL 양쪽에 CASE 문 정의). 신규 테이블 `self_reported_activities`(자유수영/4인모임 **자가기록** + `status` pending/approved/rejected **승인 플로우** — member는 본인 pending만 insert/select, 수정·삭제 불가, admin이 승인 처리). 월별 출석률은 뷰 대신 `monthly_attendance_rates()` `SECURITY DEFINER` 함수(RLS 우회 방지)로 계산 — coach/admin은 전체 부원, member는 본인만 조회, 분모는 그 달 전체 세션 수(누락 평가는 0점).
+- UI: 코치 평가 입력 폼(출결 드롭다운), member "훈련 평가" 탭(이번 달 출석률 %, 50% 미만 경고 스타일 + 자가기록 제출/목록), 코치·관리자 공용 부원별 월별 출석률 목록, 관리자 자가기록 승인 대기 큐. 실제 부주장 계정으로 전체 플로우(평가입력 → 자가기록 제출 → 승인 → 재확인) 스모크 테스트 통과.
+
+**팝업 공지 시스템**
+- `popups` 테이블(`supabase/popups.sql`): `general`(전체 공지, 이미지 업로드 가능)과 `attendance_winner`(부원 지정형) 두 타입. 공개 조회는 `active_popups()` `SECURITY DEFINER` 함수로 `members` 테이블 직접 노출 없이 `member_name`만 반환. 홈페이지 팝업 표시는 X 닫기와 "오늘 하루 안 보기"(로컬스토리지, 날짜별 키) 둘 다 지원. 관리자 탭에 목록·생성·수정·활성토글·삭제 UI.
+
+**YouTube 자동정지 신뢰성 보강**
+- iframe src에 `origin` 파라미터 추가, `postMessage` 대상 오리진을 `"*"`에서 명시적 origin으로 좁힘, `onReady` 메시지를 기다린 뒤 pause 전송(대기 중이면 최대 12회 재시도). §5에 기록되어 있던 이론적 결함은 해결된 것으로 간주.
+
+**코치 탭 서브탭 UI**
+- 코치 패널의 "세션 관리"/"평가 입력"(이후 "출석률 현황" 추가로 3개) 뷰를 탭(`role=tablist`)으로 분리.
+
+**TRAINING 세션 상세 뷰 전면 재구조화**
+- 스키마(`supabase/session-details.sql` → `supabase/session-details-categories.sql` 순서 실행): `training_sessions.theme`(세션 전체 테마) 추가, 자식 테이블 `training_session_details`를 **WARM-UP/MAIN SET/EVENTS/COOL-DOWN 카테고리별**로 구성(`category` CHECK enum, `content` 텍스트, `distance` CHECK 표준값(25~1500), `sets` 0~10, `pace` `"xx'xx""` 정규식 CHECK). `training_sessions.warmup`/`mainset`/`events`/`cooldown` 컬럼은 스키마 변경 없이 "섹션별 짧은 테마" 용도로 의미만 재해석. RLS는 `training_sessions`와 동일한 소유권 모델(공개 read, 코치 본인 세션 CRUD, 관리자 전체) 재사용.
+- 홈/TRAINING 카드는 요일·날짜·총거리·세션 테마 요약만 표시, `<button>` 클릭 시 공용 모달(`initSessionModal()`, `js/main.js`) 오픈. 모달은 카테고리별 아코디언 구조 — 섹션 테마는 즉시, 카테고리에 detail 행이 있을 때만 클릭/탭으로 펼쳐지는 표(거리·영법·내용·세트·페이스)를 세션 `id` 기준으로 Supabase에서 비동기 로드(레거시 `content/weekly-training.json` 항목은 `id`가 없어 펼침 UI 없이 테마만 표시). 데스크톱은 hover 배경색 변화 + 회전 화살표, 모바일(`max-width:760px`)은 항상 보이는 "탭하여 상세 보기" 힌트.
+- 코치 세션 폼: WARM-UP/MAIN SET/EVENTS/COOL-DOWN 텍스트칸(이제 테마 용도) 유지 + 각 칸 아래 카테고리별 독립 세부사항 편집기(거리/영법/내용/세트수/페이스 드롭다운, 행 추가·삭제). 모든 드롭다운·입력창에 회색 placeholder(미선택 시 회색, 선택 후 일반색) 적용, 각 컨트롤 높이를 한 줄로 통일. 저장 시 4개 카테고리 행을 모아 검증 후 기존 detail 행 전부 삭제·재삽입.
+- `node --check`, HTML 태그/CSS 중괄호 균형(다중 `<style>` 블록 합산), ko/en 사전 키 완전 동기화, `git diff --check`를 매 커밋마다 통과했다.
 
 ### 테스트 계정 참고
 
 - 관리자: `chemi.kim1701@gmail.com`
 - 테스트 부원: `kmcsfc0@naver.com`
-- 실제 부주장: `ghftl136@snu.ac.kr`
+- 실제 부주장: `ghftl136@snu.ac.kr`(현재 `coach` role) — **임의 비밀번호로 생성된 상태**, 비밀번호 찾기/재설정 기능이 없어 본인이 로그인하려면 관리자가 직접 비번을 알려주거나 재설정해줘야 한다. 다음 작업 1번 참고.
 - 실제 일반 부원: `mjs0323@snu.ac.kr`
 
 테스트 계정의 비밀번호나 토큰은 리포에 저장하지 않는다.
 
 ### 다음 작업 (우선순위 순)
 
-1. **`supabase/session-details.sql`과 `supabase/session-details-categories.sql`을 순서대로 Supabase SQL Editor에서 실행**하고(둘 다 아직 DB에 미반영), 코치 계정으로 세션 저장 시 카테고리별 세부사항(거리/영법/내용/세트/페이스)이 반영되는지, 홈/TRAINING 카드 클릭 시 모달에서 섹션 아코디언이 정상 펼쳐지는지, 모바일 뷰포트에서 탭 힌트와 함께 정상 동작하는지 스모크 테스트한다.
-2. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
-3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-4. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다.
-5. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막 작업으로 진행한다.
+1. **비밀번호 찾기/재설정 기능** — 시급. 부주장 등 실제 계정이 임의 비밀번호로 생성된 상태라 본인이 로그인할 방법이 없다. Supabase Auth의 `resetPasswordForEmail` 등을 활용해 `members.html` 로그인 폼에 "비밀번호 찾기" 플로우를 추가한다.
+2. 내비게이션 바가 좁은 화면에서 줄바꿈되는 버그를 수정한다.
+3. 사진 업로드 기능을 프로필과 TEAM LEGACY 양쪽에서 통합 사용할 수 있도록 정리한다(현재는 프로필 사진 업로드만 구현됨).
+4. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
+5. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+6. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
+7. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
+8. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
