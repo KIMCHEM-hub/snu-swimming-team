@@ -117,12 +117,12 @@
 - 부원 로그인, 프로필, 대회 실적, 수정요청 시스템 구현을 완료했으며 `d71394f` 커밋까지 반영되어 있다.
 - Supabase `members`, `profile_edit_requests` 테이블과 RLS 정책을 구성했다. 관리자 권한은 `role = admin`으로 처리한다.
 - CMS의 `content/team.json` 스키마에 `bio`, `sns` 필드를 추가했다.
+- 홈페이지 히어로와 `TEAM UPDATES` 사이에 “THIS WEEK'S SESSIONS” 섹션을 추가했다. `content/weekly-training.json`의 화/목 세션을 기존 카드·fallback 방식으로 표시하고, 각 카드는 `#training`으로 이동한다.
+- 구버전 멀티페이지 파일 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`을 삭제했다.
 
 ### 다음 작업
 
-1. `members.html`에 `role = admin` 전용 탭을 추가하고, pending 수정요청을 승인 또는 거절하는 관리자 승인 화면을 구현한다.
-2. 승인된 공개 정보를 `content/team.json`에 자동 반영하는 Worker를 구현한다.
-3. 홈페이지 히어로와 `TEAM UPDATES`/`NEWS` 사이에 “이번 주 훈련 세션” 섹션을 추가한다.
+1. `members.html`에 `role = admin` 전용 승인 탭을 추가하고, pending 수정요청을 조회해 승인 또는 거절 처리하는 화면을 구현한다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
