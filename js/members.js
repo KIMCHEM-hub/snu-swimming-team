@@ -296,6 +296,27 @@ function pacePartsFromString(pace) {
   return match ? [match[1], match[2]] : ["", ""];
 }
 
+// Placeholder option (empty value, disabled) shown greyed-out until a real choice is
+// made — markPlaceholderState() keeps the select's own text grey/normal in sync with it.
+function prependPlaceholderOption(select, label) {
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = label;
+  placeholder.disabled = true;
+  select.prepend(placeholder);
+}
+
+function markPlaceholderState(select) {
+  select.classList.toggle("is-placeholder", select.value === "");
+}
+
+function initPlaceholderSelect(select, label, initialValue) {
+  prependPlaceholderOption(select, label);
+  select.value = initialValue || "";
+  markPlaceholderState(select);
+  select.addEventListener("change", () => markPlaceholderState(select));
+}
+
 // row: {stroke, distance, content, sets, pace} — omitted fields default to a blank input
 // so a freshly added row and one loaded from the DB share the same shape.
 function createSessionDetailRow(category, row = {}) {
@@ -305,32 +326,28 @@ function createSessionDetailRow(category, row = {}) {
   const distanceSelect = document.createElement("select");
   distanceSelect.className = "members-input";
   distanceSelect.dataset.role = "distance";
-  appendOption(distanceSelect, "", "—");
   SESSION_DETAIL_DISTANCES.forEach((d) => appendOption(distanceSelect, String(d), `${d}m`));
-  distanceSelect.value = SESSION_DETAIL_DISTANCES.includes(row.distance) ? String(row.distance) : "";
+  initPlaceholderSelect(distanceSelect, t("members.sessionDetailDistance"), SESSION_DETAIL_DISTANCES.includes(row.distance) ? String(row.distance) : "");
 
   const strokeSelect = document.createElement("select");
   strokeSelect.className = "members-input";
   strokeSelect.dataset.role = "stroke";
   STROKE_TYPES.forEach((stroke) => appendOption(strokeSelect, stroke, strokeLabel(stroke)));
-  strokeSelect.value = STROKE_TYPES.includes(row.stroke) ? row.stroke : STROKE_TYPES[0];
+  initPlaceholderSelect(strokeSelect, t("members.sessionDetailStroke"), STROKE_TYPES.includes(row.stroke) ? row.stroke : "");
 
-  const contentInput = document.createElement("textarea");
-  contentInput.className = "members-input members-textarea members-textarea--compact";
+  const contentInput = document.createElement("input");
+  contentInput.className = "members-input";
+  contentInput.type = "text";
   contentInput.dataset.role = "content";
-  contentInput.rows = 2;
   contentInput.maxLength = 120;
   contentInput.placeholder = t("members.sessionDetailContent");
   contentInput.value = row.content || "";
-  // Content is meant to stay short (~2 visual lines) — block hard line breaks rather
-  // than counting them, since the textarea already wraps at rows=2.
-  contentInput.addEventListener("keydown", (event) => { if (event.key === "Enter") event.preventDefault(); });
 
   const setsSelect = document.createElement("select");
   setsSelect.className = "members-input";
   setsSelect.dataset.role = "sets";
   SESSION_DETAIL_SETS.forEach((n) => appendOption(setsSelect, String(n), String(n)));
-  setsSelect.value = Number.isInteger(row.sets) ? String(row.sets) : "0";
+  initPlaceholderSelect(setsSelect, t("members.sessionDetailSets"), Number.isInteger(row.sets) ? String(row.sets) : "");
 
   const [paceMinValue, paceSecValue] = pacePartsFromString(row.pace);
   const paceWrap = document.createElement("span");
@@ -338,18 +355,16 @@ function createSessionDetailRow(category, row = {}) {
   const paceMin = document.createElement("select");
   paceMin.className = "members-input members-input--small";
   paceMin.dataset.role = "pace-min";
-  appendOption(paceMin, "", "—");
   SESSION_DETAIL_PACE_UNITS.forEach((u) => appendOption(paceMin, u, u));
-  paceMin.value = paceMinValue;
+  initPlaceholderSelect(paceMin, t("members.sessionDetailPaceMinutes"), paceMinValue);
   const paceSep1 = document.createElement("span");
   paceSep1.className = "members-pace-sep";
   paceSep1.textContent = "'";
   const paceSec = document.createElement("select");
   paceSec.className = "members-input members-input--small";
   paceSec.dataset.role = "pace-sec";
-  appendOption(paceSec, "", "—");
   SESSION_DETAIL_PACE_UNITS.forEach((u) => appendOption(paceSec, u, u));
-  paceSec.value = paceSecValue;
+  initPlaceholderSelect(paceSec, t("members.sessionDetailPaceSeconds"), paceSecValue);
   const paceSep2 = document.createElement("span");
   paceSep2.className = "members-pace-sep";
   paceSep2.textContent = "\"";
