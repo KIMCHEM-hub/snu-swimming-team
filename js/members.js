@@ -30,6 +30,12 @@ const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
 const trainingEvaluationsEl = document.querySelector("[data-member-training-evaluations]");
+const memberAttendanceRateEl = document.querySelector("[data-member-attendance-rate]");
+const selfReportForm = document.querySelector("[data-self-report-form]");
+const selfReportStatus = document.querySelector("[data-self-report-status]");
+const selfReportListEl = document.querySelector("[data-self-report-list]");
+const selfReportAdminStatus = document.querySelector("[data-self-report-admin-status]");
+const selfReportAdminList = document.querySelector("[data-self-report-admin-list]");
 const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
@@ -54,6 +60,8 @@ const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]
 const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
 const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
 const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
+const coachAttendanceStatus = document.querySelector("[data-coach-attendance-status]");
+const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
 let coachSubtabButtons = [];
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 let currentUser = null;
@@ -68,6 +76,26 @@ let currentCoachEvaluation = null;
 const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const ATTENDANCE_TYPES = ["출석", "지각", "인정결석", "미인정결석"];
+const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "4인모임"];
+const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
+
+function attendanceTypeLabel(value) {
+  return value ? t(`members.attendanceType.${value}`) : "—";
+}
+
+function activityTypeLabel(value) {
+  return value ? t(`members.activityType.${value}`) : "—";
+}
+
+function selfReportStatusLabel(value) {
+  return t(`members.selfReportStatus.${value}`);
+}
+
+function currentYearMonth() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
 
 function setStatus(key = "") {
   statusKey = key;
@@ -80,9 +108,13 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadPopupAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadPopupAdminData(); loadSelfReportAdminData(); }
   if (tabName === "coach") loadCoachData();
-  if (tabName === "training" && currentMember) loadTrainingEvaluations(currentMember);
+  if (tabName === "training" && currentMember) {
+    loadTrainingEvaluations(currentMember);
+    loadMemberAttendanceRate(currentMember);
+    loadSelfReports(currentMember);
+  }
 }
 
 function setRequestStatus(key = "") {
@@ -211,7 +243,7 @@ function initCoachSubtabs() {
   const tabList = document.createElement("div");
   tabList.className = "members-coach-actions";
   tabList.setAttribute("role", "tablist");
-  const keys = ["members.coachTabSessions", "members.coachTabEvaluations"];
+  const keys = ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"];
   coachSubtabButtons = keys.map((key, index) => {
     const button = document.createElement("button");
     button.type = "button"; button.className = "members-edit-button"; button.setAttribute("role", "tab");
@@ -310,12 +342,12 @@ async function loadCoachEvaluation() {
   const sessionId = coachEvaluationSession.value;
   const memberId = coachEvaluationMember.value;
   currentCoachEvaluation = null;
-  coachEvaluationForm.elements.score.value = "";
+  coachEvaluationForm.elements.attendance_type.value = "";
   coachEvaluationForm.elements.comment.value = "";
   if (!sessionId || !memberId) return;
   let query = supabase
     .from("training_evaluations")
-    .select("id, score, comment")
+    .select("id, attendance_type, comment")
     .eq("session_id", sessionId)
     .eq("member_id", memberId);
   if (currentMember.role === "coach") query = query.eq("created_by", currentUser.id);
@@ -326,14 +358,58 @@ async function loadCoachEvaluation() {
   }
   currentCoachEvaluation = data;
   if (data) {
-    coachEvaluationForm.elements.score.value = data.score ?? "";
+    coachEvaluationForm.elements.attendance_type.value = data.attendance_type || "";
     coachEvaluationForm.elements.comment.value = data.comment || "";
   }
 }
 
+function renderAttendanceRateList(rows) {
+  coachAttendanceListEl.replaceChildren();
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.attendanceRateEmpty");
+    coachAttendanceListEl.append(empty);
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "members-records";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr><th>${t("members.name")}</th><th>${t("members.attendanceRateSessions")}</th><th>${t("members.attendanceRateColumn")}</th></tr>`;
+  const tbody = document.createElement("tbody");
+  [...rows]
+    .sort((a, b) => a.member_name.localeCompare(b.member_name, "ko"))
+    .forEach((row) => {
+      const tr = document.createElement("tr");
+      if (Number(row.attendance_rate) < ATTENDANCE_RATE_WARNING_THRESHOLD) tr.classList.add("members-attendance-row--warning");
+      const nameTd = document.createElement("td");
+      nameTd.textContent = row.member_name;
+      const sessionsTd = document.createElement("td");
+      sessionsTd.textContent = row.session_count;
+      const rateTd = document.createElement("td");
+      rateTd.textContent = `${row.attendance_rate}%`;
+      tr.append(nameTd, sessionsTd, rateTd);
+      tbody.append(tr);
+    });
+  table.append(thead, tbody);
+  coachAttendanceListEl.append(table);
+}
+
+async function loadAttendanceRateList() {
+  if (!isCoachOrAdmin()) return;
+  const { year, month } = currentYearMonth();
+  const { data, error } = await supabase.rpc("monthly_attendance_rates", { p_year: year, p_month: month });
+  if (error) {
+    setCoachStatus(coachAttendanceStatus, "members.attendanceRateLoadFailed");
+    return;
+  }
+  setCoachStatus(coachAttendanceStatus);
+  renderAttendanceRateList(data || []);
+}
+
 async function loadCoachData() {
   if (!isCoachOrAdmin()) return;
-  await Promise.all([loadCoachSessions(), loadCoachMemberDirectory()]);
+  await Promise.all([loadCoachSessions(), loadCoachMemberDirectory(), loadAttendanceRateList()]);
   await loadCoachEvaluation();
 }
 
@@ -447,6 +523,94 @@ async function reviewAdminRequest(requestId, action, card) {
   }
 }
 
+function setSelfReportAdminStatus(message = "") {
+  selfReportAdminStatus.textContent = message;
+  selfReportAdminStatus.hidden = !message;
+}
+
+function renderSelfReportAdminList(items) {
+  selfReportAdminList.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.selfReportAdminEmpty");
+    selfReportAdminList.append(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+
+    const head = document.createElement("div");
+    head.className = "members-admin-request-head";
+    const requester = document.createElement("p");
+    requester.className = "members-admin-requester";
+    requester.textContent = `${t("members.name")}: ${item.member_name || "—"}`;
+    const date = document.createElement("time");
+    date.className = "members-admin-date";
+    date.textContent = item.date;
+    head.append(requester, date);
+
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    appendAdminDetail(details, t("members.activityType"), activityTypeLabel(item.activity_type));
+
+    const actions = document.createElement("div");
+    actions.className = "members-admin-actions";
+    [
+      { action: "rejected", key: "members.adminReject", className: "members-admin-action--reject" },
+      { action: "approved", key: "members.adminApprove", className: "" }
+    ].forEach(({ action, key, className }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `members-button members-admin-action ${className}`.trim();
+      button.textContent = t(key);
+      button.addEventListener("click", () => reviewSelfReport(item.id, action, card));
+      actions.append(button);
+    });
+
+    card.append(head, details, actions);
+    selfReportAdminList.append(card);
+  });
+}
+
+async function loadSelfReportAdminData() {
+  if (currentMember?.role !== "admin") return;
+  setSelfReportAdminStatus(t("members.adminLoading"));
+  const { data, error } = await supabase
+    .from("self_reported_activities")
+    .select("id, activity_type, date, status, members!self_reported_activities_member_id_fkey(name)")
+    .eq("status", "pending")
+    .order("date", { ascending: false });
+  if (error) {
+    setSelfReportAdminStatus(t("members.selfReportAdminLoadFailed", { message: error.message }));
+    return;
+  }
+  const items = (data || []).map((item) => ({ ...item, member_name: Array.isArray(item.members) ? item.members[0]?.name : item.members?.name }));
+  renderSelfReportAdminList(items);
+  setSelfReportAdminStatus();
+}
+
+async function reviewSelfReport(id, action, card) {
+  const actionLabel = t(action === "approved" ? "members.adminApprove" : "members.adminReject");
+  if (!window.confirm(t("members.adminConfirm", { action: actionLabel }))) return;
+  const buttons = card.querySelectorAll("button");
+  buttons.forEach((button) => { button.disabled = true; });
+  setSelfReportAdminStatus();
+  const { error } = await supabase
+    .from("self_reported_activities")
+    .update({ status: action, approved_by: currentUser.id, approved_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    setSelfReportAdminStatus(t("members.selfReportAdminActionFailed", { message: error.message }));
+    buttons.forEach((button) => { button.disabled = false; });
+    return;
+  }
+  card.remove();
+  if (!selfReportAdminList.children.length) renderSelfReportAdminList([]);
+  setSelfReportAdminStatus(t("members.adminActionSuccess", { action: actionLabel }));
+}
+
 function setPopupAdminStatus(key = "") { popupAdminStatus.textContent = key ? t(key) : ""; popupAdminStatus.hidden = !key; }
 function renderPopupAdminList(container, items, readOnly = false) {
   container.replaceChildren();
@@ -483,6 +647,8 @@ function showLogin(messageKey = "") {
   coachPanel.hidden = true;
   adminRequestList.replaceChildren();
   setAdminStatus();
+  selfReportAdminList.replaceChildren();
+  setSelfReportAdminStatus();
   loginView.hidden = false;
   dashboardView.hidden = true;
   selectTab("profile");
@@ -524,7 +690,7 @@ function renderTrainingEvaluations(evaluations) {
     heading.textContent = `${t("members.trainingSession")}: ${sessionDate}${sessionDay}`;
     const details = document.createElement("dl");
     details.className = "members-admin-detail";
-    appendAdminDetail(details, t("members.trainingScore"), evaluation.score ?? "—");
+    appendAdminDetail(details, t("members.trainingAttendanceType"), attendanceTypeLabel(evaluation.attendance_type));
     appendAdminDetail(details, t("members.trainingComment"), evaluation.comment || "—");
     card.append(heading, details);
     trainingEvaluationsEl.append(card);
@@ -543,7 +709,7 @@ async function loadTrainingEvaluations(member) {
   renderTrainingEvaluationsMessage("members.loading");
   const { data, error } = await supabase
     .from("training_evaluations")
-    .select("id, score, comment, created_at, training_sessions!training_evaluations_session_id_fkey(date, day)")
+    .select("id, attendance_type, comment, created_at, training_sessions!training_evaluations_session_id_fkey(date, day)")
     .eq("member_id", member.id)
     .order("created_at", { ascending: false });
   if (error) {
@@ -551,6 +717,77 @@ async function loadTrainingEvaluations(member) {
     return;
   }
   renderTrainingEvaluations(data || []);
+}
+
+function renderMemberAttendanceRate(row) {
+  memberAttendanceRateEl.replaceChildren();
+  const wrapper = document.createElement("p");
+  wrapper.className = "members-attendance-rate";
+  if (!row || !row.session_count) {
+    wrapper.textContent = t("members.attendanceRateUnavailable");
+  } else {
+    const isLow = Number(row.attendance_rate) < ATTENDANCE_RATE_WARNING_THRESHOLD;
+    wrapper.classList.toggle("members-attendance-rate--warning", isLow);
+    wrapper.textContent = t("members.attendanceRateThisMonth", { rate: row.attendance_rate });
+  }
+  memberAttendanceRateEl.append(wrapper);
+}
+
+async function loadMemberAttendanceRate(member) {
+  const { year, month } = currentYearMonth();
+  const { data, error } = await supabase.rpc("monthly_attendance_rates", { p_year: year, p_month: month });
+  if (error) {
+    renderMemberAttendanceRate(null);
+    return;
+  }
+  const row = (data || []).find((item) => item.member_id === member.id);
+  renderMemberAttendanceRate(row);
+}
+
+function renderSelfReportList(items) {
+  selfReportListEl.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.selfReportEmpty");
+    selfReportListEl.append(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const heading = document.createElement("p");
+    heading.className = "members-admin-requester";
+    heading.textContent = `${activityTypeLabel(item.activity_type)} · ${item.date}`;
+    const badge = document.createElement("span");
+    badge.className = `members-status-badge members-status-badge--${item.status}`;
+    badge.textContent = selfReportStatusLabel(item.status);
+    heading.append(badge);
+    card.append(heading);
+    selfReportListEl.append(card);
+  });
+}
+
+function renderSelfReportMessage(key) {
+  selfReportListEl.replaceChildren();
+  const message = document.createElement("p");
+  message.className = "members-records-empty";
+  message.textContent = t(key);
+  selfReportListEl.append(message);
+}
+
+async function loadSelfReports(member) {
+  renderSelfReportMessage("members.loading");
+  const { data, error } = await supabase
+    .from("self_reported_activities")
+    .select("id, activity_type, date, status")
+    .eq("member_id", member.id)
+    .order("date", { ascending: false });
+  if (error) {
+    renderSelfReportMessage("members.selfReportLoadFailed");
+    return;
+  }
+  renderSelfReportList(data || []);
 }
 
 async function loadRecords(member) {
@@ -611,6 +848,8 @@ async function showDashboard(user) {
   coachPanel.hidden = true;
   adminRequestList.replaceChildren();
   setAdminStatus();
+  selfReportAdminList.replaceChildren();
+  setSelfReportAdminStatus();
   setStatus();
 
   const { data: member, error } = await supabase
@@ -700,9 +939,13 @@ coachEvaluationForm.addEventListener("submit", async (event) => {
   if (!isCoachOrAdmin() || !currentUser) return;
   const submitButton = coachEvaluationForm.querySelector("button[type=submit]");
   const formData = new FormData(coachEvaluationForm);
-  const score = formData.get("score");
+  const attendanceType = formData.get("attendance_type");
+  if (!ATTENDANCE_TYPES.includes(attendanceType)) {
+    setCoachStatus(coachEvaluationStatus, "members.evaluationAttendanceTypeRequired");
+    return;
+  }
   const payload = {
-    score: score === "" ? null : Number(score),
+    attendance_type: attendanceType,
     comment: sanitizeInput(formData.get("comment")) || null
   };
   submitButton.disabled = true;
@@ -721,7 +964,33 @@ coachEvaluationForm.addEventListener("submit", async (event) => {
     return;
   }
   await loadCoachEvaluation();
+  await loadAttendanceRateList();
   setCoachStatus(coachEvaluationStatus, "members.evaluationSaved");
+});
+
+selfReportForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentUser || !currentMember) return;
+  const formData = new FormData(selfReportForm);
+  const activityType = formData.get("activity_type");
+  if (!SELF_REPORT_ACTIVITY_TYPES.includes(activityType)) return;
+  const payload = {
+    member_id: currentMember.id,
+    activity_type: activityType,
+    date: formData.get("date")
+  };
+  const submitButton = selfReportForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setCoachStatus(selfReportStatus);
+  const { error } = await supabase.from("self_reported_activities").insert(payload);
+  submitButton.disabled = false;
+  if (error) {
+    setCoachStatus(selfReportStatus, "members.selfReportSaveFailed");
+    return;
+  }
+  selfReportForm.reset();
+  await loadSelfReports(currentMember);
+  setCoachStatus(selfReportStatus, "members.selfReportSaved");
 });
 
 popupAdminNewButton.addEventListener("click", () => { popupAdminForm.reset(); popupAdminForm.elements.id.value = ""; });
@@ -832,8 +1101,13 @@ window.addEventListener("langchange", () => {
   if (currentMember) {
     loadRecords(currentMember);
     loadPendingRequests();
-    if (!document.querySelector('[data-member-panel="training"]').hidden) loadTrainingEvaluations(currentMember);
-    if (currentMember.role === "admin" && !adminPanel.hidden) loadAdminRequests();
+    if (!document.querySelector('[data-member-panel="training"]').hidden) {
+      loadTrainingEvaluations(currentMember);
+      loadMemberAttendanceRate(currentMember);
+      loadSelfReports(currentMember);
+    }
+    if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); }
+    if (isCoachOrAdmin() && !coachPanel.hidden) loadAttendanceRateList();
   }
 });
 window.addEventListener("pageshow", checkSession);

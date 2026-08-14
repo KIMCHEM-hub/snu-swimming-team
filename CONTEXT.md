@@ -127,6 +127,7 @@
 - **팝업 공지 시스템**(`9fa7317`, `supabase/popups.sql`): `popups` 테이블 신설 — `type`은 `general`(전체 공지, 이미지 업로드 가능, `profile-photos` 버킷 재사용)과 `attendance_winner`(부원 지정형, 이미지 없음) 두 종류를 체크 제약으로 구분. 공개 조회는 `is_active`이고 오늘이 `starts_at`~`ends_at` 사이인 행만 노출하며, `member_name`을 안전하게 붙여 반환하는 `active_popups()` `SECURITY DEFINER` 함수로 `members` 테이블 직접 노출을 막았다. 관리자 탭에 general/attendance_winner 목록, 생성·수정·활성토글·삭제 UI를 추가.
 - **YouTube 자동정지 신뢰성 보강**(`4f41308`): 기존 §5에 기록된 이론적 결함(오리진 미설정 낙관적 postMessage)을 실제로 수정. iframe src에 `origin` 쿼리 파라미터를 추가하고, `postMessage`의 대상 오리진도 `"*"` 대신 명시적 origin으로 좁혔다. `onReady` 메시지를 기다렸다가 pause를 보내는 방식으로 전환했고, 플레이어 준비 전에 pause가 요청되면 최대 12회(250ms 간격, 총 3초) 재시도 후 강제 전송하는 fallback을 추가. §5의 해당 이슈는 해결된 것으로 간주.
 - **코치 탭 서브탭 UI 정리**(`44da75a`): 코치 패널의 "세션 관리"/"평가 입력" 두 뷰를 탭(`role=tablist`)으로 분리해 한 화면에 두 폼이 동시에 노출되던 문제를 정리했다.
+- **출석 스키마 전환**(`supabase/attendance-schema.sql`): `training_evaluations.score`를 폐기하고 `attendance_type text not null`(`출석`/`지각`/`인정결석`/`미인정결석`, CHECK 제약)로 교체했다. 가중치(출석=1.0/지각=0.8/인정결석=0.5/미인정결석=0)는 JS와 SQL 양쪽에 CASE 문으로 중복 정의. 신규 테이블 `self_reported_activities`(자유수영/4인모임 자가기록, `status` pending/approved/rejected)를 추가 — member는 본인 pending 기록만 insert·select 가능(UPDATE 정책 자체가 없어 제출 후 수정·삭제 불가), coach는 전체 select, admin은 전체 select + 승인 처리(status/approved_by/approved_at) update. 월별 출석률은 뷰가 아니라 `monthly_attendance_rates()` `SECURITY DEFINER` 함수로 구현(일반 뷰는 RLS를 우회할 수 있어 지양) — 호출자가 coach/admin이면 전체 부원, 일반 member면 본인 행만 반환하며, 분모는 그 달 전체 세션 수(코치가 평가를 누락한 세션도 0점으로 집계). `js/members.js`/`members.html`/`js/i18n.js` 갱신: 코치 평가 입력 폼을 출결 드롭다운으로 교체, member "훈련 평가" 탭에 이번 달 출석률(50% 미만 시 경고 스타일)과 자가 기록 제출 폼·목록을 추가, 코치/관리자 공용 코치 패널에 부원별 월별 출석률 목록(3번째 서브탭, 50% 미만 행 강조)을 추가, 관리자 탭에 자가기록 승인 대기 큐를 추가.
 
 ### 테스트 계정 참고
 
@@ -139,7 +140,7 @@
 
 ### 다음 작업 (우선순위 순)
 
-1. **출석 스키마 전환(최우선)**: `training_evaluations`의 코치 부여 `score`(점수) 방식을 출석 방식으로 전환한다. 부원이 스스로 출석을 기록하는 자가기록(self-report) 입력을 추가하고, 코치/관리자가 이를 확인·승인하는 승인 플로우(pending → approved/rejected)를 설계한다. 기존 `score`/`comment` 컬럼과의 마이그레이션 경로, RLS 정책(부원은 본인 자가기록만 insert, 코치는 본인 세션 소속 기록만 승인) 재검토가 필요하다.
+1. **`supabase/attendance-schema.sql`을 Supabase SQL Editor에서 실행**하고(아직 DB에 미반영), 부주장(coach) 계정으로 로그인해 평가 저장·자가기록 제출·관리자 승인·출석률 표시가 실제로 동작하는지 스모크 테스트한다.
 2. TRAINING 세션 상세 뷰를 개편한다. 카드는 테마만 표시하고, 클릭 시 모달에서 영법(`freestyle`/`backstroke`/`breaststroke`/`butterfly`/`drill`), 거리, 세트 수, 페이스(`x:xx`) 세부 목록을 표시한다. (`training_sessions`가 아직 `warmup`/`mainset`/`events`/`cooldown` 자유 텍스트 구조라 이 항목은 미착수 상태.)
 3. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
 4. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
