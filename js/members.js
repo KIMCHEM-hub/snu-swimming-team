@@ -56,6 +56,8 @@ const coachSessionForm = document.querySelector("[data-coach-session-form]");
 const coachSessionSelect = document.querySelector("[data-coach-session-select]");
 const coachSessionNewButton = document.querySelector("[data-coach-session-new]");
 const coachSessionStatus = document.querySelector("[data-coach-session-status]");
+const sessionDetailsRowsEl = document.querySelector("[data-coach-session-details-rows]");
+const sessionDetailsAddButton = document.querySelector("[data-coach-session-details-add]");
 const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]");
 const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
 const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
@@ -79,6 +81,12 @@ const PROFILE_PHOTO_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ATTENDANCE_TYPES = ["출석", "지각", "인정결석", "미인정결석"];
 const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "4인모임"];
 const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
+const STROKE_TYPES = ["freestyle", "backstroke", "breaststroke", "butterfly", "drill"];
+const PACE_PATTERN = /^[0-9]{1,2}:[0-5][0-9]$/;
+
+function strokeLabel(value) {
+  return STROKE_TYPES.includes(value) ? t(`training.stroke.${value}`) : value;
+}
 
 function attendanceTypeLabel(value) {
   return value ? t(`members.attendanceType.${value}`) : "—";
@@ -269,9 +277,95 @@ function sessionLabel(session) {
   return `${session.date} · ${session.day} · ${session.total_distance ? `${Number(session.total_distance).toLocaleString()}m` : "—"}`;
 }
 
+function resetSessionDetailsEditor() {
+  sessionDetailsRowsEl.replaceChildren();
+}
+
+// row: {stroke, distance, sets, pace} — omitted fields default to an empty/blank input
+// so a freshly added row and one loaded from the DB share the same shape.
+function createSessionDetailRow(row = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "members-session-detail-row";
+
+  const strokeSelect = document.createElement("select");
+  strokeSelect.className = "members-input";
+  STROKE_TYPES.forEach((stroke) => appendOption(strokeSelect, stroke, strokeLabel(stroke)));
+  strokeSelect.value = STROKE_TYPES.includes(row.stroke) ? row.stroke : STROKE_TYPES[0];
+
+  const distanceInput = document.createElement("input");
+  distanceInput.className = "members-input";
+  distanceInput.type = "number";
+  distanceInput.min = "1";
+  distanceInput.step = "1";
+  distanceInput.placeholder = t("members.sessionDetailDistance");
+  distanceInput.value = row.distance ?? "";
+
+  const setsInput = document.createElement("input");
+  setsInput.className = "members-input";
+  setsInput.type = "number";
+  setsInput.min = "1";
+  setsInput.step = "1";
+  setsInput.placeholder = t("members.sessionDetailSets");
+  setsInput.value = row.sets ?? "";
+
+  const paceInput = document.createElement("input");
+  paceInput.className = "members-input";
+  paceInput.type = "text";
+  paceInput.placeholder = t("members.sessionDetailPace");
+  paceInput.value = row.pace || "";
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "members-button members-button--secondary";
+  removeButton.textContent = t("members.delete");
+  removeButton.addEventListener("click", () => wrap.remove());
+
+  wrap.append(strokeSelect, distanceInput, setsInput, paceInput, removeButton);
+  return wrap;
+}
+
+function addSessionDetailRow(row = {}) {
+  sessionDetailsRowsEl.append(createSessionDetailRow(row));
+}
+
+async function loadSessionDetailsEditor(sessionId) {
+  resetSessionDetailsEditor();
+  if (!sessionId) return;
+  const { data, error } = await supabase
+    .from("training_session_details")
+    .select("stroke, distance, sets, pace")
+    .eq("session_id", sessionId)
+    .order("sort_order", { ascending: true });
+  if (error || !data) return;
+  data.forEach((row) => addSessionDetailRow(row));
+}
+
+function collectSessionDetailRows() {
+  return Array.from(sessionDetailsRowsEl.children).map((row, index) => {
+    const [strokeSelect, distanceInput, setsInput, paceInput] = row.querySelectorAll("select, input");
+    return {
+      stroke: strokeSelect.value,
+      distance: distanceInput.value === "" ? null : Number(distanceInput.value),
+      sets: setsInput.value === "" ? null : Number(setsInput.value),
+      pace: sanitizeInput(paceInput.value) || null,
+      sort_order: index
+    };
+  });
+}
+
+function validateSessionDetailRows(rows) {
+  return rows.every((row) =>
+    STROKE_TYPES.includes(row.stroke)
+    && Number.isInteger(row.distance) && row.distance > 0
+    && Number.isInteger(row.sets) && row.sets > 0
+    && (row.pace === null || PACE_PATTERN.test(row.pace))
+  );
+}
+
 function resetCoachSessionForm() {
   coachSessionForm.reset();
   coachSessionSelect.value = "";
+  resetSessionDetailsEditor();
 }
 
 function populateCoachSessionForm(sessionId) {
@@ -283,9 +377,11 @@ function populateCoachSessionForm(sessionId) {
   coachSessionForm.elements.date.value = session.date || "";
   coachSessionForm.elements.day.value = session.day || "";
   coachSessionForm.elements.total_distance.value = session.total_distance ?? "";
+  coachSessionForm.elements.theme.value = session.theme || "";
   ["warmup", "mainset", "events", "cooldown"].forEach((field) => {
     coachSessionForm.elements[field].value = session[field] || "";
   });
+  loadSessionDetailsEditor(sessionId);
 }
 
 function renderCoachSessionOptions() {
@@ -316,7 +412,7 @@ async function loadCoachSessions() {
   if (!isCoachOrAdmin() || !currentUser) return;
   let query = supabase
     .from("training_sessions")
-    .select("id, date, day, total_distance, warmup, mainset, events, cooldown, created_by")
+    .select("id, date, day, total_distance, theme, warmup, mainset, events, cooldown, created_by")
     .order("date", { ascending: false });
   if (currentMember.role === "coach") query = query.eq("created_by", currentUser.id);
   const { data, error } = await query;
@@ -901,16 +997,24 @@ profilePhotoInput.addEventListener("change", () => {
 coachSessionSelect.addEventListener("change", () => populateCoachSessionForm(coachSessionSelect.value));
 coachSessionNewButton.addEventListener("click", resetCoachSessionForm);
 
+sessionDetailsAddButton.addEventListener("click", () => addSessionDetailRow());
+
 coachSessionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isCoachOrAdmin() || !currentUser) return;
   const submitButton = coachSessionForm.querySelector("button[type=submit]");
   const formData = new FormData(coachSessionForm);
   const distance = formData.get("total_distance");
+  const detailRows = collectSessionDetailRows();
+  if (!validateSessionDetailRows(detailRows)) {
+    setCoachStatus(coachSessionStatus, "members.sessionDetailsInvalid");
+    return;
+  }
   const payload = {
     date: formData.get("date"),
     day: formData.get("day"),
     total_distance: distance === "" ? null : Number(distance),
+    theme: sanitizeInput(formData.get("theme")) || null,
     warmup: sanitizeInput(formData.get("warmup")) || null,
     mainset: sanitizeInput(formData.get("mainset")) || null,
     events: sanitizeInput(formData.get("events")) || null,
@@ -919,9 +1023,25 @@ coachSessionForm.addEventListener("submit", async (event) => {
   submitButton.disabled = true;
   setCoachStatus(coachSessionStatus);
   const sessionId = coachSessionSelect.value;
-  const { error } = sessionId
-    ? await supabase.from("training_sessions").update(payload).eq("id", sessionId)
-    : await supabase.from("training_sessions").insert({ ...payload, created_by: currentUser.id });
+  let savedSessionId = sessionId;
+  let error;
+  if (sessionId) {
+    ({ error } = await supabase.from("training_sessions").update(payload).eq("id", sessionId));
+  } else {
+    const inserted = await supabase.from("training_sessions").insert({ ...payload, created_by: currentUser.id }).select("id").single();
+    error = inserted.error;
+    savedSessionId = inserted.data?.id;
+  }
+  // Simplest correct approach for a coach-owned, low-row-count list: replace the whole
+  // set breakdown on every save rather than diffing added/changed/removed rows.
+  if (!error && savedSessionId) {
+    ({ error } = await supabase.from("training_session_details").delete().eq("session_id", savedSessionId));
+  }
+  if (!error && savedSessionId && detailRows.length) {
+    ({ error } = await supabase.from("training_session_details").insert(
+      detailRows.map((row) => ({ ...row, session_id: savedSessionId }))
+    ));
+  }
   submitButton.disabled = false;
   if (error) {
     setCoachStatus(coachSessionStatus, "members.sessionSaveFailed");

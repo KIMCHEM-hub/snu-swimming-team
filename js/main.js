@@ -30,6 +30,10 @@ toggle.addEventListener("click", () => setMenu(!menu.classList.contains("is-open
 // calls to showPage() (e.g. the initial page load a few lines down) never throw.
 let pauseNewsVideo = () => {};
 
+// Reassigned once initSessionModal() runs (see WEEKLY TRAINING SESSIONS below); a no-op
+// until then so an early click can never throw.
+let openSessionModal = () => {};
+
 function showPage(id) {
   const isDetail = sectionIds.includes(id);
   document.body.classList.toggle("detail-mode", isDetail);
@@ -461,7 +465,10 @@ function latestWeeklyTrainingByDay(sessions) {
   });
   return latestByDay;
 }
-function appendWeeklyTrainingCards(container, sessions, href = "") {
+// Cards show only a summary (day/date, total distance, theme if present) — the full
+// WARM-UP/MAIN SET/EVENTS/COOL-DOWN text and any structured set breakdown live in the
+// shared session modal (see initSessionModal below), opened on click.
+function appendWeeklyTrainingCards(container, sessions) {
   const latestByDay = latestWeeklyTrainingByDay(sessions);
   WEEKLY_TRAINING_DAYS.forEach((day) => {
     const session = latestByDay[day];
@@ -477,43 +484,34 @@ function appendWeeklyTrainingCards(container, sessions, href = "") {
       emptyEl.className = "weekly-session-empty";
       emptyEl.textContent = t("weekly.pending");
       article.append(emptyEl);
-    } else {
-      const head = document.createElement("div");
-      head.className = "weekly-session-head";
-      head.append(dayEl);
-      const date = document.createElement("time");
-      date.className = "weekly-session-date";
-      date.textContent = session.date || "";
-      head.append(date);
-      article.append(head);
-      const distance = document.createElement("p");
-      distance.className = "weekly-session-distance";
-      distance.textContent = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
-      article.append(distance);
-      const details = document.createElement("dl");
-      details.className = "weekly-session-details";
-      const sessionDetails = session.details || {};
-      [["WARM-UP", "warmup"], ["MAIN SET", "mainset"], ["EVENTS", "events"], ["COOL-DOWN", "cooldown"]].forEach(([label, key]) => {
-        const row = document.createElement("div");
-        const term = document.createElement("dt");
-        const description = document.createElement("dd");
-        term.textContent = label;
-        description.textContent = pick(sessionDetails, key);
-        row.append(term, description);
-        details.append(row);
-      });
-      article.append(details);
-    }
-    if (href) {
-      const link = document.createElement("a");
-      link.className = "weekly-session-link";
-      link.href = href;
-      link.setAttribute("aria-label", t("weekly.viewTraining", { day: dayLabel }));
-      link.append(article);
-      container.append(link);
-    } else {
       container.append(article);
+      return;
     }
+    const head = document.createElement("div");
+    head.className = "weekly-session-head";
+    head.append(dayEl);
+    const date = document.createElement("time");
+    date.className = "weekly-session-date";
+    date.textContent = session.date || "";
+    head.append(date);
+    article.append(head);
+    const distance = document.createElement("p");
+    distance.className = "weekly-session-distance";
+    distance.textContent = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
+    article.append(distance);
+    if (session.theme) {
+      const theme = document.createElement("p");
+      theme.className = "weekly-session-theme";
+      theme.textContent = session.theme;
+      article.append(theme);
+    }
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "weekly-session-trigger";
+    trigger.setAttribute("aria-label", t("weekly.viewTraining", { day: dayLabel }));
+    trigger.append(article);
+    trigger.addEventListener("click", () => openSessionModal(session, trigger));
+    container.append(trigger);
   });
 }
 function renderWeeklyTraining(sessions) {
@@ -544,9 +542,154 @@ function renderHomeWeeklyTraining(sessions) {
   title.textContent = "THIS WEEK'S SESSIONS";
   const grid = document.createElement("div");
   grid.className = "weekly-training-grid";
-  appendWeeklyTrainingCards(grid, sessions, "#training");
+  appendWeeklyTrainingCards(grid, sessions);
   shell.append(title, grid);
   container.replaceChildren(shell);
+}
+
+const STROKE_KEYS = ["freestyle", "backstroke", "breaststroke", "butterfly", "drill"];
+function strokeLabel(value) {
+  return STROKE_KEYS.includes(value) ? t(`training.stroke.${value}`) : value;
+}
+
+// Shared by both the home "THIS WEEK'S SESSIONS" cards and the TRAINING section cards
+// (see appendWeeklyTrainingCards above). WARM-UP/MAIN SET/EVENTS/COOL-DOWN text comes
+// straight from the session object already in hand; the structured stroke/distance/
+// sets/pace breakdown only exists for coach-managed sessions (which carry an `id`) and is
+// fetched from Supabase lazily when the modal opens, matching the read-anyone RLS policy
+// on training_session_details.
+function initSessionModal() {
+  const modal = document.querySelector("[data-session-modal]");
+  const panel = modal && modal.querySelector("[data-session-modal-panel]");
+  if (!modal || !panel) return;
+
+  const closeBtn = modal.querySelector("[data-session-modal-close]");
+  const titleEl = modal.querySelector("[data-session-modal-title]");
+  const metaEl = modal.querySelector("[data-session-modal-meta]");
+  const textDetailsEl = modal.querySelector("[data-session-modal-text-details]");
+  const setsSection = modal.querySelector("[data-session-modal-sets]");
+  const setsStatusEl = modal.querySelector("[data-session-modal-sets-status]");
+  const setsTable = modal.querySelector("[data-session-modal-sets-table]");
+  const setsBody = modal.querySelector("[data-session-modal-sets-body]");
+  const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  // See initHomeNewsCarousel's ac comment — same purpose here.
+  const ac = new AbortController();
+  let lastFocused = null;
+  let openToken = 0;
+
+  function getFocusable() {
+    return Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR)).filter((el) => el.offsetParent !== null);
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") { event.preventDefault(); closeModal(); return; }
+    if (event.key !== "Tab") return;
+    const focusable = getFocusable();
+    if (!focusable.length) { event.preventDefault(); panel.focus(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+      event.preventDefault(); first.focus();
+    }
+  }
+
+  function renderTextDetails(session) {
+    textDetailsEl.replaceChildren();
+    const sessionDetails = session.details || {};
+    [["WARM-UP", "warmup"], ["MAIN SET", "mainset"], ["EVENTS", "events"], ["COOL-DOWN", "cooldown"]].forEach(([label, key]) => {
+      const value = pick(sessionDetails, key);
+      if (!value) return;
+      const row = document.createElement("div");
+      const term = document.createElement("dt");
+      const description = document.createElement("dd");
+      term.textContent = label;
+      description.textContent = value;
+      row.append(term, description);
+      textDetailsEl.append(row);
+    });
+  }
+
+  function renderSetRows(rows) {
+    setsBody.replaceChildren();
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      const strokeTd = document.createElement("td");
+      strokeTd.textContent = strokeLabel(row.stroke);
+      const distanceTd = document.createElement("td");
+      distanceTd.textContent = row.distance ? `${Number(row.distance).toLocaleString()}m` : "—";
+      const setsTd = document.createElement("td");
+      setsTd.textContent = row.sets ?? "—";
+      const paceTd = document.createElement("td");
+      paceTd.textContent = row.pace || "—";
+      tr.append(strokeTd, distanceTd, setsTd, paceTd);
+      setsBody.append(tr);
+    });
+  }
+
+  async function loadSetRows(session, token) {
+    setsTable.hidden = true;
+    setsStatusEl.hidden = false;
+    setsStatusEl.textContent = t("training.sessionModal.setsLoading");
+    const { data, error } = await supabase
+      .from("training_session_details")
+      .select("stroke, distance, sets, pace")
+      .eq("session_id", session.id)
+      .order("sort_order", { ascending: true });
+    if (token !== openToken) return; // modal closed or reopened for a different session meanwhile
+    if (error || !data?.length) {
+      setsStatusEl.hidden = false;
+      setsStatusEl.textContent = t("training.sessionModal.setsEmpty");
+      setsTable.hidden = true;
+      return;
+    }
+    setsStatusEl.hidden = true;
+    setsTable.hidden = false;
+    renderSetRows(data);
+  }
+
+  function openModal(session, trigger) {
+    lastFocused = trigger || document.activeElement;
+    openToken += 1;
+    const token = openToken;
+
+    const dayLabel = t(`weekly.day.${session.day}`) || session.day || "";
+    titleEl.textContent = `${dayLabel} · ${session.date || ""}`;
+    const metaParts = [];
+    if (session.totalDistance) metaParts.push(`${Number(session.totalDistance).toLocaleString()}m`);
+    if (session.theme) metaParts.push(session.theme);
+    metaEl.textContent = metaParts.join(" · ");
+    metaEl.hidden = !metaParts.length;
+
+    renderTextDetails(session);
+
+    setsSection.hidden = !session.id;
+    setsBody.replaceChildren();
+    if (session.id) loadSetRows(session, token);
+
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("session-modal-open");
+    document.addEventListener("keydown", handleKeydown, { signal: ac.signal });
+    panel.focus();
+  }
+
+  function closeModal() {
+    if (!modal.classList.contains("is-open")) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("session-modal-open");
+    document.removeEventListener("keydown", handleKeydown);
+    if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
+    lastFocused = null;
+  }
+
+  if (closeBtn) closeBtn.addEventListener("click", closeModal, { signal: ac.signal });
+  modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); }, { signal: ac.signal });
+
+  openSessionModal = openModal;
+  teardowns.push(() => { closeModal(); ac.abort(); openSessionModal = () => {}; });
 }
 
 const infoItems = document.querySelectorAll(".info-grid article");
@@ -1144,16 +1287,18 @@ async function fetchJson(path, fallback) {
 async function fetchTrainingSessions() {
   const { data, error } = await supabase
     .from("training_sessions")
-    .select("date, day, total_distance, warmup, mainset, events, cooldown")
+    .select("id, date, day, total_distance, theme, warmup, mainset, events, cooldown")
     .order("date", { ascending: true });
   if (error) {
     console.warn("훈련 세션을 불러오지 못했습니다:", error.message);
     return [];
   }
   return (data || []).map((session) => ({
+    id: session.id,
     date: session.date,
     day: session.day,
     totalDistance: session.total_distance,
+    theme: session.theme || "",
     details: {
       warmup: session.warmup || "",
       mainset: session.mainset || "",
@@ -1255,6 +1400,7 @@ function renderAll() {
   initNewsCarousel();
   initNewsModal();
   initNoticeModal();
+  initSessionModal();
 
   setupRevealObservers();
 }

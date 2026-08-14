@@ -128,6 +128,7 @@
 - **YouTube 자동정지 신뢰성 보강**(`4f41308`): 기존 §5에 기록된 이론적 결함(오리진 미설정 낙관적 postMessage)을 실제로 수정. iframe src에 `origin` 쿼리 파라미터를 추가하고, `postMessage`의 대상 오리진도 `"*"` 대신 명시적 origin으로 좁혔다. `onReady` 메시지를 기다렸다가 pause를 보내는 방식으로 전환했고, 플레이어 준비 전에 pause가 요청되면 최대 12회(250ms 간격, 총 3초) 재시도 후 강제 전송하는 fallback을 추가. §5의 해당 이슈는 해결된 것으로 간주.
 - **코치 탭 서브탭 UI 정리**(`44da75a`): 코치 패널의 "세션 관리"/"평가 입력" 두 뷰를 탭(`role=tablist`)으로 분리해 한 화면에 두 폼이 동시에 노출되던 문제를 정리했다.
 - **출석 스키마 전환**(`supabase/attendance-schema.sql`, Supabase에 실행 완료·스모크 테스트 통과): `training_evaluations.score`를 폐기하고 `attendance_type text not null`(`출석`/`지각`/`인정결석`/`미인정결석`, CHECK 제약)로 교체했다. 가중치(출석=1.0/지각=0.8/인정결석=0.5/미인정결석=0)는 JS와 SQL 양쪽에 CASE 문으로 중복 정의. 신규 테이블 `self_reported_activities`(자유수영/4인모임 자가기록, `status` pending/approved/rejected)를 추가 — member는 본인 pending 기록만 insert·select 가능(UPDATE 정책 자체가 없어 제출 후 수정·삭제 불가), coach는 전체 select, admin은 전체 select + 승인 처리(status/approved_by/approved_at) update. 월별 출석률은 뷰가 아니라 `monthly_attendance_rates()` `SECURITY DEFINER` 함수로 구현(일반 뷰는 RLS를 우회할 수 있어 지양) — 호출자가 coach/admin이면 전체 부원, 일반 member면 본인 행만 반환하며, 분모는 그 달 전체 세션 수(코치가 평가를 누락한 세션도 0점으로 집계). `js/members.js`/`members.html`/`js/i18n.js` 갱신: 코치 평가 입력 폼을 출결 드롭다운으로 교체, member "훈련 평가" 탭에 이번 달 출석률(50% 미만 시 경고 스타일)과 자가 기록 제출 폼·목록을 추가, 코치/관리자 공용 코치 패널에 부원별 월별 출석률 목록(3번째 서브탭, 50% 미만 행 강조)을 추가, 관리자 탭에 자가기록 승인 대기 큐를 추가. 실제 부주장 계정으로 코치 평가입력 → 부원 출석률/자가기록 제출 → 관리자 승인 → 부원 재확인 전체 플로우를 스모크 테스트해 정상 동작을 확인했다.
+- **TRAINING 세션 상세 뷰 개편**(`supabase/session-details.sql`, **Supabase에 아직 미실행** — 다음 작업 1번 참고): `training_sessions`에 nullable `theme` 컬럼을 추가하고, 세션당 여러 세트를 담는 1:N 자식 테이블 `training_session_details`(`stroke` CHECK enum, `distance`/`sets` 양의 정수, `pace` "x:xx" 정규식 CHECK, `sort_order`)를 신설 — RLS는 `training_sessions`와 동일한 소유권 모델(공개 read, 코치 본인 세션 CRUD, 관리자 전체) 재사용. 홈 "THIS WEEK'S SESSIONS"·TRAINING 섹션 카드는 요일/날짜/총거리/테마 요약만 표시하도록 축소했고, 기존 WARM-UP/MAIN SET/EVENTS/COOL-DOWN `<dl>`은 카드에서 제거해 새로 만든 공용 모달(`initSessionModal()`, `js/main.js`)로 옮겼다. 카드는 이제 `<a href="#training">`이 아니라 `<button>`(`weekly-session-trigger`)이며, 클릭 시 모달이 열려 텍스트 필드는 즉시, 구조화된 세트 목록(`training_session_details`, DB `id` 있는 코치 관리 세션만 해당 — 레거시 `content/weekly-training.json` 항목은 세트 섹션 자체가 숨겨짐)은 Supabase에서 비동기로 불러와 표시한다. 코치 세션 관리 폼에 테마 입력과 세트 목록 편집기(영법 드롭다운·거리·세트 수·페이스, 행 추가/삭제)를 추가했고, 저장 시 클라이언트에서 값 유효성(거리·세트≥1, 페이스 `x:xx` 정규식)을 검증한 뒤 해당 세션의 기존 세트 행을 전부 삭제하고 폼의 현재 목록을 재삽입하는 방식으로 저장한다. `node --check`(main.js/members.js/i18n.js)와 HTML 태그·CSS 중괄호 균형, ko/en 사전 키 동기화, `git diff --check`를 모두 통과했다.
 
 ### 테스트 계정 참고
 
@@ -140,7 +141,7 @@
 
 ### 다음 작업 (우선순위 순)
 
-1. TRAINING 세션 상세 뷰를 개편한다. 카드는 테마만 표시하고, 클릭 시 모달에서 영법(`freestyle`/`backstroke`/`breaststroke`/`butterfly`/`drill`), 거리, 세트 수, 페이스(`x:xx`) 세부 목록을 표시한다. (`training_sessions`가 아직 `warmup`/`mainset`/`events`/`cooldown` 자유 텍스트 구조라 이 항목은 미착수 상태.)
+1. **`supabase/session-details.sql`을 Supabase SQL Editor에서 실행**하고(아직 DB에 미반영), 코치 계정으로 세션 저장 시 테마·세트 목록이 반영되는지, 홈/TRAINING 카드 클릭 시 모달에서 텍스트 필드와 세트 목록이 모두 정상 표시되는지, 모바일 뷰포트에서도 모달이 정상 동작하는지 스모크 테스트한다.
 2. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
 3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
 4. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다.
