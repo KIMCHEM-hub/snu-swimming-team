@@ -114,15 +114,32 @@
 
 ### 완료
 
-- 부원 로그인, 프로필, 대회 실적, 수정요청 시스템 구현을 완료했으며 `d71394f` 커밋까지 반영되어 있다.
-- Supabase `members`, `profile_edit_requests` 테이블과 RLS 정책을 구성했다. 관리자 권한은 `role = admin`으로 처리한다.
+- 부원 로그인, 프로필, 대회 실적, 수정요청, 관리자 승인 시스템을 구현했다.
+- Supabase `members`, `profile_edit_requests` 테이블과 RLS 정책을 구성했다. 관리자 권한은 `role = admin`으로 처리하며, `members.html`은 관리자 전용 승인 탭에서 pending 요청을 조회하고 승인·거절 확인창을 거쳐 처리한다.
+- `worker/approve-request.js`에 Cloudflare Worker 승인 자동화 코드를 추가했다. private 필드는 Supabase `members` 테이블을 직접 갱신하고, public 필드는 GitHub API로 `content/team.json`을 자동 커밋한다. 실제 Worker 이름은 `snu-swim-approve-request`이다.
+- Worker 환경변수는 Cloudflare 대시보드에서 관리한다: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY`. 값은 코드나 리포에 저장하지 않는다.
 - CMS의 `content/team.json` 스키마에 `bio`, `sns` 필드를 추가했다.
 - 홈페이지 히어로와 `TEAM UPDATES` 사이에 “THIS WEEK'S SESSIONS” 섹션을 추가했다. `content/weekly-training.json`의 화/목 세션을 기존 카드·fallback 방식으로 표시하고, 각 카드는 `#training`으로 이동한다.
 - 구버전 멀티페이지 파일 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`을 삭제했다.
+- 기본 보안 점검을 완료하고 `CLAUDE.md`에 모든 세션에서 준수할 보안 원칙을 추가했다.
 
-### 다음 작업
+### 테스트 계정 참고
 
-1. `members.html`에 `role = admin` 전용 승인 탭을 추가하고, pending 수정요청을 조회해 승인 또는 거절 처리하는 화면을 구현한다.
+- 관리자: `chemi.kim1701@gmail.com`
+- 테스트 부원: `kmcsfc0@naver.com`
+- 실제 부주장: `ghftl136@snu.ac.kr`
+- 실제 일반 부원: `mjs0323@snu.ac.kr`
+
+테스트 계정의 비밀번호나 토큰은 리포에 저장하지 않는다.
+
+### 다음 작업 (우선순위 순)
+
+1. 사진 업로드 기능을 Supabase Storage로 구현한다.
+2. 훈련 평가 기능을 추가하고 role을 `member`/`coach`/`admin` 3단계로 확장한다. 부주장(`ghftl136@snu.ac.kr`)에게는 훈련 세션 관리와 부원 훈련 평가 권한만 부여한다. 훈련 세션 데이터는 최신 데이터만 덮어쓰지 않고 날짜별로 누적 저장하는 구조로 변경한다.
+3. TRAINING 세션 상세 뷰를 개편한다. 카드는 테마만 표시하고, 클릭 시 모달에서 영법(`freestyle`/`backstroke`/`breaststroke`/`butterfly`/`drill`), 거리, 세트 수, 페이스(`x:xx`) 세부 목록을 표시한다.
+4. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
+5. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+6. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
