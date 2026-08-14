@@ -109,7 +109,7 @@ async function updatePublicTeamMemberStatus(member, env) {
   }
   const teamMember = team?.members?.find((entry) => entry.memberId === member.id)
     || team?.members?.find((entry) => entry.name === member.name);
-  if (!teamMember) return "pending";
+  if (!teamMember) return "not_applicable";
   if ((teamMember.status || "active") === member.status) return "updated";
   teamMember.status = member.status;
   const commitResponse = await fetch(fileUrl.replace(`?ref=${encodeURIComponent(branch)}`, ""), {
@@ -286,7 +286,13 @@ export default {
       const body = await request.json();
       if (body?.action === "set_member_status") {
         const member = await setMemberStatus(body.member_id, body.status, admin.authorization, env);
-        const publicMirror = await updatePublicTeamMemberStatus(member, env);
+        let publicMirror;
+        try {
+          publicMirror = await updatePublicTeamMemberStatus(member, env);
+        } catch (error) {
+          console.error("Public member status mirror failed.", error);
+          publicMirror = "pending";
+        }
         return json({ member_id: member.id, status: member.status, public_mirror: publicMirror });
       }
       const requestId = body?.request_id;
