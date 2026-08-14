@@ -13,6 +13,9 @@ const passwordResetCancelButton = document.querySelector("[data-password-reset-c
 const passwordResetRequestForm = document.querySelector("[data-password-reset-request-form]");
 const passwordResetForm = document.querySelector("[data-password-reset-form]");
 const logoutButton = document.querySelector("[data-logout-button]");
+const sessionWarning = document.querySelector("[data-session-warning]");
+const sessionRemaining = document.querySelector("[data-session-remaining]");
+const sessionExtendButton = document.querySelector("[data-session-extend]");
 const status = document.querySelector("[data-auth-status]");
 const emailEl = document.querySelector("[data-member-email]");
 const nameEl = document.querySelector("[data-member-name]");
@@ -105,6 +108,11 @@ const SESSION_DETAIL_DISTANCES = [25, 50, 75, 100, 150, 200, 300, 400, 500, 800,
 const SESSION_DETAIL_SETS = Array.from({ length: 11 }, (_, i) => i); // 0..10
 const SESSION_DETAIL_PACE_UNITS = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, "0")); // "00".."99"
 const PACE_PATTERN = /^[0-9]{2}'[0-9]{2}"$/;
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
+const SESSION_WARNING_MS = 2 * 60 * 1000;
+const SESSION_DEADLINE_STORAGE_KEY = "snu-swim-session-deadline";
+let sessionDeadline = 0;
+let sessionTimerId = null;
 
 function strokeLabel(value) {
   return STROKE_TYPES.includes(value) ? t(`training.stroke.${value}`) : value;
@@ -131,6 +139,62 @@ function setStatus(key = "") {
   statusKey = key;
   status.textContent = statusKey ? t(statusKey) : "";
   status.hidden = !statusKey;
+}
+
+function sessionDeadlineFor(user) {
+  try {
+    const value = JSON.parse(localStorage.getItem(SESSION_DEADLINE_STORAGE_KEY));
+    return value?.userId === user?.id && Number.isFinite(value.expiresAt) ? value.expiresAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function formatRemainingTime(milliseconds) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+function stopSessionTimer() {
+  if (sessionTimerId) window.clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  sessionDeadline = 0;
+  sessionWarning.hidden = true;
+}
+
+async function expireSession() {
+  stopSessionTimer();
+  localStorage.removeItem(SESSION_DEADLINE_STORAGE_KEY);
+  await supabase.auth.signOut();
+  showLogin("members.sessionExpired");
+}
+
+function refreshSessionTimer() {
+  const remaining = sessionDeadline - Date.now();
+  if (remaining <= 0) {
+    expireSession();
+    return false;
+  }
+  sessionWarning.hidden = remaining > SESSION_WARNING_MS;
+  sessionRemaining.textContent = formatRemainingTime(remaining);
+  return true;
+}
+
+function startSessionTimer(user, reset = false) {
+  if (!user || isPasswordResetRoute) return;
+  let deadline = sessionDeadlineFor(user);
+  if (!reset && deadline && deadline <= Date.now()) {
+    expireSession();
+    return;
+  }
+  if (reset || !deadline) {
+    deadline = Date.now() + SESSION_TIMEOUT_MS;
+    localStorage.setItem(SESSION_DEADLINE_STORAGE_KEY, JSON.stringify({ userId: user.id, expiresAt: deadline }));
+  }
+  sessionDeadline = deadline;
+  if (sessionTimerId) window.clearInterval(sessionTimerId);
+  if (!refreshSessionTimer()) return;
+  sessionTimerId = window.setInterval(refreshSessionTimer, 1000);
 }
 
 function showPasswordResetRequest() {
@@ -1026,6 +1090,7 @@ async function loadTeamProfile(member) {
 }
 
 async function showDashboard(user) {
+  startSessionTimer(user);
   loginView.hidden = true;
   dashboardView.hidden = false;
   selectTab("profile");
@@ -1345,13 +1410,20 @@ passwordResetForm.addEventListener("submit", async (event) => {
 
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
+  stopSessionTimer();
+  localStorage.removeItem(SESSION_DEADLINE_STORAGE_KEY);
   const { error } = await supabase.auth.signOut();
   if (error) {
     logoutButton.disabled = false;
+    startSessionTimer(currentUser, true);
     setStatus("members.logoutError");
     return;
   }
   window.location.replace("./index.html");
+});
+
+sessionExtendButton.addEventListener("click", () => {
+  if (currentUser) startSessionTimer(currentUser, true);
 });
 
 supabase.auth.onAuthStateChange((event, session) => {
@@ -1370,8 +1442,13 @@ supabase.auth.onAuthStateChange((event, session) => {
     showPasswordReset();
     return;
   }
-  if (currentUser) showDashboard(currentUser);
-  else showLogin();
+  if (currentUser) {
+    startSessionTimer(currentUser, event === "SIGNED_IN");
+    showDashboard(currentUser);
+  } else {
+    stopSessionTimer();
+    showLogin();
+  }
 });
 
 initLang();
@@ -1394,6 +1471,18 @@ window.addEventListener("langchange", () => {
   }
 });
 window.addEventListener("pageshow", checkSession);
+window.addEventListener("visibilitychange", () => {
+  if (!document.hidden && sessionDeadline) refreshSessionTimer();
+});
+window.addEventListener("storage", (event) => {
+  if (event.key !== SESSION_DEADLINE_STORAGE_KEY || !currentUser || isPasswordResetRoute) return;
+  if (event.newValue) {
+    startSessionTimer(currentUser);
+  } else {
+    stopSessionTimer();
+    supabase.auth.signOut();
+  }
+});
 
 await checkSession();
 if (new URL(window.location.href).searchParams.get("reset") === "success") {

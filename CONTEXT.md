@@ -143,7 +143,7 @@
 
 - 관리자: `chemi.kim1701@gmail.com`
 - 테스트 부원: `kmcsfc0@naver.com`
-- 실제 부주장: `ghftl136@snu.ac.kr`(현재 `coach` role) — **임의 비밀번호로 생성된 상태**, 비밀번호 찾기/재설정 기능이 없어 본인이 로그인하려면 관리자가 직접 비번을 알려주거나 재설정해줘야 한다. 다음 작업 1번 참고.
+- 실제 부주장: `ghftl136@snu.ac.kr`(현재 `coach` role) — 임의 비밀번호로 생성된 상태였으나, 현재 로그인 화면의 비밀번호 찾기 기능으로 본인이 재설정할 수 있다.
 - 실제 일반 부원: `mjs0323@snu.ac.kr`
 
 테스트 계정의 비밀번호나 토큰은 리포에 저장하지 않는다.
@@ -153,6 +153,12 @@
 - `members.html` 로그인 화면에 비밀번호 찾기, 이메일 요청, 새 비밀번호 설정 화면을 추가했고, `js/members.js`가 `supabase.auth.resetPasswordForEmail()`과 `updateUser({ password })`를 사용한다.
 - 재설정 메일은 현재 정적 GitHub Pages 경로의 `members.html?auth=reset`으로 돌아온다. 복구 세션(`PASSWORD_RECOVERY`)에서만 비밀번호 변경 폼을 표시하고, 링크 오류·만료·변경 오류는 재요청 안내로 처리한다. 변경 성공 시 로그아웃 후 로그인 화면으로 이동한다.
 - Supabase Dashboard의 Authentication > URL Configuration > Redirect URLs에 `https://snuswimmingteam.org/members.html?auth=reset`을 추가해야 한다. GitHub Pages 기본 도메인으로도 접속 또는 테스트한다면 `https://kimchem-hub.github.io/snu-swimming-team/members.html?auth=reset`도 추가한다.
+
+### 로그인 세션 타이머 (2026-08-14)
+
+- `js/members.js`는 로그인 성공 시 브라우저 로컬 저장소에 사용자별 10분 마감 시각을 저장한다. 사용자 활동은 이 시각을 변경하지 않으며, 마지막 2분에만 남은 시간과 로그인 연장 버튼을 보여준다.
+- 로그인 연장은 버튼 클릭으로만 10분을 다시 시작한다. 마감 시 Supabase 로그아웃 후 로그인 화면으로 이동한다.
+- 같은 브라우저의 여러 탭은 저장소 이벤트로 마감 시각·로그아웃을 맞춘다. 백그라운드 탭이 다시 표시될 때도 즉시 만료 여부를 확인한다.
 
 ### 다음 작업 (우선순위 순)
 
