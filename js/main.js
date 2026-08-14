@@ -1032,6 +1032,7 @@ async function fetchJson(path, fallback) {
 // it directly — every content/*.json file already carries both languages (sibling
 // `<field>En` keys), so switching never needs a second round-trip to the server.
 let contentCache = null;
+let contentLoadPromise = null;
 
 async function loadContent() {
   const [schedule, records, relays, gallery, news, notices, weeklyTraining, team, training, leadership, legacy] = await Promise.all([
@@ -1076,11 +1077,18 @@ function renderAll() {
 
 initLang();
 applyStaticTranslations();
-loadContent().then(renderAll);
+contentLoadPromise = loadContent().then(renderAll);
 
 // Re-render CMS-driven sections (and static [data-i18n] text) in place when the KR/EN
 // toggle fires. No re-fetch, no page reload, current section (#hash) untouched.
 window.addEventListener("langchange", () => {
-  applyStaticTranslations();
-  renderAll();
+  // i18n.js updates static [data-i18n*] copy synchronously. When a visitor
+  // switches languages before the initial JSON requests finish, defer the
+  // CMS-driven render until that same request completes rather than silently
+  // returning from renderAll() with an empty cache.
+  if (contentCache) {
+    renderAll();
+  } else if (contentLoadPromise) {
+    contentLoadPromise.then(renderAll);
+  }
 });

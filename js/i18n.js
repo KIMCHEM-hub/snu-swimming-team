@@ -164,8 +164,11 @@ export function setLang(next) {
   } catch (err) { /* malformed URL — non-fatal, in-memory lang state still updates */ }
   document.documentElement.setAttribute("lang", next);
   updateToggleUI();
-  // Static [data-i18n*] text and CMS-driven re-rendering are both left to the
-  // "langchange" listener in main.js — this module only owns language state.
+  // Static copy belongs to this module, so it is updated synchronously with the
+  // button state. CMS-driven sections are re-rendered by main.js below.
+  // Keeping these responsibilities separate means a delayed content fetch cannot
+  // leave visible static text in the previous language.
+  applyStaticTranslations();
   window.dispatchEvent(new CustomEvent("langchange", { detail: { lang: next } }));
 }
 
