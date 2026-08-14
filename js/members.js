@@ -49,6 +49,46 @@ const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
 const adminRequestList = document.querySelector("[data-admin-request-list]");
+const adminCreateMemberSection = document.createElement("section");
+const adminCreateMemberStatus = document.createElement("p");
+const adminCreateMemberForm = document.createElement("form");
+const adminCreateTeamProfiles = new Map();
+adminCreateMemberSection.className = "members-coach-section";
+adminCreateMemberStatus.className = "members-coach-status";
+adminCreateMemberStatus.hidden = true;
+adminCreateMemberForm.className = "members-coach-form";
+function createAdminAccountField(labelText, control) {
+  const label = document.createElement("label");
+  label.className = "members-label";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = labelText;
+  label.append(labelEl, control);
+  return label;
+}
+const adminCreateEmail = document.createElement("input");
+adminCreateEmail.className = "members-input"; adminCreateEmail.name = "email"; adminCreateEmail.type = "email"; adminCreateEmail.autocomplete = "email"; adminCreateEmail.required = true;
+const adminCreateName = document.createElement("input");
+adminCreateName.className = "members-input"; adminCreateName.name = "name"; adminCreateName.type = "text"; adminCreateName.maxLength = 200; adminCreateName.required = true;
+const adminCreateRole = document.createElement("select");
+adminCreateRole.className = "members-input"; adminCreateRole.name = "role";
+["member", "coach", "admin"].forEach((role) => { const option = document.createElement("option"); option.value = role; option.textContent = role; adminCreateRole.append(option); });
+const adminCreateTeamSelect = document.createElement("select");
+adminCreateTeamSelect.className = "members-input"; adminCreateTeamSelect.name = "team_member_index";
+const adminCreateActions = document.createElement("div");
+adminCreateActions.className = "members-coach-actions";
+const adminCreateSubmit = document.createElement("button");
+adminCreateSubmit.className = "members-button"; adminCreateSubmit.type = "submit"; adminCreateSubmit.textContent = "CREATE & INVITE";
+adminCreateActions.append(adminCreateSubmit);
+adminCreateMemberForm.append(
+  createAdminAccountField("EMAIL", adminCreateEmail),
+  createAdminAccountField("NAME", adminCreateName),
+  createAdminAccountField("ROLE", adminCreateRole),
+  createAdminAccountField("TEAM PROFILE (OPTIONAL)", adminCreateTeamSelect),
+  adminCreateActions
+);
+const adminCreateMemberHeading = document.createElement("h3");
+adminCreateMemberHeading.textContent = "NEW MEMBER ACCOUNT";
+adminCreateMemberSection.append(adminCreateMemberHeading, adminCreateMemberStatus, adminCreateMemberForm);
 const adminMemberSection = document.createElement("section");
 const adminMemberStatus = document.createElement("p");
 const adminMemberList = document.createElement("div");
@@ -59,7 +99,8 @@ adminMemberList.className = "members-admin-list members-status-list";
 const adminMemberHeading = document.createElement("h3");
 adminMemberHeading.textContent = "MEMBER STATUS";
 adminMemberSection.append(adminMemberHeading, adminMemberStatus, adminMemberList);
-adminRequestList.after(adminMemberSection);
+adminRequestList.after(adminCreateMemberSection);
+adminCreateMemberSection.after(adminMemberSection);
 const popupAdminForm = document.querySelector("[data-popup-admin-form]");
 const popupAdminStatus = document.querySelector("[data-popup-admin-status]");
 const popupAdminNewButton = document.querySelector("[data-popup-admin-new]");
@@ -237,7 +278,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
@@ -409,6 +450,75 @@ async function loadAdminMemberDirectory() {
   renderAdminMemberDirectory(data || []);
   setAdminMemberStatus();
 }
+
+function setAdminCreateMemberStatus(message = "") {
+  adminCreateMemberStatus.textContent = message;
+  adminCreateMemberStatus.hidden = !message;
+}
+
+async function loadAdminCreateTeamProfiles() {
+  if (currentMember?.role !== "admin") return;
+  setAdminCreateMemberStatus("Loading TEAM profiles…");
+  try {
+    const response = await fetch("./content/team.json", { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not load TEAM profiles.");
+    const { members = [] } = await response.json();
+    adminCreateTeamProfiles.clear();
+    adminCreateTeamSelect.replaceChildren();
+    const none = document.createElement("option");
+    none.value = ""; none.textContent = "No TEAM profile";
+    adminCreateTeamSelect.append(none);
+    members.forEach((entry, index) => {
+      if (entry.memberId) return;
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = entry.name || `TEAM profile ${index + 1}`;
+      adminCreateTeamProfiles.set(String(index), JSON.stringify(entry));
+      adminCreateTeamSelect.append(option);
+    });
+    setAdminCreateMemberStatus();
+  } catch (error) {
+    setAdminCreateMemberStatus(error.message || "Could not load TEAM profiles.");
+  }
+}
+
+adminCreateMemberForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (currentMember?.role !== "admin") return;
+  const teamMemberIndex = adminCreateTeamSelect.value;
+  const teamMemberSnapshot = teamMemberIndex === "" ? null : adminCreateTeamProfiles.get(teamMemberIndex);
+  if (teamMemberIndex !== "" && !teamMemberSnapshot) {
+    setAdminCreateMemberStatus("Reload TEAM profiles and try again.");
+    return;
+  }
+  adminCreateSubmit.disabled = true;
+  setAdminCreateMemberStatus("Creating account and sending invite…");
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Administrator session required.");
+    const response = await fetch(APPROVE_REQUEST_WORKER_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_member_account",
+        email: adminCreateEmail.value.trim(),
+        name: adminCreateName.value.trim(),
+        role: adminCreateRole.value,
+        team_member_index: teamMemberIndex === "" ? null : Number(teamMemberIndex),
+        team_member_snapshot: teamMemberSnapshot
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
+    adminCreateMemberForm.reset();
+    setAdminCreateMemberStatus(`Invite ready. Member ID: ${payload.member_id}${payload.team_linked ? "; TEAM linked." : "."}`);
+    await Promise.all([loadAdminMemberDirectory(), loadAdminCreateTeamProfiles()]);
+  } catch (error) {
+    setAdminCreateMemberStatus(`Account was not fully completed: ${error.message || "Request failed."} Retry with the same details.`);
+  } finally {
+    adminCreateSubmit.disabled = false;
+  }
+});
 
 async function setMemberStatus(memberId, nextStatus) {
   if (currentMember?.role !== "admin" || !["active", "OB"].includes(nextStatus)) return;

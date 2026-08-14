@@ -178,3 +178,9 @@
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
+## Member account invite and TEAM link (2026-08-15)
+
+- Admins create member accounts only through the existing `snu-swim-approve-request` Worker action `create_member_account`. The browser sends a Supabase session token only; the Worker keeps the service-role key and calls Supabase Auth `/invite`, so no temporary password is generated or exposed.
+- The Worker uses email as the Auth-to-`public.members` connection. It creates (or safely reuses on retry) an active `members` row with email, name, and role. Existing data that differs from a retry returns a conflict instead of being overwritten.
+- TEAM linking is optional. The admin UI lists only unlinked profiles and submits the selected array index plus an exact JSON snapshot. The Worker verifies that the selected entry is unchanged, then writes `memberId = public.members.id`. It never finds a TEAM profile by name in this new flow. If the GitHub TEAM commit fails, the response names the successfully completed Auth/member stages and returns the member ID for retry.
+- Supabase Dashboard must have Auth email delivery enabled and an Invite redirect URL configured for `https://snuswimmingteam.org/members.html` (and the production site URL added to Auth URL Configuration). The invite email then lets the recipient set their own password.

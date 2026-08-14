@@ -173,6 +173,135 @@ function encodeBase64Utf8(value) {
   return btoa(binary);
 }
 
+const MEMBER_ROLES = new Set(["member", "coach", "admin"]);
+
+function normalizeEmail(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+async function findAuthUserByEmail(email, env) {
+  const baseUrl = requiredEnv(env, "SUPABASE_URL");
+  for (let page = 1; page <= 20; page += 1) {
+    const response = await fetch(`${baseUrl}/auth/v1/admin/users?page=${page}&per_page=1000`, { headers: restHeaders(env) });
+    const body = await readJson(response, "Could not check existing Auth accounts.");
+    const users = Array.isArray(body?.users) ? body.users : [];
+    const user = users.find((entry) => normalizeEmail(entry.email) === email);
+    if (user) return user;
+    if (users.length < 1000) break;
+  }
+  return null;
+}
+
+async function getMemberByEmail(email, env) {
+  const response = await fetch(
+    `${requiredEnv(env, "SUPABASE_URL")}/rest/v1/members?select=id,email,name,role,status&email=eq.${encodeFilter(email)}`,
+    { headers: restHeaders(env) }
+  );
+  const members = await readJson(response, "Could not check existing member records.");
+  if (members.length > 1) throw new HttpError(409, "More than one member record uses this email.");
+  return members[0] || null;
+}
+
+function assertExistingMemberMatches(member, { email, name, role }) {
+  if (!member) return;
+  if (normalizeEmail(member.email) !== email || member.name !== name || member.role !== role || member.status !== "active") {
+    throw new HttpError(409, "Existing member data differs from this request. Review the existing record before retrying.");
+  }
+}
+
+async function createMemberRecord({ email, name, role }, env) {
+  const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/rest/v1/members`, {
+    method: "POST",
+    headers: { ...restHeaders(env), Prefer: "return=representation" },
+    body: JSON.stringify({ email, name, role, status: "active" })
+  });
+  if (response.status === 409) {
+    const existing = await getMemberByEmail(email, env);
+    assertExistingMemberMatches(existing, { email, name, role });
+    return { member: existing, created: false };
+  }
+  const created = await readJson(response, "Could not create member record.");
+  if (!created?.[0]?.id) throw new HttpError(502, "Member record creation returned no member ID.");
+  return { member: created[0], created: true };
+}
+
+async function inviteAuthUser(email, env) {
+  const existing = await findAuthUserByEmail(email, env);
+  if (existing) return { invited: false, existing: true };
+  const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/auth/v1/invite`, {
+    method: "POST",
+    headers: restHeaders(env),
+    body: JSON.stringify({ email })
+  });
+  if (!response.ok) {
+    // A concurrent retry may have created the account after the first lookup.
+    if (await findAuthUserByEmail(email, env)) return { invited: false, existing: true };
+    await readJson(response, "Could not send Supabase Auth invite.");
+  }
+  return { invited: true, existing: false };
+}
+
+async function linkSelectedTeamMember({ memberId, index, snapshot }, env) {
+  if (index === null || index === undefined) return false;
+  if (!Number.isInteger(index) || index < 0 || typeof snapshot !== "string") {
+    throw new HttpError(400, "Invalid TEAM profile selection.");
+  }
+  const repository = requiredEnv(env, "GITHUB_REPOSITORY");
+  const branch = env.GITHUB_BRANCH || "main";
+  const githubHeaders = {
+    Authorization: `Bearer ${requiredEnv(env, "GITHUB_TOKEN")}`,
+    "User-Agent": "snu-swim-approve-request-worker",
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "content-type": "application/json"
+  };
+  const fileUrl = `https://api.github.com/repos/${repository}/contents/content/team.json?ref=${encodeURIComponent(branch)}`;
+  const file = await readJson(await fetch(fileUrl, { headers: githubHeaders }), "Could not load content/team.json from GitHub.");
+  let team;
+  try { team = JSON.parse(decodeBase64Utf8(file.content)); } catch { throw new HttpError(502, "GitHub returned an invalid team.json file."); }
+  const entry = team?.members?.[index];
+  if (!entry || JSON.stringify(entry) !== snapshot) {
+    throw new HttpError(409, "The selected TEAM profile changed. Reload profiles and retry.");
+  }
+  if (entry.memberId && entry.memberId !== memberId) throw new HttpError(409, "The selected TEAM profile is already linked.");
+  if (entry.memberId === memberId) return true;
+  entry.memberId = memberId;
+  await readJson(await fetch(fileUrl.replace(`?ref=${encodeURIComponent(branch)}`, ""), {
+    method: "PUT",
+    headers: githubHeaders,
+    body: JSON.stringify({
+      message: `Link TEAM profile to member ${memberId}`,
+      content: encodeBase64Utf8(`${JSON.stringify(team, null, 2)}\n`),
+      sha: file.sha,
+      branch
+    })
+  }), "Could not commit TEAM memberId link.");
+  return true;
+}
+
+async function createMemberAccount(body, env) {
+  const email = normalizeEmail(body?.email);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const role = body?.role || "member";
+  if (!email || !email.includes("@") || !name || name.length > 200 || !MEMBER_ROLES.has(role)) {
+    throw new HttpError(400, "email, name, and a valid role are required.");
+  }
+  const auth = await inviteAuthUser(email, env);
+  const existing = await getMemberByEmail(email, env);
+  assertExistingMemberMatches(existing, { email, name, role });
+  const { member, created } = existing ? { member: existing, created: false } : await createMemberRecord({ email, name, role }, env);
+  let teamLinked = false;
+  try {
+    teamLinked = await linkSelectedTeamMember({ memberId: member.id, index: body?.team_member_index, snapshot: body?.team_member_snapshot }, env);
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw new HttpError(error.status, `${error.message} Auth: ${auth.invited ? "invite sent" : "already exists"}; member: ${created ? "created" : "already exists"} (${member.id}).`);
+    }
+    throw error;
+  }
+  return { member_id: member.id, auth_invited: auth.invited, member_created: created, team_linked: teamLinked };
+}
+
 async function updatePublicTeamMember(editRequest, env) {
   const supabaseUrl = requiredEnv(env, "SUPABASE_URL");
   const memberResponse = await fetch(
@@ -284,6 +413,10 @@ export default {
     try {
       const admin = await verifyAdmin(request, env);
       const body = await request.json();
+      if (body?.action === "create_member_account") {
+        const result = await createMemberAccount(body, env);
+        return json(result, 201);
+      }
       if (body?.action === "set_member_status") {
         const member = await setMemberStatus(body.member_id, body.status, admin.authorization, env);
         let publicMirror;
