@@ -67,7 +67,7 @@
 
 ## 5. 진행 중 / 미해결 이슈
 
-- **YouTube 자동정지 버그**: `52b1296`(커밋)에서 "NEWS 유튜브 영상이 화면을 벗어나도 계속 재생되는 버그"를 수정한 이력이 있음 — 현재 구현은 `js/main.js:65-92`, IntersectionObserver로 iframe이 뷰포트를 벗어나면 `postMessage({event:"command", func:"pauseVideo"})`를 보내고, `showPage()`(섹션 전환) 시에도 동일하게 pause 호출(`main.js:34`). **다만 이 postMessage는 YT 플레이어의 `onReady` 응답을 기다리지 않고 낙관적으로 전송**하며, iframe URL엔 `origin` 파라미터가 없음(`enablejsapi=1`만 있음) — 플레이어가 아직 준비되지 않았거나 postMessage 오리진 체크에 걸리는 특정 타이밍/브라우저 조합에서 pause가 조용히 무시될 가능성이 이론적으로 남아 있음. 재발 리포트가 오면 이 부분(iframe src의 `origin` 파라미터 추가, `onReady` 대기)부터 확인.
+- **YouTube 자동정지 버그**: `52b1296`에서 최초 수정, 이후 `4f41308`(2026-08-14)에서 신뢰성을 보강해 **해결됨**. 현재 구현(`js/main.js:65-` `initNewsVideoAutoStop()`)은 iframe src에 `origin` 쿼리 파라미터를 붙이고 postMessage 대상 오리진도 명시적으로 좁혔으며, YT 플레이어의 `onReady` 메시지를 기다렸다가 pause를 전송(대기 중 요청이 들어오면 최대 12회·250ms 간격 재시도 후 강제 전송)한다. 재발 리포트가 오면 이 재시도 타이밍/횟수부터 재검토할 것.
 - 그 외 코드베이스 전체에 `TODO`/`FIXME` 마커는 없음(grep 확인). 열린 이슈 트래커나 이슈 파일도 repo 내에 없음 — 알려진 미해결 사항은 사용자가 직접 구두로 전달하는 것이 유일한 경로이므로, 새로 파악되면 이 섹션에 추가할 것.
 
 ## 6. 디자인 오버홀 방향과 제약사항
@@ -122,6 +122,11 @@
 - 홈페이지 히어로와 `TEAM UPDATES` 사이에 “THIS WEEK'S SESSIONS” 섹션을 추가했다. `content/weekly-training.json`의 화/목 세션을 기존 카드·fallback 방식으로 표시하고, 각 카드는 `#training`으로 이동한다.
 - 구버전 멀티페이지 파일 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`을 삭제했다.
 - 기본 보안 점검을 완료하고 `CLAUDE.md`에 모든 세션에서 준수할 보안 원칙을 추가했다.
+- **프로필 사진 업로드**(`4c33548`): Supabase Storage 버킷 `profile-photos`(public read)를 `supabase/profile-photos.sql`로 구성 — 업로드/삭제는 `owner_id = auth.uid()`로 RLS 제한. `members.html` 수정요청 폼에 파일 입력을 추가했고, `js/members.js`가 업로드 후 `photo` 필드를 공개 정보 수정요청(public, 관리자 승인 대상)으로 큐잉한다. 확장자(`jpg/jpeg/png/webp`)·MIME 타입·5MB 용량 제한을 클라이언트에서 검증.
+- **role 3단계 확장 + 훈련 평가(점수 방식)**(`9fa7317`, `supabase/training-evaluations.sql`): `members.role` 체크 제약을 `member`/`coach`/`admin`으로 확장하고 `ghftl136@snu.ac.kr`(부주장)을 `coach`로 지정. RLS 재귀를 피하기 위해 `current_member_role()`/`current_member_id()`/`is_coach()`/`is_admin()`/`coach_member_directory()` `SECURITY DEFINER` 함수를 도입. `training_sessions`(날짜별 누적, `warmup`/`mainset`/`events`/`cooldown`/`total_distance`)와 `training_evaluations`(`session_id`+`member_id` 유니크, `score` numeric + `comment`) 테이블을 신설 — 코치는 본인이 만든 세션·평가만 CRUD, 관리자는 전체 관리, 부원은 본인 평가만 조회 가능. `js/members.js`에 코치 전용 세션 등록/수정 폼과 부원별 평가 입력 UI를 추가(`members.html` 코치 탭).
+- **팝업 공지 시스템**(`9fa7317`, `supabase/popups.sql`): `popups` 테이블 신설 — `type`은 `general`(전체 공지, 이미지 업로드 가능, `profile-photos` 버킷 재사용)과 `attendance_winner`(부원 지정형, 이미지 없음) 두 종류를 체크 제약으로 구분. 공개 조회는 `is_active`이고 오늘이 `starts_at`~`ends_at` 사이인 행만 노출하며, `member_name`을 안전하게 붙여 반환하는 `active_popups()` `SECURITY DEFINER` 함수로 `members` 테이블 직접 노출을 막았다. 관리자 탭에 general/attendance_winner 목록, 생성·수정·활성토글·삭제 UI를 추가.
+- **YouTube 자동정지 신뢰성 보강**(`4f41308`): 기존 §5에 기록된 이론적 결함(오리진 미설정 낙관적 postMessage)을 실제로 수정. iframe src에 `origin` 쿼리 파라미터를 추가하고, `postMessage`의 대상 오리진도 `"*"` 대신 명시적 origin으로 좁혔다. `onReady` 메시지를 기다렸다가 pause를 보내는 방식으로 전환했고, 플레이어 준비 전에 pause가 요청되면 최대 12회(250ms 간격, 총 3초) 재시도 후 강제 전송하는 fallback을 추가. §5의 해당 이슈는 해결된 것으로 간주.
+- **코치 탭 서브탭 UI 정리**(`44da75a`): 코치 패널의 "세션 관리"/"평가 입력" 두 뷰를 탭(`role=tablist`)으로 분리해 한 화면에 두 폼이 동시에 노출되던 문제를 정리했다.
 
 ### 테스트 계정 참고
 
@@ -134,13 +139,12 @@
 
 ### 다음 작업 (우선순위 순)
 
-1. 사진 업로드 기능을 Supabase Storage로 구현한다.
-2. 훈련 평가 기능을 추가하고 role을 `member`/`coach`/`admin` 3단계로 확장한다. 부주장(`ghftl136@snu.ac.kr`)에게는 훈련 세션 관리와 부원 훈련 평가 권한만 부여한다. 훈련 세션 데이터는 최신 데이터만 덮어쓰지 않고 날짜별로 누적 저장하는 구조로 변경한다.
-3. TRAINING 세션 상세 뷰를 개편한다. 카드는 테마만 표시하고, 클릭 시 모달에서 영법(`freestyle`/`backstroke`/`breaststroke`/`butterfly`/`drill`), 거리, 세트 수, 페이스(`x:xx`) 세부 목록을 표시한다.
-4. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
-5. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-6. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다.
-7. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 다음 세션 작업으로 진행한다.
+1. **출석 스키마 전환(최우선)**: `training_evaluations`의 코치 부여 `score`(점수) 방식을 출석 방식으로 전환한다. 부원이 스스로 출석을 기록하는 자가기록(self-report) 입력을 추가하고, 코치/관리자가 이를 확인·승인하는 승인 플로우(pending → approved/rejected)를 설계한다. 기존 `score`/`comment` 컬럼과의 마이그레이션 경로, RLS 정책(부원은 본인 자가기록만 insert, 코치는 본인 세션 소속 기록만 승인) 재검토가 필요하다.
+2. TRAINING 세션 상세 뷰를 개편한다. 카드는 테마만 표시하고, 클릭 시 모달에서 영법(`freestyle`/`backstroke`/`breaststroke`/`butterfly`/`drill`), 거리, 세트 수, 페이스(`x:xx`) 세부 목록을 표시한다. (`training_sessions`가 아직 `warmup`/`mainset`/`events`/`cooldown` 자유 텍스트 구조라 이 항목은 미착수 상태.)
+3. 세션 만료를 10분으로 설정하고 로그인 연장 버튼을 추가한다.
+4. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+5. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다.
+6. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막 작업으로 진행한다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
