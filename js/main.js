@@ -415,14 +415,23 @@ function renderTraining(schedule, dryland) {
 // same day (e.g. admin forgot to remove last week's), the most recent date wins. If the
 // whole file is empty, the entire block stays hidden — no empty grid between the tables.
 const WEEKLY_TRAINING_DAYS = ["화", "목"];
-function weeklyTrainingCardHtml(day, session) {
+function weeklyTrainingCardHtml(day, session, href = "") {
   const dayLabel = t(`weekly.day.${day}`);
+  const linkStart = href ? `<a class="weekly-session-link" href="${href}" aria-label="${t("weekly.viewTraining", { day: dayLabel })}">` : "";
+  const linkEnd = href ? "</a>" : "";
   if (!session) {
-    return `<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${dayLabel}</p><p class="weekly-session-empty">${t("weekly.pending")}</p></article>`;
+    return `${linkStart}<article class="weekly-session weekly-session--empty"><p class="weekly-session-day">${dayLabel}</p><p class="weekly-session-empty">${t("weekly.pending")}</p></article>${linkEnd}`;
   }
   const d = session.details || {};
   const distance = session.totalDistance ? `${Number(session.totalDistance).toLocaleString()}m` : "";
-  return `<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${dayLabel}</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${pick(d, "warmup")}</dd></div><div><dt>MAIN SET</dt><dd>${pick(d, "mainset")}</dd></div><div><dt>EVENTS</dt><dd>${pick(d, "events")}</dd></div><div><dt>COOL-DOWN</dt><dd>${pick(d, "cooldown")}</dd></div></dl></article>`;
+  return `${linkStart}<article class="weekly-session"><div class="weekly-session-head"><p class="weekly-session-day">${dayLabel}</p><time class="weekly-session-date">${session.date || ""}</time></div><p class="weekly-session-distance">${distance}</p><dl class="weekly-session-details"><div><dt>WARM-UP</dt><dd>${pick(d, "warmup")}</dd></div><div><dt>MAIN SET</dt><dd>${pick(d, "mainset")}</dd></div><div><dt>EVENTS</dt><dd>${pick(d, "events")}</dd></div><div><dt>COOL-DOWN</dt><dd>${pick(d, "cooldown")}</dd></div></dl></article>${linkEnd}`;
+}
+function weeklyTrainingCardsHtml(sessions, href = "") {
+  const latestByDay = {};
+  sessions.forEach((s) => {
+    if (!latestByDay[s.day] || String(s.date) > String(latestByDay[s.day].date)) latestByDay[s.day] = s;
+  });
+  return WEEKLY_TRAINING_DAYS.map((day) => weeklyTrainingCardHtml(day, latestByDay[day], href)).join("");
 }
 function renderWeeklyTraining(sessions) {
   const container = document.querySelector("[data-weekly-training]");
@@ -432,13 +441,14 @@ function renderWeeklyTraining(sessions) {
     container.innerHTML = "";
     return;
   }
-  const latestByDay = {};
-  sessions.forEach((s) => {
-    if (!latestByDay[s.day] || String(s.date) > String(latestByDay[s.day].date)) latestByDay[s.day] = s;
-  });
-  const cards = WEEKLY_TRAINING_DAYS.map((day) => weeklyTrainingCardHtml(day, latestByDay[day])).join("");
+  const cards = weeklyTrainingCardsHtml(sessions);
   container.innerHTML = `<p class="weekly-training-title">THIS WEEK'S SESSIONS</p><div class="weekly-training-grid">${cards}</div>`;
   container.hidden = false;
+}
+function renderHomeWeeklyTraining(sessions) {
+  const container = document.querySelector("[data-home-weekly-training]");
+  if (!container) return;
+  container.innerHTML = `<div class="shell"><a class="weekly-training-title home-weekly-training-title" href="#training">THIS WEEK'S SESSIONS</a><div class="weekly-training-grid">${weeklyTrainingCardsHtml(sessions, "#training")}</div></div>`;
 }
 
 const infoItems = document.querySelectorAll(".info-grid article");
@@ -1069,6 +1079,7 @@ function renderAll() {
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
   renderWeeklyTraining(weeklyTraining.sessions || []);
+  renderHomeWeeklyTraining(weeklyTraining.sessions || []);
   renderTeam(team, leadership.members || [], team.members || [], legacy.entries || []);
   renderTraining(training.schedule || [], training.dryland || {});
 

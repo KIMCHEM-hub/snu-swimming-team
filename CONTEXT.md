@@ -13,7 +13,7 @@
   - CMS: Sveltia CMS(`admin/`), GitHub 백엔드 + Cloudflare Workers OAuth 프록시 (§4 참고).
 - **배포**: GitHub Pages. `CNAME` 파일에 `snuswimmingteam.org` 기록. GitHub Actions 워크플로 없음 — `main` 브랜치에 푸시하면 Pages가 그대로 서빙(별도 빌드 없이 저장소 루트가 곧 배포물).
 - **repo**: `github.com/KIMCHEM-hub/snu-swimming-team`, 기본 브랜치 `main`. 커밋은 대부분 CMS를 통한 콘텐츠 업데이트("Update 팀 (TEAM > MEMBERS) "team"" 형식)와 코드 변경이 섞여 있음.
-- **레거시/사용 안 함**: 루트의 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`은 옛 멀티페이지 버전의 잔재. 영문 placeholder(`[팀을 한 문장으로 소개]` 등)가 그대로 남아 있고 `index.html`의 어떤 내비게이션에서도 링크되지 않음. **삭제하기 전엔 사용자에게 먼저 확인** — 방치된 것인지 의도적으로 남겨둔 것인지 불명확.
+- **레거시 멀티페이지 정리(2026-08-14)**: 루트의 `about.html`, `activities.html`, `gallery.html`, `join.html`, `training.html`은 옛 멀티페이지 버전으로, 활성 SPA(`index.html`)나 부원/관리자 페이지에서 참조되지 않아 삭제했다. 현재 사이트의 페이지 전환은 `index.html`의 해시 기반 섹션 라우팅을 사용한다.
 
 ## 2. 주요 기능별 구현 위치
 
