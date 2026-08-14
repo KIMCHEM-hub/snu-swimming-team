@@ -48,7 +48,10 @@ async function readJson(response, message) {
   const text = await response.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch { /* Response body is optional. */ }
-  if (!response.ok) throw new HttpError(response.status, message);
+  if (!response.ok) {
+    console.error("External API request failed.", { status: response.status, body: text });
+    throw new HttpError(response.status, message);
+  }
   return body;
 }
 
@@ -132,12 +135,17 @@ async function updatePublicTeamMember(editRequest, env) {
   const branch = env.GITHUB_BRANCH || "main";
   const githubHeaders = {
     Authorization: `Bearer ${requiredEnv(env, "GITHUB_TOKEN")}`,
+    "User-Agent": "snu-swim-approve-request-worker",
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     "content-type": "application/json"
   };
   const fileUrl = `https://api.github.com/repos/${repository}/contents/content/team.json?ref=${encodeURIComponent(branch)}`;
   const fileResponse = await fetch(fileUrl, { headers: githubHeaders });
+  if (!fileResponse.ok) {
+    const errorBody = await fileResponse.clone().text();
+    console.error("GitHub content/team.json request failed.", { status: fileResponse.status, body: errorBody });
+  }
   const file = await readJson(fileResponse, "Could not load content/team.json from GitHub.");
 
   let team;

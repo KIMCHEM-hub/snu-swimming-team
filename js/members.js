@@ -27,6 +27,11 @@ const requestCloseButtons = document.querySelectorAll("[data-edit-request-close]
 const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
+const adminTab = document.querySelector("[data-admin-tab]");
+const adminPanel = document.querySelector('[data-member-panel="admin"]');
+const adminStatus = document.querySelector("[data-admin-status]");
+const adminRequestList = document.querySelector("[data-admin-request-list]");
+const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 let currentUser = null;
 let currentMember = null;
 let currentTeamMember = null;
@@ -40,8 +45,10 @@ function setStatus(key = "") {
 }
 
 function selectTab(tabName) {
+  if (tabName === "admin" && currentMember?.role !== "admin") return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
+  if (tabName === "admin") loadAdminRequests();
 }
 
 function setRequestStatus(key = "") {
@@ -102,9 +109,128 @@ async function loadPendingRequests() {
   if (!error) renderPendingRequests(data || []);
 }
 
+function setAdminStatus(message = "") {
+  adminStatus.textContent = message;
+  adminStatus.hidden = !message;
+}
+
+function requestMemberName(request) {
+  const relation = Array.isArray(request.members) ? request.members[0] : request.members;
+  return relation?.name || "—";
+}
+
+function appendAdminDetail(details, label, value) {
+  const group = document.createElement("div");
+  const term = document.createElement("dt");
+  const description = document.createElement("dd");
+  term.textContent = label;
+  description.textContent = value || "—";
+  group.append(term, description);
+  details.append(group);
+}
+
+function renderAdminRequests(requests) {
+  adminRequestList.replaceChildren();
+  if (!requests.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.adminEmpty");
+    adminRequestList.append(empty);
+    return;
+  }
+
+  requests.forEach((request) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    card.dataset.adminRequestId = request.id;
+
+    const head = document.createElement("div");
+    head.className = "members-admin-request-head";
+    const requester = document.createElement("p");
+    requester.className = "members-admin-requester";
+    requester.textContent = `${t("members.adminRequester")}: ${requestMemberName(request)}`;
+    const date = document.createElement("time");
+    date.className = "members-admin-date";
+    date.textContent = formatRequestDate(request.created_at);
+    head.append(requester, date);
+
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    appendAdminDetail(details, t("members.adminField"), t(`members.requestField.${request.field_name}`));
+    appendAdminDetail(details, t("members.adminChange"), `${request.old_value || "—"} → ${request.new_value || "—"}`);
+    appendAdminDetail(details, t("members.adminTargetType"), request.target_type === "public" ? t("members.adminPublic") : t("members.adminPrivate"));
+
+    const actions = document.createElement("div");
+    actions.className = "members-admin-actions";
+    [
+      { action: "reject", key: "members.adminReject", className: "members-admin-action--reject" },
+      { action: "approve", key: "members.adminApprove", className: "" }
+    ].forEach(({ action, key, className }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `members-button members-admin-action ${className}`.trim();
+      button.dataset.adminAction = action;
+      button.textContent = t(key);
+      button.addEventListener("click", () => reviewAdminRequest(request.id, action, card));
+      actions.append(button);
+    });
+
+    card.append(head, details, actions);
+    adminRequestList.append(card);
+  });
+}
+
+async function loadAdminRequests() {
+  if (currentMember?.role !== "admin") return;
+  setAdminStatus(t("members.adminLoading"));
+  const { data, error } = await supabase
+    .from("profile_edit_requests")
+    .select("id, field_name, old_value, new_value, target_type, created_at, members!profile_edit_requests_member_id_fkey(name)")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) {
+    setAdminStatus(t("members.adminLoadFailed", { message: error.message }));
+    return;
+  }
+  renderAdminRequests(data || []);
+  setAdminStatus();
+}
+
+async function reviewAdminRequest(requestId, action, card) {
+  const actionLabel = t(action === "approve" ? "members.adminApprove" : "members.adminReject");
+  if (!window.confirm(t("members.adminConfirm", { action: actionLabel }))) return;
+  const buttons = card.querySelectorAll("button");
+  buttons.forEach((button) => { button.disabled = true; });
+  setAdminStatus();
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error(t("members.adminSessionError"));
+    const response = await fetch(APPROVE_REQUEST_WORKER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ request_id: requestId, action })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
+    card.remove();
+    if (!adminRequestList.children.length) renderAdminRequests([]);
+    setAdminStatus(t("members.adminActionSuccess", { action: actionLabel }));
+  } catch (error) {
+    setAdminStatus(t("members.adminActionFailed", { message: error.message || "Request failed." }));
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
 function showLogin(messageKey = "") {
   currentMember = null;
   currentTeamMember = null;
+  adminTab.hidden = true;
+  adminPanel.hidden = true;
+  adminRequestList.replaceChildren();
+  setAdminStatus();
   loginView.hidden = false;
   dashboardView.hidden = true;
   selectTab("profile");
@@ -172,11 +298,15 @@ async function showDashboard(user) {
   pendingRequestList.replaceChildren();
   pendingRequestBlock.hidden = true;
   pendingRequestCount = 0;
+  adminTab.hidden = true;
+  adminPanel.hidden = true;
+  adminRequestList.replaceChildren();
+  setAdminStatus();
   setStatus();
 
   const { data: member, error } = await supabase
     .from("members")
-    .select("id, name, student_id, contact")
+    .select("id, name, student_id, contact, role")
     .eq("email", user.email)
     .maybeSingle();
 
@@ -195,6 +325,7 @@ async function showDashboard(user) {
     return;
   }
   currentMember = member;
+  adminTab.hidden = member.role !== "admin";
   nameEl.textContent = member.name || "—";
   studentIdEl.textContent = member.student_id || "—";
   contactEl.textContent = member.contact || "—";
@@ -289,6 +420,7 @@ window.addEventListener("langchange", () => {
   if (currentMember) {
     loadRecords(currentMember);
     loadPendingRequests();
+    if (currentMember.role === "admin" && !adminPanel.hidden) loadAdminRequests();
   }
 });
 window.addEventListener("pageshow", checkSession);
