@@ -57,6 +57,14 @@
         </form>
         <a class="members-text-button" href="./members.html" data-i18n="members.backToLogin">로그인으로 돌아가기</a>
       </div>
+      <div class="members-view" data-invite-password-view hidden>
+        <h2>초기 비밀번호 설정</h2><p>초대 수락을 완료하려면 사용할 비밀번호를 설정해 주세요.</p>
+        <form class="members-form" data-invite-password-form>
+          <label class="members-label"><span>새 비밀번호</span><input class="members-input" type="password" name="password" autocomplete="new-password" minlength="6" required></label>
+          <label class="members-label"><span>새 비밀번호 확인</span><input class="members-input" type="password" name="passwordConfirm" autocomplete="new-password" minlength="6" required></label>
+          <button class="members-button" type="submit">비밀번호 설정</button>
+        </form>
+      </div>
       <div class="members-view" data-profile-view hidden>
         <div class="members-dashboard">
           <aside class="members-sidebar" aria-label="부원 전용 메뉴">

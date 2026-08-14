@@ -2,16 +2,22 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase-config.js";
 import { applyStaticTranslations, initLang, pick, t } from "./i18n.js";
 
+const initialUrl = new URL(window.location.href);
+let inviteCallbackDetected = initialUrl.searchParams.get("type") === "invite"
+  || new URLSearchParams(initialUrl.hash.slice(1)).get("type") === "invite";
+const INVITE_PENDING_STORAGE_KEY = "snu-swim-invite-password-user";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginView = document.querySelector("[data-login-view]");
 const passwordResetRequestView = document.querySelector("[data-password-reset-request-view]");
 const passwordResetView = document.querySelector("[data-password-reset-view]");
+const invitePasswordView = document.querySelector("[data-invite-password-view]");
 const dashboardView = document.querySelector("[data-profile-view]");
 const loginForm = document.querySelector("[data-login-form]");
 const passwordResetOpenButton = document.querySelector("[data-password-reset-open]");
 const passwordResetCancelButton = document.querySelector("[data-password-reset-cancel]");
 const passwordResetRequestForm = document.querySelector("[data-password-reset-request-form]");
 const passwordResetForm = document.querySelector("[data-password-reset-form]");
+const invitePasswordForm = document.querySelector("[data-invite-password-form]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const sessionWarning = document.querySelector("[data-session-warning]");
 const sessionRemaining = document.querySelector("[data-session-remaining]");
@@ -143,6 +149,7 @@ const resetCallbackError = ["error", "error_code"].some((key) => {
   return url.searchParams.has(key) || new URLSearchParams(url.hash.slice(1)).has(key);
 });
 let resetSessionReady = false;
+let invitePasswordReady = false;
 let pendingRequestCount = 0;
 let profilePhotoUrl = "";
 let profilePhotoUploading = false;
@@ -260,6 +267,7 @@ function showPasswordResetRequest() {
   loginView.hidden = true;
   passwordResetRequestView.hidden = false;
   passwordResetView.hidden = true;
+  invitePasswordView.hidden = true;
   dashboardView.hidden = true;
   setStatus();
 }
@@ -268,9 +276,38 @@ function showPasswordReset(messageKey = "") {
   loginView.hidden = true;
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = false;
+  invitePasswordView.hidden = true;
   dashboardView.hidden = true;
   passwordResetForm.hidden = !resetSessionReady;
   setStatus(messageKey);
+}
+
+function pendingInviteFor(user) {
+  if (!user?.id) return false;
+  try {
+    if (inviteCallbackDetected) {
+      sessionStorage.setItem(INVITE_PENDING_STORAGE_KEY, user.id);
+      inviteCallbackDetected = false;
+    }
+    return sessionStorage.getItem(INVITE_PENDING_STORAGE_KEY) === user.id;
+  } catch {
+    const detected = inviteCallbackDetected;
+    inviteCallbackDetected = false;
+    return detected;
+  }
+}
+
+function clearInviteCallbackUrl() {
+  window.history.replaceState(null, "", "./members.html");
+}
+
+function showInvitePassword() {
+  loginView.hidden = true;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = true;
+  invitePasswordView.hidden = false;
+  dashboardView.hidden = true;
+  setStatus();
 }
 
 function selectTab(tabName) {
@@ -1254,6 +1291,7 @@ function showLogin(messageKey = "") {
   loginView.hidden = false;
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
+  invitePasswordView.hidden = true;
   dashboardView.hidden = true;
   selectTab("profile");
   setStatus(messageKey);
@@ -1492,6 +1530,12 @@ async function checkSession() {
   if (isPasswordResetRoute) {
     resetSessionReady = Boolean(currentUser) && !resetCallbackError;
     showPasswordReset(resetSessionReady ? "" : "members.passwordResetInvalidLink");
+    return;
+  }
+  invitePasswordReady = pendingInviteFor(currentUser);
+  if (invitePasswordReady) {
+    clearInviteCallbackUrl();
+    showInvitePassword();
     return;
   }
   if (currentUser) await showDashboard(currentUser);
@@ -1749,6 +1793,31 @@ passwordResetForm.addEventListener("submit", async (event) => {
   window.location.replace("./members.html?reset=success");
 });
 
+invitePasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!invitePasswordReady || !currentUser) return;
+  const formData = new FormData(invitePasswordForm);
+  const password = formData.get("password");
+  if (password !== formData.get("passwordConfirm")) {
+    setStatus("members.passwordResetMismatch");
+    return;
+  }
+  const submitButton = invitePasswordForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setStatus();
+  const { error } = await supabase.auth.updateUser({ password });
+  submitButton.disabled = false;
+  if (error) {
+    setStatus("members.passwordResetUpdateError");
+    return;
+  }
+  try { sessionStorage.removeItem(INVITE_PENDING_STORAGE_KEY); } catch { /* Storage can be unavailable. */ }
+  invitePasswordReady = false;
+  invitePasswordForm.reset();
+  clearInviteCallbackUrl();
+  await showDashboard(currentUser);
+});
+
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
   stopSessionTimer();
@@ -1781,6 +1850,12 @@ supabase.auth.onAuthStateChange((event, session) => {
       return;
     }
     showPasswordReset();
+    return;
+  }
+  invitePasswordReady = pendingInviteFor(currentUser);
+  if (invitePasswordReady) {
+    clearInviteCallbackUrl();
+    showInvitePassword();
     return;
   }
   if (currentUser) {
