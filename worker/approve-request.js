@@ -305,12 +305,12 @@ async function createMemberAccount(body, env) {
 async function updatePublicTeamMember(editRequest, env) {
   const supabaseUrl = requiredEnv(env, "SUPABASE_URL");
   const memberResponse = await fetch(
-    `${supabaseUrl}/rest/v1/members?select=name&id=eq.${encodeFilter(editRequest.member_id)}`,
+    `${supabaseUrl}/rest/v1/members?select=id,name&id=eq.${encodeFilter(editRequest.member_id)}`,
     { headers: restHeaders(env) }
   );
   const members = await readJson(memberResponse, "Could not load member information.");
   const member = members?.[0];
-  if (!member?.name) throw new HttpError(404, "Member for this edit request was not found.");
+  if (!member?.id || !member?.name) throw new HttpError(404, "Member for this edit request was not found.");
 
   const repository = requiredEnv(env, "GITHUB_REPOSITORY");
   const branch = env.GITHUB_BRANCH || "main";
@@ -335,7 +335,8 @@ async function updatePublicTeamMember(editRequest, env) {
   } catch {
     throw new HttpError(502, "GitHub returned an invalid team.json file.");
   }
-  const teamMember = team?.members?.find((entry) => entry.name === member.name);
+  const teamMember = team?.members?.find((entry) => entry.memberId === member.id)
+    || team?.members?.find((entry) => entry.name === member.name);
   if (!teamMember) throw new HttpError(404, "Matching public team member was not found.");
 
   // A retry after a GitHub commit but before the status update must not make a duplicate commit.
