@@ -167,14 +167,25 @@
 - Legacy `photo`는 선택 필드다. `js/main.js`는 사진이 없거나 읽기에 실패하면 기존 `./assets/images/university-logo.png` fallback을 표시한다. `admin/config.yml`에도 같은 선택 사진 필드를 추가했다.
 - 관리자 탭에서 Legacy 사진 변경 요청을 만들면 기존 `profile_edit_requests`의 public 요청으로 저장한다. `field_name`은 `legacy_photo`, `old_value`는 기존 Legacy 이름이며, `worker/approve-request.js`의 승인 흐름이 `content/legacy.json`을 갱신한다. bucket/RLS/SQL 변경은 없다.
 
+### 2026-08-15 완료
+
+**내비게이션 줄바꿈 버그 수정**
+- 761~1150px 구간(태블릿 가로/축소된 브라우저 창 등)에서 헤더 메뉴 항목이 겹치거나 줄바꿈되던 버그를 수정. `css/style.css`만 변경 — 햄버거 메뉴 전환점을 760px에서 980px로 확장(기존 브레이크포인트 값 재사용, 새 breakpoint 없음), 기본(비-미디어쿼리) `.nav-menu`의 `gap:17px→11px`/`font-size:11px→9.5px` 축소, 760px 쿼리에 남아있던 중복 햄버거 규칙 제거. 로컬 서버 + iframe 4폭(390/850/994/1240px) 동시 렌더링으로 검증 후 커밋. 커밋 `963cf98`.
+
+**memberId 우선 매칭 fix 배포 + 부분 검증**
+- `worker/approve-request.js`의 `updatePublicTeamMember()`가 `content/team.json` 매칭 시 이름 fallback 대신 `memberId`를 우선 사용하도록 수정, 커밋 `5414e92`로 배포.
+- 검증 진행: TEAM 링크 기능으로 문지성 프로필을 테스트 부원 계정에 연결(`memberId: 270bd3c4-60eb-4b11-a361-78188e31c98d`, 커밋 `47cef3b`)까지 확인 완료.
+- 나머지 E2E 단계(테스트 부원 로그인 → department/bio 수정요청 제출 → 관리자 승인 → `team.json`이 memberId 매칭으로 정상 커밋되는지 확인)는 부원 응답 대기 중 — 다음 세션에서 이어서 진행.
+
 ### 다음 작업 (우선순위 순)
 
-1. 내비게이션 바가 좁은 화면에서 줄바꿈되는 버그를 수정한다.
-2. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
+1. memberId E2E 검증 마무리(위 "부원 응답 대기" 단계 완료 후 최종 확인).
+2. TRAINING 세션 상세 모달의 구분선 너비 버그를 수정한다.
 3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
 4. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
 5. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
-6. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
+
+(보류, 우선순위 없음: 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 5개 완료 후 여유 있을 때 진행.)
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
