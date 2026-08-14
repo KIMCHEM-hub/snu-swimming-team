@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Stop-Process -Id 36900 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 38608 -Force\")",
+      "Bash(grep -o 'schedule-logos.\\\\{0,30\\\\}' js/main.js)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"require.resolve\\('sharp'\\)\")",
+      "Bash(python3 -c \"import PIL\")",
+      "PowerShell($py = \"C:\\\\Users\\\\kmcsf\\\\새 폴더\\\\python.exe\"; if \\(Test-Path $py\\) { & $py --version; & $py -c \"import PIL; print\\(PIL.__version__\\)\" } else { \"python.exe not found at that path\" })",
+      "Bash(git rm *)",
+      "Bash(grep -o '\\\\.news-grid[^,{]*{[^}]*}\\\\|#news \\\\.news-grid[^,{]*{[^}]*}\\\\|\\\\.news-stack{[^}]*}\\\\|\\\\.news-stack article{[^}]*}\\\\|\\\\.news-stack h3{[^}]*}\\\\|\\\\.feature-news[^,{]*{[^}]*}\\\\|\\\\.news-image{[^}]*}\\\\|\\\\.news-image img{[^}]*}\\\\|\\\\.news-meta{[^}]*}\\\\|\\\\.news-photo-card[^,{]*{[^}]*}' css/style.css)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
