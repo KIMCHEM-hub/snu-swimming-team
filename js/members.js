@@ -10,7 +10,12 @@ const logoutButton = document.querySelector("[data-logout-button]");
 const status = document.querySelector("[data-auth-status]");
 const emailEl = document.querySelector("[data-member-email]");
 const nameEl = document.querySelector("[data-member-name]");
-const athleteIdEl = document.querySelector("[data-member-athlete-id]");
+const studentIdEl = document.querySelector("[data-member-student-id]");
+const contactEl = document.querySelector("[data-member-contact]");
+const bioRow = document.querySelector("[data-member-bio-row]");
+const bioEl = document.querySelector("[data-member-bio]");
+const snsRow = document.querySelector("[data-member-sns-row]");
+const snsEl = document.querySelector("[data-member-sns]");
 const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
@@ -58,37 +63,67 @@ async function loadRecords(member) {
   }
 }
 
+async function loadTeamProfile(member) {
+  bioRow.hidden = true;
+  snsRow.hidden = true;
+  try {
+    const response = await fetch("./content/team.json");
+    if (!response.ok) throw new Error("Could not load team profile.");
+    const { members = [] } = await response.json();
+    const teamMember = members.find((entry) => entry.name === member.name);
+    if (!teamMember) return;
+    const bio = pick(teamMember, "bio");
+    const sns = pick(teamMember, "sns");
+    if (bio) {
+      bioEl.textContent = bio;
+      bioRow.hidden = false;
+    }
+    if (sns) {
+      snsEl.textContent = sns;
+      snsRow.hidden = false;
+    }
+  } catch (error) {
+    // Optional team-profile fields do not prevent access to the core profile.
+  }
+}
+
 async function showDashboard(user) {
   loginView.hidden = true;
   dashboardView.hidden = false;
   selectTab("profile");
   emailEl.textContent = user.email || "";
   nameEl.textContent = t("members.loading");
-  athleteIdEl.textContent = t("members.loading");
+  studentIdEl.textContent = t("members.loading");
+  contactEl.textContent = t("members.loading");
+  bioRow.hidden = true;
+  snsRow.hidden = true;
   setStatus();
 
   const { data: member, error } = await supabase
     .from("members")
-    .select("name, athlete_id")
+    .select("name, student_id, contact")
     .eq("email", user.email)
     .maybeSingle();
 
   if (error) {
     nameEl.textContent = "—";
-    athleteIdEl.textContent = "—";
+    studentIdEl.textContent = "—";
+    contactEl.textContent = "—";
     setStatus("members.profileLoadError");
     return;
   }
   if (!member) {
     nameEl.textContent = t("members.noProfileName");
-    athleteIdEl.textContent = "—";
+    studentIdEl.textContent = "—";
+    contactEl.textContent = "—";
     setStatus("members.noProfile");
     return;
   }
   currentMember = member;
   nameEl.textContent = member.name || "—";
-  athleteIdEl.textContent = member.athlete_id || "—";
-  await loadRecords(member);
+  studentIdEl.textContent = member.student_id || "—";
+  contactEl.textContent = member.contact || "—";
+  await Promise.all([loadRecords(member), loadTeamProfile(member)]);
 }
 
 async function checkSession() {
