@@ -55,7 +55,7 @@ const adminMemberList = document.createElement("div");
 adminMemberSection.className = "members-coach-section";
 adminMemberStatus.className = "members-coach-status";
 adminMemberStatus.hidden = true;
-adminMemberList.className = "members-admin-list";
+adminMemberList.className = "members-admin-list members-status-list";
 const adminMemberHeading = document.createElement("h3");
 adminMemberHeading.textContent = "MEMBER STATUS";
 adminMemberSection.append(adminMemberHeading, adminMemberStatus, adminMemberList);
@@ -365,22 +365,35 @@ function renderAdminMemberDirectory(members) {
   adminMemberList.replaceChildren();
   members.forEach((member) => {
     const card = document.createElement("article");
-    card.className = "members-admin-request";
+    card.className = "members-status-row";
     const name = document.createElement("p");
-    name.className = "members-admin-requester";
+    name.className = "members-status-name";
     name.textContent = member.name || "—";
-    const actions = document.createElement("div");
-    actions.className = "members-admin-actions";
-    ["active", "OB"].forEach((nextStatus) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "members-button members-admin-action";
-      button.textContent = nextStatus;
-      button.disabled = (member.status || "active") === nextStatus;
-      button.addEventListener("click", () => setMemberStatus(member.id, nextStatus));
-      actions.append(button);
+    const currentStatus = member.status === "OB" ? "OB" : "active";
+    const statusText = document.createElement("span");
+    statusText.className = "members-status-value";
+    statusText.textContent = currentStatus;
+    const toggleLabel = document.createElement("label");
+    toggleLabel.className = "members-status-switch";
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.setAttribute("role", "switch");
+    toggle.checked = currentStatus === "OB";
+    toggle.setAttribute("aria-label", `${member.name || "Member"}: ${currentStatus}`);
+    toggle.setAttribute("aria-describedby", `member-status-${member.id}`);
+    statusText.id = `member-status-${member.id}`;
+    toggle.addEventListener("change", async () => {
+      const previousStatus = currentStatus;
+      const nextStatus = toggle.checked ? "OB" : "active";
+      toggle.disabled = true;
+      const saved = await setMemberStatus(member.id, nextStatus);
+      if (!saved) {
+        toggle.checked = previousStatus === "OB";
+        statusText.textContent = previousStatus;
+      }
     });
-    card.append(name, actions);
+    toggleLabel.append(toggle);
+    card.append(name, statusText, toggleLabel);
     adminMemberList.append(card);
   });
 }
@@ -414,8 +427,10 @@ async function setMemberStatus(memberId, nextStatus) {
     if (payload.public_mirror === "pending") {
       setAdminMemberStatus("DB 상태는 변경됐지만 공개 TEAM 반영은 보류됨");
     }
+    return true;
   } catch (error) {
     setAdminMemberStatus(`Could not save member status: ${error.message || "Request failed."}`);
+    return false;
   }
 }
 
