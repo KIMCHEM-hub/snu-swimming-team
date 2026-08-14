@@ -148,16 +148,21 @@
 
 테스트 계정의 비밀번호나 토큰은 리포에 저장하지 않는다.
 
+### 비밀번호 재설정 (2026-08-14)
+
+- `members.html` 로그인 화면에 비밀번호 찾기, 이메일 요청, 새 비밀번호 설정 화면을 추가했고, `js/members.js`가 `supabase.auth.resetPasswordForEmail()`과 `updateUser({ password })`를 사용한다.
+- 재설정 메일은 현재 정적 GitHub Pages 경로의 `members.html?auth=reset`으로 돌아온다. 복구 세션(`PASSWORD_RECOVERY`)에서만 비밀번호 변경 폼을 표시하고, 링크 오류·만료·변경 오류는 재요청 안내로 처리한다. 변경 성공 시 로그아웃 후 로그인 화면으로 이동한다.
+- Supabase Dashboard의 Authentication > URL Configuration > Redirect URLs에 `https://snuswimmingteam.org/members.html?auth=reset`을 추가해야 한다. GitHub Pages 기본 도메인으로도 접속 또는 테스트한다면 `https://kimchem-hub.github.io/snu-swimming-team/members.html?auth=reset`도 추가한다.
+
 ### 다음 작업 (우선순위 순)
 
-1. **비밀번호 찾기/재설정 기능** — 시급. 부주장 등 실제 계정이 임의 비밀번호로 생성된 상태라 본인이 로그인할 방법이 없다. Supabase Auth의 `resetPasswordForEmail` 등을 활용해 `members.html` 로그인 폼에 "비밀번호 찾기" 플로우를 추가한다.
-2. 내비게이션 바가 좁은 화면에서 줄바꿈되는 버그를 수정한다.
-3. 사진 업로드 기능을 프로필과 TEAM LEGACY 양쪽에서 통합 사용할 수 있도록 정리한다(현재는 프로필 사진 업로드만 구현됨).
-4. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
-5. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-6. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
-7. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
-8. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
+1. 내비게이션 바가 좁은 화면에서 줄바꿈되는 버그를 수정한다.
+2. 사진 업로드 기능을 프로필과 TEAM LEGACY 양쪽에서 통합 사용할 수 있도록 정리한다(현재는 프로필 사진 업로드만 구현됨).
+3. 회원 status(`active`/`OB` 등) 시스템을 설계·구현한다 — 2026년 9월 1일 학기 시작 전까지는 여유가 있다.
+4. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+5. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
+6. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
+7. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron)는 맨 마지막, 필수는 아니다.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.

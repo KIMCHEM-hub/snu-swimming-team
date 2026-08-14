@@ -4,8 +4,14 @@ import { applyStaticTranslations, initLang, pick, t } from "./i18n.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginView = document.querySelector("[data-login-view]");
+const passwordResetRequestView = document.querySelector("[data-password-reset-request-view]");
+const passwordResetView = document.querySelector("[data-password-reset-view]");
 const dashboardView = document.querySelector("[data-profile-view]");
 const loginForm = document.querySelector("[data-login-form]");
+const passwordResetOpenButton = document.querySelector("[data-password-reset-open]");
+const passwordResetCancelButton = document.querySelector("[data-password-reset-cancel]");
+const passwordResetRequestForm = document.querySelector("[data-password-reset-request-form]");
+const passwordResetForm = document.querySelector("[data-password-reset-form]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const status = document.querySelector("[data-auth-status]");
 const emailEl = document.querySelector("[data-member-email]");
@@ -76,6 +82,12 @@ let currentUser = null;
 let currentMember = null;
 let currentTeamMember = null;
 let statusKey = "";
+const isPasswordResetRoute = new URL(window.location.href).searchParams.get("auth") === "reset";
+const resetCallbackError = ["error", "error_code"].some((key) => {
+  const url = new URL(window.location.href);
+  return url.searchParams.has(key) || new URLSearchParams(url.hash.slice(1)).has(key);
+});
+let resetSessionReady = false;
 let pendingRequestCount = 0;
 let profilePhotoUrl = "";
 let profilePhotoUploading = false;
@@ -119,6 +131,23 @@ function setStatus(key = "") {
   statusKey = key;
   status.textContent = statusKey ? t(statusKey) : "";
   status.hidden = !statusKey;
+}
+
+function showPasswordResetRequest() {
+  loginView.hidden = true;
+  passwordResetRequestView.hidden = false;
+  passwordResetView.hidden = true;
+  dashboardView.hidden = true;
+  setStatus();
+}
+
+function showPasswordReset(messageKey = "") {
+  loginView.hidden = true;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = false;
+  dashboardView.hidden = true;
+  passwordResetForm.hidden = !resetSessionReady;
+  setStatus(messageKey);
 }
 
 function selectTab(tabName) {
@@ -816,6 +845,8 @@ function showLogin(messageKey = "") {
   selfReportAdminList.replaceChildren();
   setSelfReportAdminStatus();
   loginView.hidden = false;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = true;
   dashboardView.hidden = true;
   selectTab("profile");
   setStatus(messageKey);
@@ -1050,6 +1081,11 @@ async function showDashboard(user) {
 async function checkSession() {
   const { data: { session } } = await supabase.auth.getSession();
   currentUser = session?.user || null;
+  if (isPasswordResetRoute) {
+    resetSessionReady = Boolean(currentUser) && !resetCallbackError;
+    showPasswordReset(resetSessionReady ? "" : "members.passwordResetInvalidLink");
+    return;
+  }
   if (currentUser) await showDashboard(currentUser);
   else showLogin();
 }
@@ -1266,6 +1302,47 @@ loginForm.addEventListener("submit", async (event) => {
   if (error) setStatus("members.invalidCredentials");
 });
 
+passwordResetOpenButton.addEventListener("click", showPasswordResetRequest);
+passwordResetCancelButton.addEventListener("click", showLogin);
+
+passwordResetRequestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(passwordResetRequestForm);
+  const submitButton = passwordResetRequestForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setStatus();
+  const redirectTo = new URL("./members.html?auth=reset", window.location.href).href;
+  const { error } = await supabase.auth.resetPasswordForEmail(formData.get("email"), { redirectTo });
+  submitButton.disabled = false;
+  // This response must not reveal whether an account exists for the entered email.
+  setStatus(error ? "members.passwordResetRequestError" : "members.passwordResetRequestSent");
+});
+
+passwordResetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!resetSessionReady) {
+    showPasswordReset("members.passwordResetInvalidLink");
+    return;
+  }
+  const formData = new FormData(passwordResetForm);
+  const password = formData.get("password");
+  if (password !== formData.get("passwordConfirm")) {
+    setStatus("members.passwordResetMismatch");
+    return;
+  }
+  const submitButton = passwordResetForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setStatus();
+  const { error } = await supabase.auth.updateUser({ password });
+  submitButton.disabled = false;
+  if (error) {
+    setStatus("members.passwordResetUpdateError");
+    return;
+  }
+  await supabase.auth.signOut();
+  window.location.replace("./members.html?reset=success");
+});
+
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
   const { error } = await supabase.auth.signOut();
@@ -1277,8 +1354,22 @@ logoutButton.addEventListener("click", async () => {
   window.location.replace("./index.html");
 });
 
-supabase.auth.onAuthStateChange((_event, session) => {
+supabase.auth.onAuthStateChange((event, session) => {
   currentUser = session?.user || null;
+  if (isPasswordResetRoute) {
+    if (resetCallbackError) {
+      resetSessionReady = false;
+      showPasswordReset("members.passwordResetInvalidLink");
+      return;
+    }
+    if (event === "PASSWORD_RECOVERY") resetSessionReady = true;
+    if (!resetSessionReady && !currentUser) {
+      showPasswordReset("members.passwordResetInvalidLink");
+      return;
+    }
+    showPasswordReset();
+    return;
+  }
   if (currentUser) showDashboard(currentUser);
   else showLogin();
 });
@@ -1305,3 +1396,7 @@ window.addEventListener("langchange", () => {
 window.addEventListener("pageshow", checkSession);
 
 await checkSession();
+if (new URL(window.location.href).searchParams.get("reset") === "success") {
+  showLogin("members.passwordResetSuccess");
+  window.history.replaceState(null, "", "./members.html");
+}
