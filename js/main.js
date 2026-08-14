@@ -74,15 +74,50 @@ if (brandName && brandName.firstChild) brandName.firstChild.textContent = "서�
 function initNewsVideoAutoStop() {
   const iframe = document.querySelector(".news-video-frame iframe");
   if (!iframe) return;
+  const playerUrl = new URL(iframe.src);
+  if (window.location.protocol !== "file:") {
+    playerUrl.searchParams.set("origin", window.location.origin);
+    iframe.src = playerUrl.toString();
+  }
+  const playerOrigin = playerUrl.origin;
+  let playerReady = false;
+  let pausePending = false;
+  let retryTimer = null;
+  let retryCount = 0;
+
+  function sendPause() {
+    iframe.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), playerOrigin);
+  }
+
+  function retryPause() {
+    if (!pausePending || playerReady) return;
+    if (retryCount >= 12) { retryTimer = null; sendPause(); return; }
+    retryCount += 1;
+    retryTimer = window.setTimeout(retryPause, 250);
+  }
 
   function pause() {
     if (!iframe.src) return;
+    pausePending = true;
     try {
-      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: [] }), "*");
+      if (playerReady) sendPause();
+      else if (!retryTimer) retryPause();
     } catch (err) {
-      // Player may not be ready yet (postMessage before the YT iframe finishes loading) — harmless.
+      // The ready handler or bounded retry path will make a later attempt.
     }
   }
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== playerOrigin || event.source !== iframe.contentWindow) return;
+    let payload = event.data;
+    try { if (typeof payload === "string") payload = JSON.parse(payload); } catch { return; }
+    if (payload?.event !== "onReady") return;
+    playerReady = true;
+    if (retryTimer) { window.clearTimeout(retryTimer); retryTimer = null; }
+    if (pausePending) sendPause();
+  });
+
+  iframe.addEventListener("load", () => { playerReady = false; retryCount = 0; });
 
   pauseNewsVideo = pause;
 
