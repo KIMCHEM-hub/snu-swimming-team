@@ -230,10 +230,18 @@
 - **스코프 밖 참고 메모**(수정 안 함): GALLERY 필터 탭의 active 밑줄(`#8ed4e7`, 다크 배경 전용 시안색)은 골드 오남용이 아니라 우선순위 낮음으로 판단해 미적용. `css/style.css`의 `.photo`/`.photo.large`/`.photo.wide`/`.photo-placeholder`는 실제로는 `.gallery-item` 계열 클래스에 자리를 내준 죽은 코드로 보이나, 이번 스코프 밖이라 삭제하지 않음 — 추후 CSS 정리 작업 때 참고.
 - 검증: 로컬 서버 + iframe 3폭(360/768/1440px). RECORDS는 종목 탭 전환(50 FREE→100 FLY) 정상, 두 줄 헤딩 겹침 없음. GALLERY는 필터 전환(ALL→TRAINING) 정상, `getComputedStyle`로 섹션번호 `rgb(216,220,227)`(`#d8dce3`) 확인. NOTICES는 모달 열기/닫기 정상, `getComputedStyle`로 `.notice-list` 보더 `rgb(0,51,128)`(`--snu-blue`) 확인. TRAINING 회귀 확인: 섹션번호가 골드→`rgb(216,220,227)`로 정상 변경(회귀 없음). `index.html` 중괄호 균형, `git diff --check` 통과.
 
+**멤버 대시보드 디자인 리프레시 완료(2026-08-16) — 골드 오용 3건**
+- 사전 조사에서 발견한 골드 3건 수정(전부 `members.html` 인라인 CSS): ① `.members-eyebrow`("MEMBERS ONLY" 라벨, 로그인 화면) — HOME의 `.weekly-training-title`과 동일하게 `var(--snu-blue)`로 변경. ② `.members-session-warning`(로그인 만료 경고 배너) 좌측 보더 — 바로 옆 `.members-attendance-rate--warning`이 이미 쓰던 것과 같은 `#b3261e`로 통일. ③ `.lang-switch button[aria-pressed="true"]`(KR/EN 토글 active) — 처음엔 TEAM/RECORDS와 동일하게 `background:var(--snu-blue);color:#fff`로 바꿨으나, **`.members-header`(헤더 전체 배경)가 이미 `--snu-blue`라 버튼 배경이 헤더에 완전히 묻혀버리는 걸 `getComputedStyle`로 확인**(headerBg == activeBg, 둘 다 `rgb(0,51,128)`) — 네이비 배경 위에 얹는 요소이므로 네이비 자체는 쓸 수 없다고 판단해 `background:#d8dce3(HOME/GALLERY에서 이미 쓴 실버화이트);color:var(--snu-blue)`로 재조정. 재조정 후 `activeBg: rgb(216,220,227)`로 헤더와 명확히 구분됨을 재확인.
+- 포커스 링(`:focus-visible`)의 골드는 사이트 공통 UI 관례라 그대로 유지 — 손대지 않음(의도적 제외).
+- **대시보드 헤딩(H2) line-height/폰트는 손대지 않기로 판단**: 조사 결과 `.members-panel h2` 등 대시보드 헤딩은 `.members-card h2{font-size:1.6rem;line-height:1.15}`를 상속하고 있어 위험한 0.86이 아니었고(처음엔 전역 h2 기본값을 상속하는 줄 알았으나 `.members-card`가 로그인부터 대시보드까지 전부 감싸는 걸 확인하며 정정), 애초에 League Gothic도 안 쓰고("내 프로필"/"훈련 관리" 등 전부 `--font-ui`) `<br>` 두 줄 헤딩도 없어서 — HOME/TEAM/RECORDS/GALLERY/NOTICES를 고친 이유였던 "League Gothic 두 줄 헤딩 겹침" 버그의 전제조건 자체가 성립하지 않음. 조치 불필요로 판단, 미수정.
+- 검증: 로컬 서버(단일 페이지, iframe 불필요). 로그인 화면에서 KR/EN 토글 클릭 후 `getComputedStyle`로 배경·텍스트색 재확인, 확대 스크린샷으로 헤더 배경과의 대비 육안 확인. 세션 경고 배너는 실제 10분 대기 대신 `hidden` 해제 + 텍스트 주입으로 강제 표시 후 `getComputedStyle`·스크린샷 확인. `members.html` 중괄호 균형, `git diff --check` 통과.
+- **미해결로 남은 부분**: 조사에서 발견한 "관리자 탭 구조 개선"(현재 6개 섹션이 스크롤로만 나열, 코치 탭처럼 서브탭 UI 없음)은 이번 승인 범위 밖이라 미수정 — 아래 "다음 작업" 참고.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-2. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
+1. 관리자 탭 구조 개선 — 코치 탭의 서브탭 패턴(`initCoachSubtabs()`)을 관리자 탭(현재 NEW MEMBER ACCOUNT/MEMBER STATUS/INVITE WHITELIST/팝업 관리/출석 우수자 팝업/자가기록 승인 대기 6개 섹션이 세로로 전부 나열됨)에도 적용할지 검토·구현. 조사 결과(§8 "멤버 대시보드 현황 조사" 참고): 함수 자체는 일반화 가능하지만 (a) i18n 키 6개 신규 필요, (b) "수정 요청 관리" 블록은 `.members-coach-section`으로 안 감싸여 있어 탭 밖 고정 헤더로 둘지 별도 탭으로 만들지 결정 필요, (c) 코치 서브탭 자체에 활성 탭 시각 표시가 없다는 기존 문제(발견됨, 미수정)도 이 참에 같이 고칠지 판단 필요.
+2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
+3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 ## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
 
@@ -245,7 +253,7 @@
   1. ~~HOME~~ — **완료(2026-08-16, 상세는 §8 참고)**
   2. ~~TEAM~~ — **완료(2026-08-16, 상세는 §8 참고 — `.event-tabs`(SCHEDULE) 골드 밑줄은 별도 미해결로 남김)**
   3. ~~RECORDS/GALLERY/NOTICES~~ — **완료(2026-08-16, 상세는 §8 참고 — GALLERY 필터 탭 시안색·죽은 CSS 클래스는 스코프 밖 참고 메모로 남김)**
-  4. **멤버 대시보드(다음 작업 — 로그인 후 화면)**
+  4. ~~멤버 대시보드~~ — **골드 오용 3건 완료(2026-08-16, 상세는 §8 참고). 관리자 탭 구조 개선은 별도 미해결로 "다음 작업" §1에 남김**
 - **다듬을 디테일 후보**:
   - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
   - 카드/버튼 여백, 보더 두께 일관성
