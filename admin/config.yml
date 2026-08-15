@@ -31,6 +31,7 @@ collections:
               - { label: "직책 (한글)", name: koRole, widget: string, hint: "예: 주장, 부주장, 훈련부장, 총무" }
               - { label: "직책 (한글 — EN 페이지용 영문)", name: koRoleEn, widget: string, required: false, hint: "EN 화면에서 '직책 (한글)' 대신 표시됩니다. 비우면 한국어가 그대로 표시됩니다." }
               - { label: 프로필 사진, name: photo, widget: image, required: false, hint: "비워두면 서울대학교 수영부 로고가 대신 표시됩니다. 나중에 업로드하면 자동으로 교체됩니다." }
+              - { label: "연결된 회원 ID (memberId)", name: memberId, widget: string, required: false, hint: "Supabase public.members.id UUID. 단순 표시용 연결이며 승인 워크플로우와 무관. 계정이 삭제되면 고아 참조가 되니 직접 지워둘 것 — 신중히 입력." }
 
   - name: team
     label: "팀 (TEAM > MEMBERS)"
