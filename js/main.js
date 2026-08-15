@@ -771,6 +771,11 @@ if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow acce
 // content/team.json's `membersNote` — the other tabs are unaffected either way.
 // t()/pick() called lazily inside these functions (not as a module-level const) so the
 // text always reflects the language active at render time, not at module load time.
+// activeTeamTab / memberStatusFilter are module-level so a re-render (language switch,
+// content reload) preserves whatever tab the user is currently looking at instead of
+// snapping back to the defaults.
+let activeTeamTab = "leadership";
+let memberStatusFilter = "active"; // "active" | "OB" — MEMBERS sub-filter, defaults to 재적부원
 function emptyTeamStateHtml(label, note) {
   return `<div class="member-directory"><p>${label}</p><p>${note || t("team.membersNoteFallback")}</p></div>`;
 }
@@ -792,13 +797,28 @@ function memberCardHtml(member) {
   const bio = pick(member, "bio");
   const sns = pick(member, "sns");
   const status = member.status === "OB" ? "OB" : "active";
+  const statusLabel = status === "OB" ? t("team.statusOB") : t("team.statusActive");
   const photoAlt = t("team.profilePhotoAlt", { name });
   const photoHtml = photo
     ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   const meta = [department, year].filter(Boolean).join(" · ");
   const extras = bio || sns ? `<div class="member-extra">${bio ? `<div class="member-bio"><span>${t("team.bio")}</span><p>${bio}</p></div>` : ""}${sns ? `<div class="member-sns"><span>${t("team.sns")}</span><p>${sns}</p></div>` : ""}</div>` : "";
-  return `<article class="leader">${photoHtml}<p class="leader-role">${status}</p><h3>${name}</h3><p class="ko-role">${meta}</p>${extras}</article>`;
+  return `<article class="leader" data-member-status="${status}">${photoHtml}<p class="leader-role">${statusLabel}</p><h3>${name}</h3><p class="ko-role">${meta}</p>${extras}</article>`;
+}
+// memberStatusTabsHtml()/memberCardsHtml() are split out from renderTeam() so the MEMBERS
+// sub-filter click handler can re-render just the card grid (via [data-member-cards])
+// instead of rebuilding the whole #team shell — that would also reset the outer
+// LEADERSHIP/MEMBERS/LEGACY tab back to its default.
+function memberStatusTabsHtml() {
+  return `<div class="filter-bar member-status-tabs" role="tablist"><button class="${memberStatusFilter === "active" ? "is-active" : ""}" data-member-status-tab="active">${t("team.statusActive")}</button><button class="${memberStatusFilter === "OB" ? "is-active" : ""}" data-member-status-tab="OB">${t("team.statusOB")}</button></div>`;
+}
+function memberCardsHtml(members, membersNote) {
+  const filtered = (members || []).filter((member) => (memberStatusFilter === "OB" ? member.status === "OB" : member.status !== "OB"));
+  const inner = filtered.length
+    ? `<div class="leadership-directory">${filtered.map(memberCardHtml).join("")}</div>`
+    : emptyTeamStateHtml("MEMBER DIRECTORY", membersNote);
+  return `<div data-member-cards>${inner}</div>`;
 }
 function legacyEntryHtml(entry) {
   const { name, tag, photo } = entry;
@@ -818,20 +838,34 @@ function renderTeam(team, leaders, members, legacyEntries) {
     : emptyTeamStateHtml("LEADERSHIP", membersNote);
 
   const membersHtml = (members && members.length)
-    ? `<div class="leadership-directory">${members.map(memberCardHtml).join("")}</div>`
+    ? `${memberStatusTabsHtml()}${memberCardsHtml(members, membersNote)}`
     : emptyTeamStateHtml("MEMBER DIRECTORY", membersNote);
 
   const legacyHtml = (legacyEntries && legacyEntries.length)
     ? legacyEntries.map(legacyEntryHtml).join("")
     : emptyTeamStateHtml("TEAM LEGACY", membersNote);
 
-  teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="is-active" data-team-tab="leadership">LEADERSHIP</button><button data-team-tab="members">MEMBERS</button><button data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership">${leadershipHtml}</div><div class="team-directory-view" data-team-view="members" hidden>${membersHtml}</div><div class="team-directory-view" data-team-view="legacy" hidden>${legacyHtml}</div>`;
+  teamShell.innerHTML = `<div class="section-head"><div><p class="section-number">02</p><p class="eyebrow accent">TEAM</p></div><h2>MEET<br>THE TEAM.</h2></div><div class="filter-bar team-tabs" role="tablist"><button class="${activeTeamTab === "leadership" ? "is-active" : ""}" data-team-tab="leadership">LEADERSHIP</button><button class="${activeTeamTab === "members" ? "is-active" : ""}" data-team-tab="members">MEMBERS</button><button class="${activeTeamTab === "legacy" ? "is-active" : ""}" data-team-tab="legacy">LEGACY</button></div><div class="team-directory-view" data-team-view="leadership" ${activeTeamTab !== "leadership" ? "hidden" : ""}>${leadershipHtml}</div><div class="team-directory-view" data-team-view="members" ${activeTeamTab !== "members" ? "hidden" : ""}>${membersHtml}</div><div class="team-directory-view" data-team-view="legacy" ${activeTeamTab !== "legacy" ? "hidden" : ""}>${legacyHtml}</div>`;
   teamShell.querySelectorAll("[data-legacy-photo]").forEach((image) => image.addEventListener("error", () => {
     image.src = "./assets/images/university-logo.png";
     image.alt = "Seoul National University logo";
     image.parentElement.className = "member-photo no-photo";
   }, { once: true }));
-  teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => { const tab=button.dataset.teamTab; teamShell.querySelectorAll("[data-team-tab]").forEach((item)=>item.classList.toggle("is-active",item===button)); teamShell.querySelectorAll("[data-team-view]").forEach((view)=>view.hidden=view.dataset.teamView!==tab); }));
+  teamShell.querySelectorAll("[data-team-tab]").forEach((button) => button.addEventListener("click", () => {
+    activeTeamTab = button.dataset.teamTab;
+    teamShell.querySelectorAll("[data-team-tab]").forEach((item) => item.classList.toggle("is-active", item === button));
+    teamShell.querySelectorAll("[data-team-view]").forEach((view) => { view.hidden = view.dataset.teamView !== activeTeamTab; });
+  }));
+  const membersView = teamShell.querySelector('[data-team-view="members"]');
+  if (membersView) {
+    membersView.querySelectorAll("[data-member-status-tab]").forEach((button) => button.addEventListener("click", () => {
+      if (button.classList.contains("is-active")) return;
+      memberStatusFilter = button.dataset.memberStatusTab;
+      membersView.querySelectorAll("[data-member-status-tab]").forEach((item) => item.classList.toggle("is-active", item === button));
+      const cardsContainer = membersView.querySelector("[data-member-cards]");
+      if (cardsContainer) cardsContainer.outerHTML = memberCardsHtml(members, membersNote);
+    }));
+  }
 }
 
 // ---- HOME "TEAM UPDATES" CAROUSEL ----
