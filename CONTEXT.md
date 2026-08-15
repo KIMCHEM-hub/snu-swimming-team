@@ -204,11 +204,16 @@
 - **RECORDS/GALLERY/NOTICES 페이지네이션("더보기")**: RECORDS는 종목/계영 탭당 10행(숨긴 `<tr>`을 클릭 시 노출), GALLERY는 카테고리당 12개(필터 전환마다 재계산·재적용), NOTICES는 10개(기존 `createElement`/`textContent` 안전 패턴 유지). 전부 기존 `.button` 클래스를 재사용(`index.html`에 `.load-more-button` 위치 지정 1줄만 추가) — 각진 모서리·골드는 성과 강조 전용 원칙 그대로 유지.
 - `fix/security-audit-minor-findings` 브랜치에서 작업, 로컬 브라우저 검증(CORS/rate-limit는 로직만 분리해 Node 단위 테스트, 페이지네이션은 임시로 부풀린 테스트 데이터로 3개 섹션 전부 확인 후 원복) 거쳐 `main`에 머지(머지 커밋 `4eb9ae0`).
 
+**관리자 "NEW MEMBER ACCOUNT" 폼 성공 메시지 가시성 개선 완료**
+- 조사 결과: 성공 메시지 자체는 항상 표시되고 있었지만(로직은 정상) ① 제출 버튼이 폼 맨 아래인데 메시지는 폼 맨 위(제목 바로 아래)에 떠서 스크롤 없인 안 보이기 쉬웠고 ② 자동 스크롤/포커스 이동이 전혀 없었고 ③ 성공/실패를 시각적으로 구분하는 스타일이 전혀 없어(둘 다 `.members-coach-status` 단일 스타일) 인지가 어려웠음.
+- 조사 중 CSS 우선순위(specificity) 버그를 추가로 발견함: `.members-coach-status--success`처럼 단일 클래스 선택자로 추가한 색상 규칙이, 같은 자리에 이미 있던 `.members-panel p{color:#666}`(선택자 특이도가 한 단계 더 높음)에 항상 덮어써져 실제로는 회색으로만 렌더링되고 있었음 — 로컬 Chrome에서 `getComputedStyle`로 실측하다 발견. 같은 이유로 기존 `.members-coach-status{color:#8a6c30}`(골드)도 처음부터 한 번도 실제로 렌더링된 적이 없었을 가능성이 높음. `.members-coach-status.members-coach-status--success`처럼 베이스+수식자 클래스를 결합한 선택자로 특이도를 올려 해결.
+- 수정: `js/members.js`의 `setAdminCreateMemberStatus(message, isError)`에 성공(`false`)/실패(`true`)/중립(`null`, 기본값) 3단계 인자를 추가해 `members-coach-status--success`/`--error` 클래스를 토글, 성공/실패 세팅 직후 `adminCreateMemberStatus.scrollIntoView({ behavior: "smooth", block: "center" })` 호출. `members.html`에 `.members-coach-status.members-coach-status--success{color:var(--snu-blue);font-weight:700}` / `.members-coach-status.members-coach-status--error{color:#b3261e}`(기존 거절 상태 색상 재사용) 추가 — 골드는 성과/승리 강조 전용 원칙을 지켜 성공 메시지에 쓰지 않음.
+- 로컬 검증: 인증 없이 admin 패널 `hidden` 속성만 해제해 DOM 시뮬레이션. 성공 케이스 색상 `rgb(0,51,128)`(`--snu-blue`)·`font-weight:700`, 실패 케이스 `rgb(179,38,30)`, 중립(진행 중 메시지)은 기존과 동일한 `rgb(102,102,102)`로 무변화 확인. 페이지 하단(폼보다 한참 아래)까지 스크롤한 상태에서 트리거해도 `scrollIntoView`가 메시지를 뷰포트 정중앙으로 옮기는 것을 좌표로 확인. `node --check` 통과.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 관리자 "NEW MEMBER ACCOUNT" 폼의 성공 메시지 가시성 개선 — `js/members.js:600`의 `setAdminCreateMemberStatus()`가 실제로는 메시지를 표시하지만(로직 자체는 정상), memberId E2E 재검증 과정에서 눈에 잘 띄지 않는다는 게 확인됨.
-2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
+1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
+2. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 ## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
 

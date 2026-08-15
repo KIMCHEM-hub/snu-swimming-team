@@ -537,9 +537,13 @@ async function loadAdminMemberDirectory() {
   setAdminMemberStatus();
 }
 
-function setAdminCreateMemberStatus(message = "") {
+// isError: true colors the message as an error, false as a success, omitted/null leaves it
+// neutral (in-progress messages like "Creating account…" — neither outcome yet).
+function setAdminCreateMemberStatus(message = "", isError = null) {
   adminCreateMemberStatus.textContent = message;
   adminCreateMemberStatus.hidden = !message;
+  adminCreateMemberStatus.classList.toggle("members-coach-status--success", isError === false);
+  adminCreateMemberStatus.classList.toggle("members-coach-status--error", isError === true);
 }
 
 async function loadAdminCreateTeamProfiles() {
@@ -597,10 +601,12 @@ adminCreateMemberForm.addEventListener("submit", async (event) => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
     adminCreateMemberForm.reset();
-    setAdminCreateMemberStatus(`Invite ready. Member ID: ${payload.member_id}${payload.team_linked ? "; TEAM linked." : "."}`);
+    setAdminCreateMemberStatus(`Invite ready. Member ID: ${payload.member_id}${payload.team_linked ? "; TEAM linked." : "."}`, false);
+    adminCreateMemberStatus.scrollIntoView({ behavior: "smooth", block: "center" });
     await Promise.all([loadAdminMemberDirectory(), loadAdminCreateTeamProfiles()]);
   } catch (error) {
-    setAdminCreateMemberStatus(`Account was not fully completed: ${error.message || "Request failed."} Retry with the same details.`);
+    setAdminCreateMemberStatus(`Account was not fully completed: ${error.message || "Request failed."} Retry with the same details.`, true);
+    adminCreateMemberStatus.scrollIntoView({ behavior: "smooth", block: "center" });
   } finally {
     adminCreateSubmit.disabled = false;
   }
