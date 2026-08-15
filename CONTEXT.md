@@ -67,11 +67,11 @@
 ## 5. 진행 중 / 미해결 이슈
 
 - **YouTube 자동정지 버그**: `52b1296`에서 최초 수정, 이후 `4f41308`(2026-08-14)에서 신뢰성을 보강해 **해결됨**. 현재 구현(`js/main.js:65-` `initNewsVideoAutoStop()`)은 iframe src에 `origin` 쿼리 파라미터를 붙이고 postMessage 대상 오리진도 명시적으로 좁혔으며, YT 플레이어의 `onReady` 메시지를 기다렸다가 pause를 전송(대기 중 요청이 들어오면 최대 12회·250ms 간격 재시도 후 강제 전송)한다. 재발 리포트가 오면 이 재시도 타이밍/횟수부터 재검토할 것.
-- **관리자 초대(`create_member_account`) 플로우 버그 — 코드 수정 완료, 실제 메일 재검증 대기(2026-08-15 발견 → 원인 규명 → 수정)**: 초대 메일 링크 클릭 시 Supabase가 자동 로그인 세션을 생성하지만, 실제로 테스트해보면 "초기 비밀번호 설정" 화면(`invitePasswordView`, §"Invite initial password setup" 참고)이 뜨지 않았다.
+- **관리자 초대(`create_member_account`) 플로우 버그 — 해결됨, 실사용 재검증 완료(2026-08-15 발견 → 원인 규명 → 수정 → memberId E2E 재검증 과정에서 실제 초대로 재확인)**: 초대 메일 링크 클릭 시 Supabase가 자동 로그인 세션을 생성하지만, 실제로 테스트해보면 "초기 비밀번호 설정" 화면(`invitePasswordView`, §"Invite initial password setup" 참고)이 뜨지 않았다.
   - **증상 정리(조사 완료)**: 초대 링크 클릭 시 새 계정으로 세션 인증이 되지 않고, 브라우저에 기존에 로그인돼 있던 관리자(`chemi.kim1701@gmail.com`) 세션이 그대로 유지된 채 남았다. 이 상태에서 (새 계정으로 로그인했다고 착각하고) 프로필 수정요청을 제출하면, 실제로는 관리자 본인 세션으로 제출되어 `profile_edit_requests.member_id`에 관리자 자신의 member_id가 정확히 기록됨 — 별도의 "member_id mismatch" 버그가 아니라 이 초대 세션 인증 실패의 증상이었음을 확인(RLS INSERT policy와 `member_id` 컬럼 default 모두 정상 동작 확인됨, 데이터 오염 경로 아님).
   - **근본 원인(코드 조사로 확정)**: `worker/approve-request.js`의 `inviteAuthUser()`가 Supabase Admin API `POST /auth/v1/invite`를 호출할 때 `redirect_to`를 전혀 지정하지 않았다 — 반면 비밀번호 재설정(`resetPasswordForEmail()`, `js/members.js`)은 `redirectTo: members.html?auth=reset`을 명시 지정. GoTrue는 `redirect_to` 없이 호출되면 프로젝트의 Auth 대시보드 "Site URL" 설정으로 폴백하는데, 그동안 대시보드 작업 기록엔 "Redirect URLs" 허용목록에 `members.html`을 추가했다는 내용만 있고 Site URL 자체를 맞췄다는 기록이 없었음. Site URL이 루트(`index.html`)로 남아있었다면 초대 메일 링크가 애초에 `index.html`로 떨어지는데, 그 페이지는 자체 Supabase 클라이언트(`js/main.js`)는 있어도 `onAuthStateChange` 핸들러나 초대 UI가 전혀 없어 토큰이 조용히 무시되고, 그 사이 브라우저에 이미 남아있던 관리자 세션(localStorage 공유)이 그대로 유지되는 것으로 확인됨. (`showPage()`의 SPA 라우터가 해시를 오인해서 지운다는 최초 가설은 코드 검토 결과 근거 없음으로 기각 — `location.hash`/`history.*State`를 쓰는 세 곳 모두 읽기 전용.)
   - **적용한 수정**: (1) `worker/approve-request.js`의 `inviteAuthUser()` — `/auth/v1/invite` 요청 URL에 `?redirect_to=https://snuswimmingteam.org/members.html` 쿼리 파라미터 명시 추가(GoTrue는 `redirect_to`를 body가 아닌 쿼리 파라미터로 받음, `/recover`/`/signup`과 동일 컨벤션). (2) 안전망으로 `js/main.js` 최상단(`createClient()` 이전)에 `type=invite`/`type=recovery`가 해시나 쿼리스트링에서 감지되면 즉시 `./members.html`로 리다이렉트(해시·쿼리 원본 보존)하는 가드 추가 — Site URL 설정이 이후 다시 틀어져도 무해하게 처리됨. 로컬에서 `index.html#access_token=test&type=invite`/`type=recovery` 가짜 해시로 리다이렉트 동작 확인, `#team` 등 정상 섹션 해시는 리다이렉트 안 됨(오탐 없음) 확인, `node --check` 통과.
-  - **⚠️ 재검증 필요**: 위 검증은 가짜 해시로 안전망(2)만 로컬 테스트한 것 — `redirect_to` 파라미터(1)가 실제 Supabase 초대 메일 발송에 반영돼 처음부터 `members.html`로 오는지는 로컬 재현이 불가능하므로, **다음에 실제 신규 부원을 초대할 때 메일 링크가 바로 `members.html`의 초기 비밀번호 설정 화면으로 연결되는지 실제 초대 플로우로 재검증할 것.**
+  - **실사용 재검증 완료**: 로컬 가짜 해시 테스트(안전망 ②만 검증) 이후, memberId E2E 재검증 과정에서 실제로 `kmcsfc0@naver.com`을 `create_member_account`로 초대한 케이스로 `redirect_to`(①)까지 포함해 실제 메일 발송 경로 전체가 정상 동작함을 확인함(아래 "memberId 우선 매칭 fix — E2E 재검증 완료" 참고).
 - 그 외 코드베이스 전체에 `TODO`/`FIXME` 마커는 없음(grep 확인). 열린 이슈 트래커나 이슈 파일도 repo 내에 없음 — 알려진 미해결 사항은 사용자가 직접 구두로 전달하는 것이 유일한 경로이므로, 새로 파악되면 이 섹션에 추가할 것.
 
 ## 6. 디자인 오버홀 방향과 제약사항
@@ -176,10 +176,14 @@
 **내비게이션 줄바꿈 버그 수정**
 - 761~1150px 구간(태블릿 가로/축소된 브라우저 창 등)에서 헤더 메뉴 항목이 겹치거나 줄바꿈되던 버그를 수정. `css/style.css`만 변경 — 햄버거 메뉴 전환점을 760px에서 980px로 확장(기존 브레이크포인트 값 재사용, 새 breakpoint 없음), 기본(비-미디어쿼리) `.nav-menu`의 `gap:17px→11px`/`font-size:11px→9.5px` 축소, 760px 쿼리에 남아있던 중복 햄버거 규칙 제거. 로컬 서버 + iframe 4폭(390/850/994/1240px) 동시 렌더링으로 검증 후 커밋. 커밋 `963cf98`.
 
-**memberId 우선 매칭 fix 배포 + 부분 검증 (2026-08-15 계정 정리로 리셋됨)**
+**memberId 우선 매칭 fix — E2E 재검증 완료 (2026-08-15)**
 - `worker/approve-request.js`의 `updatePublicTeamMember()`가 `content/team.json` 매칭 시 이름 fallback 대신 `memberId`를 우선 사용하도록 수정, 커밋 `5414e92`로 배포 — 이 로직 자체는 여전히 유효하며 되돌리지 않았다.
-- 당시 검증에 썼던 연결(TEAM 링크 기능으로 문지성 프로필을 테스트 부원 계정에 연결, `memberId: 270bd3c4-60eb-4b11-a361-78188e31c98d`, 커밋 `47cef3b`)은 **무효화됨**: 그 테스트 계정(`mjs0323@snu.ac.kr`)이 6개 테스트/탈퇴 계정 정리 작업 중 Supabase Auth·`public.members`에서 완전히 삭제됐고, `content/team.json`의 해당 `memberId` 필드도 고아 참조가 되어 커밋 `6e3fa73`으로 제거했다.
-- 나머지 E2E 단계(부원 로그인 → department/bio 수정요청 제출 → 관리자 승인 → `team.json`이 memberId 매칭으로 정상 커밋되는지 확인)는 이 계정 삭제로 **처음부터 재검증 필요한 상태로 리셋됨** — 다음 세션에서 새 실제 계정으로 TEAM 링크부터 다시 시작할 것.
+- 최초 검증에 썼던 연결(TEAM 링크 기능으로 문지성 프로필을 테스트 부원 계정에 연결, `memberId: 270bd3c4-60eb-4b11-a361-78188e31c98d`, 커밋 `47cef3b`)은 그 테스트 계정(`mjs0323@snu.ac.kr`)이 6개 테스트/탈퇴 계정 정리 작업 중 삭제되며 무효화됐었으나(`content/team.json`의 고아 `memberId`는 커밋 `6e3fa73`으로 제거), **새 테스트 계정 `kmcsfc0@naver.com`으로 전체 E2E를 처음부터 재검증해 완료함**.
+- 검증한 전체 플로우: 관리자 `create_member_account`로 계정 생성·초대 → 초대 메일로 초기 비밀번호 설정 → 로그인 → 프로필 수정요청 제출 → 관리자 승인. 전부 정상 작동 확인.
+- 비공개 필드(`contact` 등, `updatePrivateMember()` 경로)는 TEAM 프로필 연결 여부와 무관하게 정상 승인됨을 확인.
+- 공개 필드(`department` 등, `updatePublicTeamMember()` 경로)는 TEAM 프로필이 연결 안 된 계정에 대해 `HttpError(404, "Matching public team member was not found.")`로 정상 반려됨을 확인 — **버그가 아니라 설계된 동작**(TEAM 프로필 미연결 상태에서 공개 필드 승인은 애초에 성립할 수 없어야 함). 이 반려 경로는 `markReviewed()` 호출 전에 throw되므로 `profile_edit_requests.status`가 `pending`으로 안전하게 유지되는 것도 코드로 확인함.
+- 부수 확인: 초대 링크 `redirect_to` 누락 버그 수정(§5 별도 항목에 기록)이 이번 실제 초대 케이스에서도 정상 동작함을 재확인 — 이전엔 로컬 가짜 해시로 안전망만 검증했었는데, 이번엔 실제 메일 발송 경로까지 확인 완료.
+- 참고(추후 검토, 급하지 않음): `profile_edit_requests.reviewed_by` 컬럼이 `markReviewed()`에서 한 번도 채워지지 않아 항상 `null`로 남는 것을 발견 — 현재 관리자가 1명(`chemi.kim1701@gmail.com`)뿐이라 실질적 문제는 없으나, 관리자/코치 승인 권한이 여러 명으로 늘어나면 누가 승인했는지 추적할 수 있도록 `markReviewed()`에 `reviewed_by` 채우는 로직 추가를 검토할 것.
 
 **TRAINING 세션 상세 모달 구분선 너비 버그 수정**
 - 모바일(`max-width:760px`)에서 `.session-modal-sets-table`에 `display:block`을 직접 걸어 가로 스크롤을 만들던 방식이 원인이었음 — 자식 요소(`tr`/`td`)는 여전히 table-row/table-cell UA 기본값을 가지므로 브라우저가 별도 익명 테이블 박스를 만들어 실제 레이아웃을 그리는데, 이 박스는 바깥의 `width:100%`를 물려받지 않고 내용 크기로 좁게 렌더링되어 WARM-UP/MAIN SET 행과 구분선 폭이 안 맞았음. 스크롤 책임을 기존 wrapper `.session-modal-section-panel`(`overflow-x:auto`)로 옮기고 테이블은 기본 `display:table`을 유지하도록 수정. `index.html` 인라인 `<style>` 한 줄 교체, JS/HTML 구조 변경 없음. 커밋 `7a48d92`.
@@ -202,8 +206,8 @@
 
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-2. 관리자 초대(`create_member_account`) 플로우 버그 — 코드 수정은 완료(§5 참고), **다음 실제 신규 부원 초대 때 메일 링크가 `members.html` 초기 비밀번호 설정 화면으로 바로 연결되는지 실제 초대로 재검증할 것** (로컬 재현 불가능한 부분).
+1. 관리자 "NEW MEMBER ACCOUNT" 폼의 성공 메시지 가시성 개선 — `js/members.js:600`의 `setAdminCreateMemberStatus()`가 실제로는 메시지를 표시하지만(로직 자체는 정상), memberId E2E 재검증 과정에서 눈에 잘 띄지 않는다는 게 확인됨.
+2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
 3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 ## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
