@@ -11,8 +11,12 @@ const loginView = document.querySelector("[data-login-view]");
 const passwordResetRequestView = document.querySelector("[data-password-reset-request-view]");
 const passwordResetView = document.querySelector("[data-password-reset-view]");
 const invitePasswordView = document.querySelector("[data-invite-password-view]");
+const signupView = document.querySelector("[data-signup-view]");
 const dashboardView = document.querySelector("[data-profile-view]");
 const loginForm = document.querySelector("[data-login-form]");
+const signupOpenButton = document.querySelector("[data-signup-open]");
+const signupCancelButton = document.querySelector("[data-signup-cancel]");
+const signupForm = document.querySelector("[data-signup-form]");
 const passwordResetOpenButton = document.querySelector("[data-password-reset-open]");
 const passwordResetCancelButton = document.querySelector("[data-password-reset-cancel]");
 const passwordResetRequestForm = document.querySelector("[data-password-reset-request-form]");
@@ -107,6 +111,37 @@ adminMemberHeading.textContent = "MEMBER STATUS";
 adminMemberSection.append(adminMemberHeading, adminMemberStatus, adminMemberList);
 adminRequestList.after(adminCreateMemberSection);
 adminCreateMemberSection.after(adminMemberSection);
+const adminWhitelistSection = document.createElement("section");
+const adminWhitelistStatus = document.createElement("p");
+const adminWhitelistForm = document.createElement("form");
+const adminWhitelistTextarea = document.createElement("textarea");
+const adminWhitelistSubmit = document.createElement("button");
+const adminWhitelistList = document.createElement("div");
+adminWhitelistSection.className = "members-coach-section";
+adminWhitelistStatus.className = "members-coach-status";
+adminWhitelistStatus.hidden = true;
+adminWhitelistForm.className = "members-coach-form";
+adminWhitelistTextarea.className = "members-input members-textarea";
+adminWhitelistTextarea.rows = 5;
+adminWhitelistTextarea.placeholder = "email,name (one per line)";
+adminWhitelistTextarea.required = true;
+adminWhitelistSubmit.type = "submit";
+adminWhitelistSubmit.className = "members-button";
+adminWhitelistSubmit.textContent = "REGISTER WHITELIST";
+const adminWhitelistActions = document.createElement("div");
+adminWhitelistActions.className = "members-coach-actions";
+adminWhitelistActions.append(adminWhitelistSubmit);
+adminWhitelistForm.append(
+  createAdminAccountField("EMAIL, NAME PER LINE", adminWhitelistTextarea),
+  adminWhitelistActions
+);
+adminWhitelistList.className = "members-admin-list members-status-list";
+const adminWhitelistHeading = document.createElement("h3");
+adminWhitelistHeading.textContent = "INVITE WHITELIST";
+const adminWhitelistIntro = document.createElement("p");
+adminWhitelistIntro.textContent = "Members can self-register on the login screen only with an email + name pair listed here.";
+adminWhitelistSection.append(adminWhitelistHeading, adminWhitelistIntro, adminWhitelistStatus, adminWhitelistForm, adminWhitelistList);
+adminMemberSection.after(adminWhitelistSection);
 const popupAdminForm = document.querySelector("[data-popup-admin-form]");
 const popupAdminStatus = document.querySelector("[data-popup-admin-status]");
 const popupAdminNewButton = document.querySelector("[data-popup-admin-new]");
@@ -139,6 +174,7 @@ const coachAttendanceStatus = document.querySelector("[data-coach-attendance-sta
 const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
 let coachSubtabButtons = [];
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
+const SELF_REGISTER_WORKER_URL = "https://snu-swim-self-register.chemi-kim1701.workers.dev";
 let currentUser = null;
 let currentMember = null;
 let currentTeamMember = null;
@@ -265,6 +301,7 @@ function startSessionTimer(user, reset = false) {
 
 function showPasswordResetRequest() {
   loginView.hidden = true;
+  signupView.hidden = true;
   passwordResetRequestView.hidden = false;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = true;
@@ -274,12 +311,23 @@ function showPasswordResetRequest() {
 
 function showPasswordReset(messageKey = "") {
   loginView.hidden = true;
+  signupView.hidden = true;
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = false;
   invitePasswordView.hidden = true;
   dashboardView.hidden = true;
   passwordResetForm.hidden = !resetSessionReady;
   setStatus(messageKey);
+}
+
+function showSignup() {
+  loginView.hidden = true;
+  signupView.hidden = false;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = true;
+  invitePasswordView.hidden = true;
+  dashboardView.hidden = true;
+  setStatus();
 }
 
 function pendingInviteFor(user) {
@@ -303,6 +351,7 @@ function clearInviteCallbackUrl() {
 
 function showInvitePassword() {
   loginView.hidden = true;
+  signupView.hidden = true;
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = false;
@@ -315,7 +364,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
@@ -555,6 +604,101 @@ adminCreateMemberForm.addEventListener("submit", async (event) => {
   } finally {
     adminCreateSubmit.disabled = false;
   }
+});
+
+function setAdminWhitelistStatus(message = "") {
+  adminWhitelistStatus.textContent = message;
+  adminWhitelistStatus.hidden = !message;
+}
+
+function renderAdminWhitelist(rows) {
+  adminWhitelistList.replaceChildren();
+  rows.forEach((row) => {
+    const card = document.createElement("article");
+    card.className = "members-status-row";
+    const label = document.createElement("p");
+    label.className = "members-status-name";
+    label.textContent = `${row.name} — ${row.email}`;
+    const statusText = document.createElement("span");
+    statusText.className = "members-status-value";
+    statusText.textContent = row.used ? "USED" : "OPEN";
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "members-edit-button";
+    removeButton.textContent = "×";
+    removeButton.setAttribute("aria-label", `Remove ${row.email} from the whitelist`);
+    removeButton.addEventListener("click", async () => {
+      if (!window.confirm(`Remove ${row.email} from the whitelist?`)) return;
+      removeButton.disabled = true;
+      const { error } = await supabase.from("invited_members").delete().eq("id", row.id);
+      if (error) {
+        setAdminWhitelistStatus(`Could not remove entry: ${error.message}`);
+        removeButton.disabled = false;
+        return;
+      }
+      await loadAdminWhitelist();
+    });
+    card.append(label, statusText, removeButton);
+    adminWhitelistList.append(card);
+  });
+}
+
+async function loadAdminWhitelist() {
+  if (currentMember?.role !== "admin") return;
+  setAdminWhitelistStatus("Loading invite whitelist…");
+  const { data, error } = await supabase
+    .from("invited_members")
+    .select("id, email, name, used")
+    .order("created_at", { ascending: false });
+  if (error) {
+    setAdminWhitelistStatus(`Could not load invite whitelist: ${error.message}`);
+    return;
+  }
+  renderAdminWhitelist(data || []);
+  setAdminWhitelistStatus();
+}
+
+// Parses "email,name" lines. Returns { rows } on success, or { errorLine } naming the
+// first line that failed to parse so the admin can fix and resubmit the whole batch —
+// a partial insert would leave the textarea's line numbers out of sync with what saved.
+function parseWhitelistInput(raw) {
+  const rows = [];
+  const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length; i += 1) {
+    const [emailPart, ...nameParts] = lines[i].split(",");
+    const email = (emailPart || "").trim().toLowerCase();
+    const name = nameParts.join(",").trim();
+    if (!email || !email.includes("@") || !name) return { errorLine: i + 1 };
+    rows.push({ email, name });
+  }
+  return { rows };
+}
+
+adminWhitelistForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (currentMember?.role !== "admin") return;
+  const { rows, errorLine } = parseWhitelistInput(adminWhitelistTextarea.value);
+  if (errorLine) {
+    setAdminWhitelistStatus(`Line ${errorLine}: expected "email,name".`);
+    return;
+  }
+  if (!rows.length) {
+    setAdminWhitelistStatus("Enter at least one email,name line.");
+    return;
+  }
+  adminWhitelistSubmit.disabled = true;
+  setAdminWhitelistStatus("Registering whitelist entries…");
+  const { error } = await supabase
+    .from("invited_members")
+    .insert(rows.map((row) => ({ ...row, created_by: currentUser.id })));
+  adminWhitelistSubmit.disabled = false;
+  if (error) {
+    setAdminWhitelistStatus(`Could not register whitelist entries: ${error.message}`);
+    return;
+  }
+  adminWhitelistForm.reset();
+  await loadAdminWhitelist();
+  setAdminWhitelistStatus(`Registered ${rows.length} whitelist ${rows.length === 1 ? "entry" : "entries"}.`);
 });
 
 async function setMemberStatus(memberId, nextStatus) {
@@ -1289,6 +1433,7 @@ function showLogin(messageKey = "") {
   selfReportAdminList.replaceChildren();
   setSelfReportAdminStatus();
   loginView.hidden = false;
+  signupView.hidden = true;
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = true;
@@ -1473,6 +1618,7 @@ async function loadTeamProfile(member) {
 async function showDashboard(user) {
   startSessionTimer(user);
   loginView.hidden = true;
+  signupView.hidden = true;
   dashboardView.hidden = false;
   selectTab("profile");
   emailEl.textContent = user.email || "";
@@ -1754,6 +1900,44 @@ loginForm.addEventListener("submit", async (event) => {
 
 passwordResetOpenButton.addEventListener("click", showPasswordResetRequest);
 passwordResetCancelButton.addEventListener("click", showLogin);
+signupOpenButton.addEventListener("click", showSignup);
+signupCancelButton.addEventListener("click", showLogin);
+
+signupForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(signupForm);
+  const email = formData.get("email").trim();
+  const name = formData.get("name").trim();
+  const password = formData.get("password");
+  if (password !== formData.get("passwordConfirm")) {
+    setStatus("members.signupPasswordMismatch");
+    return;
+  }
+  const submitButton = signupForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setStatus("members.signupSubmitting");
+  try {
+    const response = await fetch(SELF_REGISTER_WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name, password })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorKey = `members.signupError.${payload.error || "server_error"}`;
+      setStatus(t(errorKey) === errorKey ? "members.signupError.server_error" : errorKey);
+      return;
+    }
+    signupForm.reset();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) showLogin("members.signupLoginError");
+    // On success the onAuthStateChange listener below takes over and shows the dashboard.
+  } catch (error) {
+    setStatus("members.signupError.server_error");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
 
 passwordResetRequestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
