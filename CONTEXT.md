@@ -242,7 +242,7 @@
 - TEAM/`memberId` linking is intentionally **not** automatic at signup (same caution as the existing memberId history in this file — no automatic name-matching to TEAM profiles). No new admin feature was needed for this: `createMemberAccount`'s existing reuse path (matching email/name/role hits its `assertExistingMemberMatches` branch instead of creating a new row) already lets an admin link a TEAM profile to a self-registered account by resubmitting the same email/name/role through the existing "NEW MEMBER ACCOUNT" admin form.
 - Admin UI addition: a "INVITE WHITELIST" section (English-only, matching the existing untranslated admin-account/member-status sections) under the admin tab — a textarea for pasting `email,name` lines (bulk insert directly via the authenticated admin's own Supabase session, RLS-gated, no Worker involved) plus a list of existing entries with OPEN/USED status and a delete button.
 - **E2E verified (2026-08-15)**: both the happy path (whitelisted email + exact name → account created → auto sign-in) and the rejection path (name mismatch → generic error, whitelist row stays unclaimed) were tested and passed. Test accounts created during this verification were cleaned up afterward (Supabase Auth + `public.members` + any leftover `invited_members` rows). Merged to `main` via `feature/whitelist-self-signup` (commit `e606380`, merge `bac430d`); that branch has since been deleted (local + remote).
-- No Cloudflare-level rate limiting was added to this public Worker route — still flagged as worth considering since it's the only unauthenticated endpoint in this project.
+- Rate limiting for this public Worker route was later added; see "보안 감사 — 경미 항목 4건 배치 수정 완료" below.
 
 ## Email delivery + admin invite check (2026-08-15)
 
