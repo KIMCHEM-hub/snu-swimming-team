@@ -1,5 +1,6 @@
 {
   "membersNote": "Verified member information will be added as it becomes available.",
+  "membersNoteEn": "",
   "members": [
     {
       "name": "이소은",
@@ -7,8 +8,11 @@
       "department": "경영학과",
       "departmentEn": "Business Administration",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "김허준",
@@ -16,8 +20,11 @@
       "department": "체육교육과",
       "departmentEn": "Physical Education",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "황인표",
@@ -25,8 +32,11 @@
       "department": "재료공학부",
       "departmentEn": "Materials Science and Engineering",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "송성원",
@@ -34,8 +44,11 @@
       "department": "수리과학부",
       "departmentEn": "Mathematical Sciences",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "문지성",
@@ -43,8 +56,11 @@
       "department": "기계공학부",
       "departmentEn": "Mechanical and Aerospace Engineering",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "엄재상",
@@ -52,8 +68,11 @@
       "department": "체육교육과",
       "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "김승규",
@@ -61,8 +80,11 @@
       "department": "물리교육과",
       "departmentEn": "Physics Education",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "서재원",
@@ -70,8 +92,11 @@
       "department": "원자핵공학과",
       "departmentEn": "Nuclear Engineering",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "표영빈",
@@ -79,8 +104,11 @@
       "department": "데이터사이언스대학원 / 데이터사이언스학과",
       "departmentEn": "Graduate School of Data Science / Department of Data Science",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "김승호",
@@ -88,8 +116,11 @@
       "department": "컴퓨터공학부",
       "departmentEn": "Computer Science and Engineering",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "원재희",
@@ -97,8 +128,11 @@
       "department": "자유전공학부",
       "departmentEn": "College of Liberal Studies",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "전유연",
@@ -106,8 +140,11 @@
       "department": "체육교육과",
       "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "박준우",
@@ -115,8 +152,11 @@
       "department": "기계공학부",
       "departmentEn": "Mechanical and Aerospace Engineering",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "김세연",
@@ -124,8 +164,11 @@
       "department": "의학과",
       "departmentEn": "Medicine",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "윤예진",
@@ -133,8 +176,11 @@
       "department": "보건학과",
       "departmentEn": "Department of Public Health",
       "year": "Private / 25-2~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "오영준",
@@ -142,8 +188,11 @@
       "department": "체육교육과",
       "departmentEn": "Physical Education",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "조아현",
@@ -151,8 +200,11 @@
       "department": "수의학과",
       "departmentEn": "Veterinary Medicine",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "황지성",
@@ -160,8 +212,11 @@
       "department": "전기정보공학부",
       "departmentEn": "Electrical and Computer Engineering",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "김미성",
@@ -169,8 +224,11 @@
       "department": "간호학과",
       "departmentEn": "Nursing",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "이하정",
@@ -178,8 +236,11 @@
       "department": "건축학과",
       "departmentEn": "Architecture and Architectural Engineering",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "이유나",
@@ -187,8 +248,11 @@
       "department": "재료공학부",
       "departmentEn": "Materials Science and Engineering",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "전예림",
@@ -196,8 +260,11 @@
       "department": "농경제사회학부",
       "departmentEn": "Agricultural Economics and Rural Development",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "최아라",
@@ -205,8 +272,11 @@
       "department": "사회학과",
       "departmentEn": "Sociology",
       "year": "Private / 25-2~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "장명진",
@@ -214,8 +284,11 @@
       "department": "전기정보공학부",
       "departmentEn": "Electrical and Computer Engineering",
       "year": "Private / 26-1~26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "유서준",
@@ -223,8 +296,11 @@
       "department": "물리천문학부",
       "departmentEn": "Physics and Astronomy",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
     },
     {
       "name": "CHENG, YU-JYUN",
@@ -232,8 +308,35 @@
       "department": "어학당",
       "departmentEn": "Language Education Institute",
       "year": "Private / 26-2",
+      "yearEn": "",
       "photo": "",
-      "status": "active"
+      "status": "active",
+      "bio": "",
+      "sns": ""
+    },
+    {
+      "name": "최예은",
+      "nameEn": "Choe Ye Eun",
+      "department": "관현악과",
+      "departmentEn": "Orchestral Instruments",
+      "year": "Private/26-1~26-2",
+      "yearEn": "Private/26-1~26-2",
+      "photo": "",
+      "status": "active",
+      "bio": "",
+      "sns": ""
+    },
+    {
+      "name": "임상원",
+      "nameEn": "Im Sang Won",
+      "department": "기계항공공학부(우주항공공학전공)",
+      "departmentEn": "Aerospace Engineering",
+      "year": "Private/25-2~26-2",
+      "yearEn": "Private/25-2~26-2",
+      "photo": "",
+      "status": "active",
+      "bio": "",
+      "sns": ""
     }
   ]
 }
