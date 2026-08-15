@@ -8,7 +8,7 @@
 - **정체**: 서울대학교 공식 수영부 웹사이트. 순수 정적 사이트 — 빌드 스텝 없음, `package.json` 없음, 프레임워크 없음(Vanilla HTML/CSS/JS, ES 모듈 1개).
 - **스택**:
   - HTML: `index.html`이 실질적인 단일 페이지 앱(SPA). 섹션을 해시(`#about`, `#team` 등)로 전환하며, `js/main.js`의 `showPage()`가 `.content-section`에 `.is-current`를 토글하는 방식(라우터 라이브러리 없음).
-  - CSS: `css/style.css` 1개 파일, 완전히 한 줄로 minify되어 있음(직접 grep으로 열람 시 `-o` 옵션 필요). 브레이크포인트는 `max-width:980px`, `max-width:760px`, `prefers-reduced-motion:reduce` 세 가지.
+  - CSS: `css/style.css` 1개 파일, 완전히 한 줄로 minify되어 있음(직접 grep으로 열람 시 `-o` 옵션 필요). 레이아웃 브레이크포인트는 사이트 전체 `max-width:980px`로 통일되어 있고, `max-width:380px`은 초소형 화면 보정, `prefers-reduced-motion:reduce`는 접근성 조건이다.
   - JS: `js/main.js`(약 1090줄, 렌더링·캐러셀·모달·인터랙션 전부)와 `js/i18n.js`(KR/EN 토글, 약 195줄). 둘 다 `<script type="module">`.
   - CMS: Sveltia CMS(`admin/`), GitHub 백엔드 + Cloudflare Workers OAuth 프록시 (§4 참고).
 - **배포**: GitHub Pages. `CNAME` 파일에 `snuswimmingteam.org` 기록. GitHub Actions 워크플로 없음 — `main` 브랜치에 푸시하면 Pages가 그대로 서빙(별도 빌드 없이 저장소 루트가 곧 배포물).
@@ -142,7 +142,7 @@
 
 **TRAINING 세션 상세 뷰 전면 재구조화**
 - 스키마(`supabase/session-details.sql` → `supabase/session-details-categories.sql` 순서 실행): `training_sessions.theme`(세션 전체 테마) 추가, 자식 테이블 `training_session_details`를 **WARM-UP/MAIN SET/EVENTS/COOL-DOWN 카테고리별**로 구성(`category` CHECK enum, `content` 텍스트, `distance` CHECK 표준값(25~1500), `sets` 0~10, `pace` `"xx'xx""` 정규식 CHECK). `training_sessions.warmup`/`mainset`/`events`/`cooldown` 컬럼은 스키마 변경 없이 "섹션별 짧은 테마" 용도로 의미만 재해석. RLS는 `training_sessions`와 동일한 소유권 모델(공개 read, 코치 본인 세션 CRUD, 관리자 전체) 재사용.
-- 홈/TRAINING 카드는 요일·날짜·총거리·세션 테마 요약만 표시, `<button>` 클릭 시 공용 모달(`initSessionModal()`, `js/main.js`) 오픈. 모달은 카테고리별 아코디언 구조 — 섹션 테마는 즉시, 카테고리에 detail 행이 있을 때만 클릭/탭으로 펼쳐지는 표(거리·영법·내용·세트·페이스)를 세션 `id` 기준으로 Supabase에서 비동기 로드(레거시 `content/weekly-training.json` 항목은 `id`가 없어 펼침 UI 없이 테마만 표시). 데스크톱은 hover 배경색 변화 + 회전 화살표, 모바일(`max-width:760px`)은 항상 보이는 "탭하여 상세 보기" 힌트.
+- 홈/TRAINING 카드는 요일·날짜·총거리·세션 테마 요약만 표시, `<button>` 클릭 시 공용 모달(`initSessionModal()`, `js/main.js`) 오픈. 모달은 카테고리별 아코디언 구조 — 섹션 테마는 즉시, 카테고리에 detail 행이 있을 때만 클릭/탭으로 펼쳐지는 표(거리·영법·내용·세트·페이스)를 세션 `id` 기준으로 Supabase에서 비동기 로드(레거시 `content/weekly-training.json` 항목은 `id`가 없어 펼침 UI 없이 테마만 표시). 데스크톱은 hover 배경색 변화 + 회전 화살표, 모바일(`max-width:980px`)은 항상 보이는 "탭하여 상세 보기" 힌트.
 - 코치 세션 폼: WARM-UP/MAIN SET/EVENTS/COOL-DOWN 텍스트칸(이제 테마 용도) 유지 + 각 칸 아래 카테고리별 독립 세부사항 편집기(거리/영법/내용/세트수/페이스 드롭다운, 행 추가·삭제). 모든 드롭다운·입력창에 회색 placeholder(미선택 시 회색, 선택 후 일반색) 적용, 각 컨트롤 높이를 한 줄로 통일. 저장 시 4개 카테고리 행을 모아 검증 후 기존 detail 행 전부 삭제·재삽입.
 - `node --check`, HTML 태그/CSS 중괄호 균형(다중 `<style>` 블록 합산), ko/en 사전 키 완전 동기화, `git diff --check`를 매 커밋마다 통과했다.
 
@@ -243,16 +243,21 @@
 - 검증(로컬 서버 + Chrome, 인증 없이 DOM 시뮬레이션): 코치 3탭/관리자 6탭 각각 순서·라벨·클릭 시 대응 섹션 전환 확인, "수정 요청 관리" 고정 헤더 상시 노출 확인, `getComputedStyle`로 active(`rgb(0,51,128)` 텍스트+밑줄)/inactive(`rgb(102,102,102)`, 투명 밑줄) 대비 확인, `.members-coach-actions`(폼 버튼 행) 스타일 무변화(클래스 분리 효과) 확인, 실제 KR/EN 토글 클릭 시 라벨 전환 + 활성 탭 인덱스 유지 확인, 360px 폭 제약(이 환경에서 `resize_window`가 실제 뷰포트에 미반영되어 컨테이너 폭 직접 제약으로 대체 검증) 시 6탭 필요폭(658px) > 가용폭(358px)이라 `overflow-x:auto`로 스크롤 처리되고 줄바꿈 없음 확인, 768/1440px는 여유 있어 스크롤 미발생 확인, 새로고침 후 콘솔 에러 없음 확인. `node --check js/members.js js/i18n.js`, `git diff --check`, `members.html` 중괄호 균형(171/171) 통과.
 - `feature/admin-subtabs` 브랜치에서 작업 후 `main`에 `--no-ff` 머지(머지 커밋으로 반영), 브랜치는 로컬/원격 모두 삭제 완료.
 
+**반응형 브레이크포인트 통일 완료(2026-08-16)**
+- 조사 결과: 기존 레이아웃 조건은 `max-width:980px`(공용 CSS의 nav 햄버거 전환 및 일부 grid), `max-width:760px`(공용 CSS의 나머지 콘텐츠, `index.html` 인라인 HOME/TEAM/RECORDS/GALLERY/NOTICES/모달, `members.html`의 로그인·대시보드·관리자·코치 화면), `max-width:380px`(HOME 초소형 보정) 세 종류였다. 별도로 `prefers-reduced-motion:reduce` 접근성 조건이 있으며, `js/main.js`에는 hero parallax와 갤러리 `sizes`의 760px 조건이 있었다.
+- 판단: 981~760px에서는 nav만 전체 화면 햄버거이고 콘텐츠는 다열 데스크톱 상태라 시각적 모드가 불일치했다. nav를 760px로 내리는 안은 브랜드와 10개 링크·언어 전환이 같은 행에 들어가야 해 760~980px에서 줄바꿈/overflow 위험이 있으므로 배제했다. 구조 변경 없이 기존 nav 기준 980px을 전체 레이아웃 기준으로 채택했다.
+- 변경: `css/style.css`, `index.html`, `members.html`의 모든 기존 `max-width:760px` 레이아웃 query를 `max-width:980px`로 변경. hero parallax `matchMedia`와 갤러리 `sizes`도 같은 값으로 맞췄다. 380px 초소형 보정 및 reduced-motion은 의도된 예외로 유지했다. HTML 구조, 콘텐츠, JS 동작 로직은 변경하지 않았다.
+- 경계값 검증: 정적 조건 매트릭스에서 360/768/980px는 nav·콘텐츠 모바일 규칙, parallax 비활성, 갤러리 소형 source가 모두 일치하고, 981/1024/1440px는 모두 데스크톱 규칙·parallax·일반 source가 일치함을 확인. `rg`로 레이아웃의 760px 참조가 남지 않음을 확인했고, `node --check js/main.js js/members.js`, 전체 `content/*.json` 파싱, `git diff --check`를 통과했다. 이 실행 환경에는 연결 가능한 브라우저가 없어 스크린샷/실 렌더링 검증은 수행하지 못했다.
+
 ### 다음 작업 (우선순위 순, 2026-08-16 갱신)
 
-1. 반응형 브레이크포인트 통일 — nav는 `css/style.css`의 `@media(max-width:980px)`에서 햄버거로 전환되는데, 대부분의 페이지 콘텐츠는 `max-width:760px` 하나만 써서 981~760px 구간에서 두 시스템이 어긋남(§ "다듬을 디테일 후보" 참고, HOME 리프레시 때 조사만 하고 범위상 보류했던 항목). 비주얼 디자인 리프레시(HOME/TEAM/RECORDS·GALLERY·NOTICES/멤버 대시보드/관리자 탭 서브탭까지 전부 완료)를 마친 지금이 전체 사이트 반응형 QA 겸 브레이크포인트 통일을 진행할 시점.
-2. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 아래 §3(활동점수/월별 상품 시스템)의 월별 확정 로직과 하나로 통합해서 진행 예정.
-3. 활동점수/월별 상품 시스템 구현 — 스펙 확정 완료(아래 "활동점수 및 월별 상품 — 확정 스펙" 참고), Worker cron(위 §2)과 통합해서 하나의 작업으로 진행 예정. 미착수.
-4. 전체 UI 시각적 위계 개선(신규, 2026-08-16 요청) — 상세는 아래 "전체 UI 시각적 위계 개선" 섹션 참고. 요청만 접수, 미논의·미착수.
+1. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 아래 §2(활동점수/월별 상품 시스템)의 월별 확정 로직과 하나로 통합해서 진행 예정.
+2. 활동점수/월별 상품 시스템 구현 — 스펙 확정 완료(아래 "활동점수 및 월별 상품 — 확정 스펙" 참고), Worker cron(위 §1)과 통합해서 하나의 작업으로 진행 예정. 미착수.
+3. 전체 UI 시각적 위계 개선(신규, 2026-08-16 요청) — 상세는 아래 "전체 UI 시각적 위계 개선" 섹션 참고. 요청만 접수, 미논의·미착수.
 
 ## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
 
-> 아래 "진행 순서 후보" 4단계(HOME/TEAM/RECORDS·GALLERY·NOTICES/멤버 대시보드)는 2026-08-16 기준 전부 완료됐다. 남은 것은 "다듬을 디테일 후보"의 반응형 브레이크포인트 통일뿐이며, "다음 작업" §1과 같은 항목이다.
+> 아래 "진행 순서 후보" 4단계(HOME/TEAM/RECORDS·GALLERY·NOTICES/멤버 대시보드)와 반응형 브레이크포인트 통일은 2026-08-16 기준 전부 완료됐다.
 
 - **성격**: 전면 재설계 아님. 기존 디자인 언어(각진 모서리, 골드는 성과/승리 순간 전용, 네이비가 배경/구조 위계 담당) 유지하며 디테일만 다듬는 리프레시.
 - **범위**: 사이트 전체, 순차적으로 진행(한 번에 전부 X, 페이지/섹션 단위).
@@ -264,7 +269,7 @@
 - **다듬을 디테일 후보**:
   - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
   - 카드/버튼 여백, 보더 두께 일관성
-  - 반응형 브레이크포인트 통일(2026-08-16 HOME 조사로 구체화: nav는 `css/style.css`의 `@media(max-width:980px)`에서 햄버거로 전환되는데, HOME 콘텐츠(hero/current-panel/home-news/quick-facts/home-join/home-contact)는 전부 `max-width:760px` 하나만 쓰고 981~760px 구간에서 데스크톱 레이아웃을 유지 — 두 시스템이 서로 다른 기준. HOME 자체 리프레시(2026-08-16, 타이포/보더/패딩/골드 5건)에서는 범위가 커서 일부러 손대지 않았고, 전체 사이트 반응형 QA 단계에서 nav·콘텐츠 브레이크포인트를 한 번에 통일 검토할 것)
+  - 반응형 브레이크포인트 통일 완료(2026-08-16): 공개 페이지와 멤버 대시보드의 모든 레이아웃 조건 및 관련 JS를 `max-width:980px`로 맞춰, nav 햄버거 전환과 콘텐츠 단일 열/모바일 보정이 같은 시점에 적용된다. `max-width:380px` 초소형 보정과 reduced-motion 접근성 조건은 의도된 예외로 유지.
 - **반응형 QA 기준 구간**: 모바일(360~430px) / 태블릿(768px) / 데스크톱
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
@@ -355,7 +360,7 @@
 - 관리자 승인 필요(기존 `self_reported_activities` 승인 플로우와 동일한 패턴)
 
 ### 월별 확정 방식
-- cron Worker로 자동 확정 — "다음 작업" §2 Worker cron(`attendance_winner` 팝업 자동화)과 통합해서 하나의 작업으로 진행
+- cron Worker로 자동 확정 — "다음 작업" §1 Worker cron(`attendance_winner` 팝업 자동화)과 통합해서 하나의 작업으로 진행
 
 ### 구현 시 필요 사항 (분석 완료, 미착수)
 - `self_reported_activities`에 점수 매핑 + "그룹 A(자유수영+3인훈련 합산 하루 1건)/그룹 B(4인모임 하루 1건)" 상한 검증 로직 필요(카테고리 단순 개별 상한이 아니라 그룹 묶음 검증이라는 점 명확히)

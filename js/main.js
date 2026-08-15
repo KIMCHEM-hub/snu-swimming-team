@@ -154,7 +154,7 @@ initNewsVideoAutoStop();
 // Desktop/tablet only. Background image is pinned via CSS `background-attachment:fixed`
 // (see .hero in css/style.css); this just fades + lifts the hero text/logo as the user
 // scrolls through the hero's own height, so the next section reads as rising up over it.
-// Disabled on mobile (≤760px, matching the site's other mobile breakpoints) and under
+// Disabled on mobile (≤980px, matching the site's other mobile breakpoints) and under
 // prefers-reduced-motion — in both cases the CSS custom properties are cleared so
 // .hero-content falls back to its normal static position/opacity. Never touches
 // anything under .home-news-carousel (the TEAM UPDATES slider).
@@ -164,7 +164,7 @@ initNewsVideoAutoStop();
   if (!hero || !heroContent) return;
 
   const MAX_SHIFT_PX = 90;
-  const mobileQuery = window.matchMedia("(max-width: 760px)");
+  const mobileQuery = window.matchMedia("(max-width: 980px)");
   const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   let ticking = false;
 
@@ -348,7 +348,7 @@ function assetPath(name) {
 // Every gallery photo *may* ship a ~900px-wide "-sm" WebP companion next to the ~1800px
 // full version. CMS uploads won't have one, so srcset is only added when both w/sw are
 // present in the data — otherwise we fall back to a plain <img> instead of a 404 srcset.
-const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
+const GALLERY_SIZES = "(max-width: 980px) 92vw, 31vw";
 const GALLERY_PAGE_SIZE = 12;
 function galleryImgHtml(card, title) {
   if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
