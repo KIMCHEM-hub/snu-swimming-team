@@ -182,9 +182,15 @@
 **TEAM 페이지 members active/OB 필터 UI**
 - MEMBERS 탭 아래 재적부원/OB 서브필터 탭을 추가(기존 `team-tabs`와 동일한 `filter-bar` 마크업/클래스 재사용). `memberCardHtml`이 이미 읽던 `member.status`를 필터 조건으로 쓰고, 카드의 상태 라벨을 `team.statusActive`/`team.statusOB` i18n 키로 교체(기존엔 "active"가 영문 그대로 노출되던 버그성 표기였음). OB 카드는 골드 강조 없이 그레이스케일 사진·회색 라벨·축소 폰트로 구분(`index.html` 인라인 스타일). `activeTeamTab`/`memberStatusFilter`를 모듈 전역 변수로 둬서 언어 전환 재렌더에도 사용자가 보던 탭이 리셋되지 않게 함. `content/team.json` 26명 전원에 `"status": "active"` 반영, `admin/config.yml`에 select 위젯(재적부원/OB, 기본값 active) 추가. `feature/team-member-status-filter` 브랜치에서 작업 후 로컬 브라우저 검증(탭 전환, 빈 상태 폴백, OB 스타일) 거쳐 `main`에 머지.
 
+**보안 감사 — 저장형 XSS 수정 완료**
+- 전체 보안 감사(RLS 활성화 여부·SECURITY DEFINER 함수 권한, git 히스토리·클라이언트 코드 시크릿 하드코딩, Auth/세션 타임아웃, Worker CORS·에러 응답·rate limit, innerHTML 사용처·나누기 로직·maxlength·페이지네이션)를 수행. 유일한 심각(High) 발견은 저장형 XSS: `js/main.js`의 `memberCardHtml`/`leaderCardHtml`/`legacyEntryHtml`이 `bio`/`sns`/`department`/`photo`(회원 자가제출 정보 수정요청 → 관리자 승인 경로로 유입 가능) 등을 이스케이프 없이 `teamShell.innerHTML`에 직접 삽입했고, 기존 클라이언트 `sanitizeInput()`(`js/members.js`)은 `<`/`>` 제거뿐이라 `profile_edit_requests`에 정상 회원 RLS insert 권한으로 직접 삽입하면 우회 가능했음.
+- 수정: `js/main.js`에 `escapeHtml()` 추가해 TEAM 카드 렌더링의 모든 보간 필드(name/role/department/year/bio/sns/photo src·alt/legacy body·tag/membersNote)에 적용 — 이것이 실제 렌더링 시점 XSS 경계. `worker/approve-request.js`에는 클라이언트와 동일한 로직의 서버측 `sanitizeInput()` 미러를 추가해 `getRequest()` 한 지점에서 `new_value`에 적용 — private/public 승인 경로 전부에 자동 적용되는 심층 방어. 두 함수의 역할은 명확히 분리됨(`sanitizeInput`=입력 제한/문자 제거, `escapeHtml`=렌더링 시 엔티티 치환 — 연산이 달라 이중 이스케이프 없음).
+- 로컬에서 `<script>`/`<img onerror=...>` 페이로드를 부원 bio/sns/department에 임시 주입해 검증: 텍스트로만 표시, `#team` 내 `<script>` 요소 0개, `window.__xssFired` 미실행 확인 후 즉시 원복. `fix/team-card-xss-escape` 브랜치에서 작업 후 `main`에 머지(머지 커밋 `a3c860e`).
+- 감사에서 나온 나머지 항목(경미: Worker CORS 와일드카드, self-register rate limit 부재, approve-request 에러 메시지에 업스트림 원문 노출, GALLERY/RECORDS/NOTICES 무한 렌더링)은 아직 미수정 — 아래 "보안 최종 감사" 항목이 완전히 닫힌 것은 아님.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+1. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등) — 저장형 XSS는 수정 완료, 위 경미 항목들은 남아있음.
 2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
 3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
