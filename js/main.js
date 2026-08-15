@@ -261,6 +261,7 @@ function renderRecordTags(entry) {
   return (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${tag}</span>`).join("");
 }
 const BASE_RECORD_ORDER = ["50 FREE", "100 FREE", "50 FLY", "100 FLY", "50 BREAST", "100 BREAST"];
+const RECORDS_PAGE_SIZE = 10;
 function renderRecords(recordEntries, relayEntries) {
   const recordsAppEl = document.querySelector("[data-records-app]");
   if (!recordsAppEl) return;
@@ -271,29 +272,47 @@ function renderRecords(recordEntries, relayEntries) {
   const extraEvents = Object.keys(recordsByEvent).filter((e) => !BASE_RECORD_ORDER.includes(e));
   const recordEventOrder = [...BASE_RECORD_ORDER, ...extraEvents, "RELAY"];
 
+  // Rows beyond RECORDS_PAGE_SIZE render with `hidden` up front rather than being left out
+  // of the table entirely — the "더보기" button just removes the attribute on the next
+  // batch, no re-fetch or re-sort needed. State doesn't need to survive a tab switch since
+  // tableWrapEl.innerHTML is fully replaced each time, naturally resetting the reveal count.
   function renderRecordsTable(eventName) {
     if (eventName === "RELAY") {
-      const rows = relayEntries.slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time)).map((r) =>
-        `<tr><td>${pick(r, "event")}</td><td>${r.team}</td><td>${r.time}</td><td>${pick(r, "meet")}</td><td>${r.date}</td><td>${pick(r, "members")}</td></tr>`
+      const sorted = relayEntries.slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time));
+      const rows = sorted.map((r, i) =>
+        `<tr${i >= RECORDS_PAGE_SIZE ? " hidden" : ""}><td>${pick(r, "event")}</td><td>${r.team}</td><td>${r.time}</td><td>${pick(r, "meet")}</td><td>${r.date}</td><td>${pick(r, "members")}</td></tr>`
       ).join("");
-      return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      const moreHtml = sorted.length > RECORDS_PAGE_SIZE ? `<button type="button" class="button load-more-button" data-records-more>${t("records.loadMore")}</button>` : "";
+      return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>${moreHtml}`;
     }
     const entries = (recordsByEvent[eventName] || []).slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time));
-    const rows = entries.map((r) => {
+    const rows = entries.map((r, i) => {
       const meet = pick(r, "meet");
       const detail = pick(r, "detail");
-      return `<tr><td>${pick(r, "athlete")}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
+      return `<tr${i >= RECORDS_PAGE_SIZE ? " hidden" : ""}><td>${pick(r, "athlete")}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
     }).join("");
-    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">${t("records.sortNote")}</p>`;
+    const moreHtml = entries.length > RECORDS_PAGE_SIZE ? `<button type="button" class="button load-more-button" data-records-more>${t("records.loadMore")}</button>` : "";
+    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div>${moreHtml}<p class="records-note">${t("records.sortNote")}</p>`;
+  }
+  function attachRecordsMoreHandler() {
+    const moreBtn = tableWrapEl.querySelector("[data-records-more]");
+    if (!moreBtn) return;
+    moreBtn.addEventListener("click", () => {
+      const hiddenRows = tableWrapEl.querySelectorAll("tbody tr[hidden]");
+      Array.from(hiddenRows).slice(0, RECORDS_PAGE_SIZE).forEach((tr) => tr.removeAttribute("hidden"));
+      if (!tableWrapEl.querySelector("tbody tr[hidden]")) moreBtn.remove();
+    });
   }
 
   const tabsHtml = recordEventOrder.map((name, i) => `<button type="button" class="${i === 0 ? "is-active" : ""}" data-event-tab="${name}">${name}</button>`).join("");
   recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="${t("records.eventTabsAria")}">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
   const tableWrapEl = recordsAppEl.querySelector("[data-records-table]");
+  attachRecordsMoreHandler();
   recordsAppEl.querySelectorAll("[data-event-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       recordsAppEl.querySelectorAll("[data-event-tab]").forEach((b) => b.classList.toggle("is-active", b === btn));
       tableWrapEl.innerHTML = renderRecordsTable(btn.dataset.eventTab);
+      attachRecordsMoreHandler();
     });
   });
 }
@@ -314,6 +333,7 @@ function assetPath(name) {
 // full version. CMS uploads won't have one, so srcset is only added when both w/sw are
 // present in the data — otherwise we fall back to a plain <img> instead of a 404 srcset.
 const GALLERY_SIZES = "(max-width: 760px) 92vw, 31vw";
+const GALLERY_PAGE_SIZE = 12;
 function galleryImgHtml(card, title) {
   if (!card.image) return card.fallback ? '<img src="./assets/images/university-logo.png" alt="Seoul National University logo">' : "PHOTO<br>PENDING";
   const large = assetPath(card.image);
@@ -332,21 +352,55 @@ function renderGallery(cards) {
     const meta = pick(card, "meta");
     return `<figure class="gallery-item" data-category="${card.category}"><div class="gallery-media ${card.image ? "" : "gallery-media--placeholder"}">${galleryImgHtml(card, title)}</div><figcaption><p class="gallery-card-category">${card.label}</p><h3 class="gallery-card-title">${title}</h3><span class="gallery-card-meta">${meta}</span></figcaption></figure>`;
   }).join("") + `<p class="gallery-empty" hidden>${t("gallery.empty")}</p>`;
+
+  // Placed as a sibling *after* .photo-grid (not inside it) so it doesn't become an extra
+  // CSS grid cell. Reused across filter switches — applyFilter() below just reassigns its
+  // click handler each time rather than recreating the button.
+  let moreBtn = galleryGrid.nextElementSibling;
+  if (!moreBtn || !moreBtn.matches("[data-gallery-more]")) {
+    moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "button load-more-button";
+    moreBtn.dataset.galleryMore = "";
+    galleryGrid.after(moreBtn);
+  }
+  moreBtn.textContent = t("gallery.loadMore");
+
+  // Pagination is per active category: switching filters re-derives the matching set and
+  // reveals only the first page of it, rather than the "show everything that matches"
+  // behavior this had before. Non-matching cards stay `hidden` regardless of page.
+  function applyFilter(category) {
+    const items = Array.from(galleryGrid.querySelectorAll(".gallery-item"));
+    const matches = items.filter((card) => category === "all" || card.dataset.category === category);
+    items.forEach((card) => { card.hidden = !matches.includes(card); });
+    let revealed = Math.min(GALLERY_PAGE_SIZE, matches.length);
+    matches.forEach((card, i) => { card.hidden = i >= revealed; });
+    moreBtn.hidden = matches.length <= GALLERY_PAGE_SIZE;
+    galleryGrid.querySelector(".gallery-empty").hidden = matches.length !== 0;
+    moreBtn.onclick = () => {
+      matches.slice(revealed, revealed + GALLERY_PAGE_SIZE).forEach((card) => { card.hidden = false; });
+      revealed += GALLERY_PAGE_SIZE;
+      moreBtn.hidden = revealed >= matches.length;
+    };
+  }
+
   // Unlike galleryGrid, these filter buttons are static markup in index.html (not
   // regenerated here), so a re-render (e.g. on langchange) would stack a second listener
   // on the same nodes. Cloning replaces each button with an identical, listener-free copy
   // before attaching this render's handler.
+  let activeCategory = "all";
   galleryFilter.querySelectorAll("button").forEach((original) => {
     const button = original.cloneNode(true);
     original.replaceWith(button);
     button.addEventListener("click", () => {
-      const category = button.textContent.trim().toLowerCase();
+      activeCategory = button.textContent.trim().toLowerCase();
       galleryFilter.querySelectorAll("button").forEach((item) => item.classList.toggle("is-active", item === button));
-      let visible = 0;
-      galleryGrid.querySelectorAll(".gallery-item").forEach((card) => { const show = category === "all" || card.dataset.category === category; card.hidden = !show; if (show) visible += 1; });
-      galleryGrid.querySelector(".gallery-empty").hidden = visible !== 0;
+      applyFilter(activeCategory);
     });
   });
+  const activeButton = galleryFilter.querySelector("button.is-active");
+  if (activeButton) activeCategory = activeButton.textContent.trim().toLowerCase();
+  applyFilter(activeCategory);
 }
 
 // ---- NEWS ----
@@ -387,6 +441,33 @@ function renderNewsSection(items) {
 // textContent로만 다뤄 XSS 삽입 경로가 없다. id는 배열 인덱스가 아니라 JSON의 고정 id라
 // 공지를 추가/삭제해도 기존 글의 id·댓글이 밀리지 않는다.
 const noticesById = new Map();
+const NOTICES_PAGE_SIZE = 10;
+function noticeRowElement(n) {
+  const article = document.createElement("article");
+  article.className = "notice-row";
+  article.dataset.noticeId = n.id;
+
+  const time = document.createElement("time");
+  time.className = "notice-date";
+  time.textContent = n.date;
+
+  const h3 = document.createElement("h3");
+  h3.className = "notice-title";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "notice-title-btn";
+  btn.setAttribute("data-notice-open", "");
+  btn.setAttribute("aria-haspopup", "dialog");
+  btn.textContent = pick(n, "title");
+  h3.appendChild(btn);
+
+  const author = document.createElement("span");
+  author.className = "notice-author";
+  author.textContent = n.author;
+
+  article.append(time, h3, author);
+  return article;
+}
 function renderNotices(items) {
   const noticeList = document.querySelector("#notices [data-notice-list]");
   if (!noticeList) return;
@@ -399,32 +480,24 @@ function renderNotices(items) {
     return;
   }
   const sorted = items.slice().sort((a, b) => b.date.localeCompare(a.date));
-  sorted.forEach((n) => {
-    const article = document.createElement("article");
-    article.className = "notice-row";
-    article.dataset.noticeId = n.id;
+  const rows = sorted.map(noticeRowElement);
 
-    const time = document.createElement("time");
-    time.className = "notice-date";
-    time.textContent = n.date;
-
-    const h3 = document.createElement("h3");
-    h3.className = "notice-title";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "notice-title-btn";
-    btn.setAttribute("data-notice-open", "");
-    btn.setAttribute("aria-haspopup", "dialog");
-    btn.textContent = pick(n, "title");
-    h3.appendChild(btn);
-
-    const author = document.createElement("span");
-    author.className = "notice-author";
-    author.textContent = n.author;
-
-    article.append(time, h3, author);
-    noticeList.appendChild(article);
-  });
+  // The "더보기" button lives inside noticeList (unlike GALLERY's, which sits outside its
+  // grid) since notice-list is a plain vertical block, not a CSS grid — appending it as the
+  // last child reads naturally as "one more row" and needs no extra placement handling.
+  const moreBtn = document.createElement("button");
+  moreBtn.type = "button";
+  moreBtn.className = "button load-more-button";
+  moreBtn.textContent = t("notices.loadMore");
+  let revealed = 0;
+  function revealMore() {
+    rows.slice(revealed, revealed + NOTICES_PAGE_SIZE).forEach((row) => noticeList.insertBefore(row, moreBtn));
+    revealed += NOTICES_PAGE_SIZE;
+    moreBtn.hidden = revealed >= rows.length;
+  }
+  noticeList.appendChild(moreBtn);
+  moreBtn.addEventListener("click", revealMore);
+  revealMore();
 }
 
 // ---- TRAINING ----

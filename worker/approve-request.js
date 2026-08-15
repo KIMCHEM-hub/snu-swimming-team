@@ -5,12 +5,28 @@
 
 const PRIVATE_FIELDS = new Set(["student_id", "contact"]);
 const PUBLIC_FIELDS = new Set(["department", "bio", "sns", "photo", "legacy_photo"]);
-// Replace "*" with "https://snuswimmingteam.org" before restricting production origins.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type"
-};
+
+// CORS is restricted to the production site, the GitHub Pages fallback domain (see
+// CONTEXT.md's Auth redirect-URL note for why that one's also live), and localhost/127.0.0.1
+// on any port for local development. This only affects which origins a *browser* is willing
+// to let read the response — it is not an auth boundary (that's verifyAdmin()'s Bearer token
+// check below) — but there is no reason to advertise "*" to the entire web either.
+const PRODUCTION_ORIGIN = "https://snuswimmingteam.org";
+const ALLOWED_ORIGINS = new Set([PRODUCTION_ORIGIN, "https://kimchem-hub.github.io"]);
+const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+function corsOriginFor(request) {
+  const origin = request.headers.get("Origin");
+  if (origin && (ALLOWED_ORIGINS.has(origin) || LOCAL_ORIGIN_RE.test(origin))) return origin;
+  return PRODUCTION_ORIGIN;
+}
+function corsHeaders(corsOrigin) {
+  return {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    Vary: "Origin"
+  };
+}
 
 // sanitizeInput(value) — server-side mirror of js/members.js's client-side sanitizeInput().
 // The client strips <script> blocks and angle brackets before a member submits a profile
@@ -36,16 +52,22 @@ class HttpError extends Error {
   }
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, corsOrigin = PRODUCTION_ORIGIN) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "content-type": "application/json; charset=utf-8" }
+    headers: { ...corsHeaders(corsOrigin), "content-type": "application/json; charset=utf-8" }
   });
 }
 
+// Missing-env-var messages used to include the variable name in the response body — that's
+// internal deployment detail an admin caller doesn't need and shouldn't have handed to them.
+// The name still goes to the Worker's own log via console.error for whoever configures it.
 function requiredEnv(env, name) {
   const value = env[name];
-  if (!value) throw new HttpError(500, `Missing Worker environment variable: ${name}`);
+  if (!value) {
+    console.error(`Missing Worker environment variable: ${name}`);
+    throw new HttpError(500, "Server configuration error.");
+  }
   return value;
 }
 
@@ -426,15 +448,16 @@ async function markReviewed(editRequest, status, env) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
-    if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+    const corsOrigin = corsOriginFor(request);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(corsOrigin) });
+    if (request.method !== "POST") return json({ error: "Method not allowed." }, 405, corsOrigin);
 
     try {
       const admin = await verifyAdmin(request, env);
       const body = await request.json();
       if (body?.action === "create_member_account") {
         const result = await createMemberAccount(body, env);
-        return json(result, 201);
+        return json(result, 201, corsOrigin);
       }
       if (body?.action === "set_member_status") {
         const member = await setMemberStatus(body.member_id, body.status, admin.authorization, env);
@@ -445,7 +468,7 @@ export default {
           console.error("Public member status mirror failed.", error);
           publicMirror = "pending";
         }
-        return json({ member_id: member.id, status: member.status, public_mirror: publicMirror });
+        return json({ member_id: member.id, status: member.status, public_mirror: publicMirror }, 200, corsOrigin);
       }
       const requestId = body?.request_id;
       const action = body?.action;
@@ -463,11 +486,11 @@ export default {
         await markReviewed(editRequest, "rejected", env);
       }
 
-      return json({ request_id: editRequest.id, status: action === "approve" ? "approved" : "rejected" });
+      return json({ request_id: editRequest.id, status: action === "approve" ? "approved" : "rejected" }, 200, corsOrigin);
     } catch (error) {
-      if (error instanceof HttpError) return json({ error: error.message }, error.status);
+      if (error instanceof HttpError) return json({ error: error.message }, error.status, corsOrigin);
       console.error("Profile edit request review failed.", error);
-      return json({ error: "Internal server error." }, 500);
+      return json({ error: "Internal server error." }, 500, corsOrigin);
     }
   }
 };

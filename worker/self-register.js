@@ -6,15 +6,69 @@
 // action behind an admin bearer token at the top of its fetch handler. Keeping this Worker
 // separate means that gate never has to be touched or reasoned about for a public route.
 //
-// Consider adding a Cloudflare-level rate limiting rule on this Worker's route, since it
-// is the only endpoint in this project reachable without any Supabase session.
+// Rate limiting: see checkRateLimit() below — IP-based, KV-backed when a KV namespace is
+// bound, in-memory (best-effort) otherwise. This is the only endpoint in this project
+// reachable without any Supabase session, so it's the one that most needs it.
 
-// Replace "*" with "https://snuswimmingteam.org" before restricting production origins.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
-};
+// CORS is restricted to the production site, the GitHub Pages fallback domain (see
+// CONTEXT.md's Auth redirect-URL note for why that one's also live), and localhost/127.0.0.1
+// on any port for local development. This only affects which origins a *browser* is willing
+// to let read the response, not who can call the Worker.
+const PRODUCTION_ORIGIN = "https://snuswimmingteam.org";
+const ALLOWED_ORIGINS = new Set([PRODUCTION_ORIGIN, "https://kimchem-hub.github.io"]);
+const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+function corsOriginFor(request) {
+  const origin = request.headers.get("Origin");
+  if (origin && (ALLOWED_ORIGINS.has(origin) || LOCAL_ORIGIN_RE.test(origin))) return origin;
+  return PRODUCTION_ORIGIN;
+}
+function corsHeaders(corsOrigin) {
+  return {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin"
+  };
+}
+
+// RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW_MS per client IP. Uses the KV namespace
+// bound as env.RATE_LIMIT_KV when the Cloudflare dashboard has one configured for this
+// Worker (create a KV namespace and bind it under that exact name to get a real, edge-wide
+// limit). Without that binding, checkRateLimit() falls back to an
+// in-memory Map scoped to this single Worker isolate — it resets on cold start and isn't
+// shared across Cloudflare's edge locations, so it's a best-effort throttle rather than a
+// hard guarantee, but it costs nothing extra to deploy and still blunts a simple script
+// hammering this route from one place.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const memoryRateLimitStore = new Map();
+async function checkRateLimit(request, env) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const now = Date.now();
+  const key = `ratelimit:${ip}`;
+
+  if (env.RATE_LIMIT_KV) {
+    let entry = null;
+    try { entry = JSON.parse((await env.RATE_LIMIT_KV.get(key)) || "null"); } catch { entry = null; }
+    if (entry && now - entry.windowStart < RATE_LIMIT_WINDOW_MS) {
+      if (entry.count >= RATE_LIMIT_MAX) return false;
+      entry.count += 1;
+    } else {
+      entry = { windowStart: now, count: 1 };
+    }
+    await env.RATE_LIMIT_KV.put(key, JSON.stringify(entry), { expirationTtl: Math.ceil(RATE_LIMIT_WINDOW_MS / 1000) });
+    return true;
+  }
+
+  const entry = memoryRateLimitStore.get(ip);
+  if (entry && now - entry.windowStart < RATE_LIMIT_WINDOW_MS) {
+    if (entry.count >= RATE_LIMIT_MAX) return false;
+    entry.count += 1;
+    return true;
+  }
+  memoryRateLimitStore.set(ip, { windowStart: now, count: 1 });
+  return true;
+}
 
 // Error "code" strings are a stable contract with js/members.js, which maps each one to a
 // localized (KR/EN) message via members.signupError.<code>. Never send free-text error
@@ -28,10 +82,10 @@ class HttpError extends Error {
   }
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, corsOrigin = PRODUCTION_ORIGIN) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "content-type": "application/json; charset=utf-8" }
+    headers: { ...corsHeaders(corsOrigin), "content-type": "application/json; charset=utf-8" }
   });
 }
 
@@ -216,16 +270,19 @@ async function selfRegister(body, env) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
-    if (request.method !== "POST") return json({ error: "server_error" }, 405);
+    const corsOrigin = corsOriginFor(request);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(corsOrigin) });
+    if (request.method !== "POST") return json({ error: "server_error" }, 405, corsOrigin);
     try {
+      const allowed = await checkRateLimit(request, env);
+      if (!allowed) return json({ error: "rate_limited" }, 429, corsOrigin);
       const body = await request.json();
       const result = await selfRegister(body, env);
-      return json(result, 201);
+      return json(result, 201, corsOrigin);
     } catch (error) {
-      if (error instanceof HttpError) return json({ error: error.code }, error.status);
+      if (error instanceof HttpError) return json({ error: error.code }, error.status, corsOrigin);
       console.error("Self-registration failed.", error);
-      return json({ error: "server_error" }, 500);
+      return json({ error: "server_error" }, 500, corsOrigin);
     }
   }
 };
