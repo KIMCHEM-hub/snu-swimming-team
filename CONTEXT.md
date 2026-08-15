@@ -200,6 +200,24 @@
 1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
 2. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
+## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
+
+> 아래는 방향 메모일 뿐 아직 실행되지 않았다 — 다음 세션이 항목 1(비주얼 디자인 개편)을 시작할 때의 기준점으로 기록해 둔다.
+
+- **성격**: 전면 재설계 아님. 기존 디자인 언어(각진 모서리, 골드는 성과/승리 순간 전용, 네이비가 배경/구조 위계 담당) 유지하며 디테일만 다듬는 리프레시.
+- **범위**: 사이트 전체, 순차적으로 진행(한 번에 전부 X, 페이지/섹션 단위).
+- **진행 순서 후보**:
+  1. 알려진 버그성 이슈 먼저 — 좁은 뷰포트에서 nav 줄바꿈
+  2. HOME
+  3. TEAM(최근 작업으로 최신 패턴 보유 — 다른 페이지 통일 기준점 후보)
+  4. RECORDS/GALLERY/NOTICES(페이지네이션이 최근 추가된 곳들)
+  5. 멤버 대시보드(로그인 후 화면)
+- **다듬을 디테일 후보**:
+  - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
+  - 카드/버튼 여백, 보더 두께 일관성
+  - 반응형 브레이크포인트 통일(페이지마다 제각각일 가능성 있어 선확인 필요)
+- **반응형 QA 기준 구간**: 모바일(360~430px) / 태블릿(768px) / 데스크톱
+
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
 ## Member account invite and TEAM link (2026-08-15)
