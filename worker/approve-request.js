@@ -12,6 +12,23 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type"
 };
 
+// sanitizeInput(value) — server-side mirror of js/members.js's client-side sanitizeInput().
+// The client strips <script> blocks and angle brackets before a member submits a profile
+// edit request, but that only runs in the browser: an authenticated member can insert into
+// public.profile_edit_requests directly (their own RLS insert permission) and skip the
+// client entirely. Re-applying the same stripping here — once, in getRequest(), before any
+// write path uses new_value — closes that bypass so the stored source-of-truth
+// (content/team.json, content/legacy.json, the members table) never holds raw markup
+// either. Render-time HTML-escaping (js/main.js's escapeHtml()) remains the actual XSS
+// boundary for the public TEAM page; this is defense-in-depth on top of it, not a
+// replacement — a value could clear this filter yet still contain "&"/quotes that only
+// escapeHtml() needs to handle at render time.
+function sanitizeInput(value) {
+  return String(value || "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/[<>]/g, "");
+}
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -144,6 +161,7 @@ async function getRequest(requestId, env) {
   if (editRequest.target_type !== "private" && editRequest.target_type !== "public") {
     throw new HttpError(400, "Unsupported request target type.");
   }
+  if (typeof editRequest.new_value === "string") editRequest.new_value = sanitizeInput(editRequest.new_value);
   return editRequest;
 }
 
