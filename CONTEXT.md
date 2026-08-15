@@ -43,7 +43,7 @@
 
 | 파일 | 최상위 키 | 내용 |
 |---|---|---|
-| `content/leadership.json` | `members[]` | 리더십(주장/부주장 등): role, name, koRole, koRoleEn?, photo? |
+| `content/leadership.json` | `members[]` | 리더십(주장/부주장 등): role, name, koRole, koRoleEn?, photo?, memberId?(`content/team.json`의 `memberId`와 같은 패턴 — optional `public.members.id` 공개 미러, 없으면 이름 fallback) |
 | `content/team.json` | `membersNote`, `membersNoteEn?`, `members[]` | 부원 명단(name, department?, year?, photo?, status?, memberId?) + 3탭 공용 폴백 문구. `memberId`는 `public.members.id` UUID의 optional 공개 미러 식별자이며, 없으면 기존 이름 fallback을 쓴다. `status`가 없으면 공개 표시는 active로 처리하며, 실제 기준은 `public.members.status`. |
 | `content/legacy.json` | `entries[]` | 레거시 스토리: name, photo?, body, bodyEn?, tag?(영문 캡션) |
 | `content/training.json` | `schedule[]`, `dryland{}` | 정기 훈련 요일/시간/세션/장소, 드라이랜드 headline/caption |
@@ -179,14 +179,13 @@
 **TRAINING 세션 상세 모달 구분선 너비 버그 수정**
 - 모바일(`max-width:760px`)에서 `.session-modal-sets-table`에 `display:block`을 직접 걸어 가로 스크롤을 만들던 방식이 원인이었음 — 자식 요소(`tr`/`td`)는 여전히 table-row/table-cell UA 기본값을 가지므로 브라우저가 별도 익명 테이블 박스를 만들어 실제 레이아웃을 그리는데, 이 박스는 바깥의 `width:100%`를 물려받지 않고 내용 크기로 좁게 렌더링되어 WARM-UP/MAIN SET 행과 구분선 폭이 안 맞았음. 스크롤 책임을 기존 wrapper `.session-modal-section-panel`(`overflow-x:auto`)로 옮기고 테이블은 기본 `display:table`을 유지하도록 수정. `index.html` 인라인 `<style>` 한 줄 교체, JS/HTML 구조 변경 없음. 커밋 `7a48d92`.
 
-### 다음 작업 (우선순위 순)
+### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. memberId E2E 검증: 2026-08-15 계정 정리로 이전 검증(문지성/mjs0323 연결)이 무효화되어 **재검증 필요 상태로 리셋됨**. 새 실제 계정으로 TEAM 링크 → 수정요청 제출 → 승인 → `team.json` 커밋 확인까지 처음부터 다시 진행할 것.
-2. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-3. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
-4. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
-
-(보류, 우선순위 없음: 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 4개 완료 후 여유 있을 때 진행.)
+1. TEAM 페이지 members active/OB 필터 UI: 현재 `public.members.status`(active/OB)가 DB·관리자 화면엔 있지만, 공개 TEAM 페이지(`content/team.json` 렌더링)에는 active/OB를 구분해 보여주거나 필터링하는 UI가 없음. 어떤 상태를 기본 노출할지(active만? 토글?) 포함해 설계.
+2. 화/목 세션 날짜 어긋남 표시 개선(엣지케이스): "이번 주 훈련 세션" 카드가 실제 세션 날짜와 화면상 표시 요일이 어긋나 보이는 경계 상황이 있음 — 정확한 재현 조건부터 파악 필요.
+3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+4. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
+5. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
@@ -202,13 +201,23 @@
 - The callback is converted to a sessionStorage marker keyed by the signed-in user ID and the callback URL is replaced with `./members.html`; tokens and callback parameters do not remain in the address bar. The marker keeps the setup view on refresh and is removed only after a successful `supabase.auth.updateUser({ password })` call.
 - Invite password validation uses the existing reset password mismatch/error messages and updateUser pattern. Success opens the normal member dashboard without signing the user out. Existing password-reset and normal-login paths stay separate.
 
-## Whitelist self-signup (2026-08-15, code written — SQL + Worker deploy still pending)
+## Whitelist self-signup (2026-08-15, complete — E2E verified)
 
 - New self-service signup path alongside (not replacing) `create_member_account`: an admin bulk-registers `email,name` pairs in advance, and a prospective member sets their own password on `members.html` — but only if their entered email **and** name exactly match one unused whitelist row.
-- **Not yet applied**: `supabase/invited-members.sql` (new `public.invited_members` table + RLS, admin-only via `is_admin()`, no anon/authenticated-member policy at all) must be run in the Supabase SQL Editor, and `worker/self-register.js` must be deployed as its own new Cloudflare Worker (chosen over extending `snu-swim-approve-request.js`, whose `fetch()` gates every action behind `verifyAdmin()` at the top — a public/unauthenticated signup route doesn't fit that gate without weakening it). `js/members.js` currently points at `https://snu-swim-self-register.chemi-kim1701.workers.dev` (`SELF_REGISTER_WORKER_URL`) — update that constant if the deployed URL differs.
+- `supabase/invited-members.sql` (new `public.invited_members` table + RLS, admin-only via `is_admin()`, no anon/authenticated-member policy at all) has been run in the Supabase SQL Editor, and `worker/self-register.js` is deployed as its own Cloudflare Worker at `https://snu-swim-self-register.chemi-kim1701.workers.dev` (chosen over extending `snu-swim-approve-request.js`, whose `fetch()` gates every action behind `verifyAdmin()` at the top — a public/unauthenticated signup route doesn't fit that gate without weakening it). `js/members.js`'s `SELF_REGISTER_WORKER_URL` matches the deployed URL.
 - Supabase public Auth sign-up stays **disabled**, unchanged from the existing pre-registration-only posture. The Worker validates the whitelist match first, then creates the Auth user itself via the Admin API (`POST /auth/v1/admin/users`, service-role key, same privilege level `create_member_account` already uses for `/invite`) — the client never calls `supabase.auth.signUp()`.
 - Validation is entirely server-side in the Worker (CLAUDE.md §7 principle applied to a public-facing action, not just admin-gated ones): it atomically claims the whitelist row (`PATCH ...&used=eq.false`, single UPDATE statement) before creating anything, and rolls the claim back if Auth-user creation fails afterward. A mismatched email or name gets the identical generic error either way, so the endpoint can't be used to enumerate whitelist emails; once email+name are confirmed to match, later-stage errors (already used, account already exists) are specific and safe to show.
 - `js/members.js` maps the Worker's fixed error *codes* (`no_match`, `already_registered`, `account_exists`, `claim_conflict`, `weak_password`, `invalid_input`, `server_error`) to localized KR/EN strings via new `members.signupError.*` i18n keys — the Worker itself never sends free-text error detail to this unauthenticated caller, unlike `create_member_account`'s admin-facing responses.
 - TEAM/`memberId` linking is intentionally **not** automatic at signup (same caution as the existing memberId history in this file — no automatic name-matching to TEAM profiles). No new admin feature was needed for this: `createMemberAccount`'s existing reuse path (matching email/name/role hits its `assertExistingMemberMatches` branch instead of creating a new row) already lets an admin link a TEAM profile to a self-registered account by resubmitting the same email/name/role through the existing "NEW MEMBER ACCOUNT" admin form.
 - Admin UI addition: a "INVITE WHITELIST" section (English-only, matching the existing untranslated admin-account/member-status sections) under the admin tab — a textarea for pasting `email,name` lines (bulk insert directly via the authenticated admin's own Supabase session, RLS-gated, no Worker involved) plus a list of existing entries with OPEN/USED status and a delete button.
-- Not done yet: end-to-end verification (needs the SQL run and the Worker deployed first), and no Cloudflare-level rate limiting was added to the new public Worker route — flagged as worth considering since it's the only unauthenticated endpoint in this project.
+- **E2E verified (2026-08-15)**: both the happy path (whitelisted email + exact name → account created → auto sign-in) and the rejection path (name mismatch → generic error, whitelist row stays unclaimed) were tested and passed. Test accounts created during this verification were cleaned up afterward (Supabase Auth + `public.members` + any leftover `invited_members` rows). Merged to `main` via `feature/whitelist-self-signup` (commit `e606380`, merge `bac430d`); that branch has since been deleted (local + remote).
+- No Cloudflare-level rate limiting was added to this public Worker route — still flagged as worth considering since it's the only unauthenticated endpoint in this project.
+
+## Email delivery + admin invite check (2026-08-15)
+
+- Resend is now connected as the Supabase Auth SMTP provider, with the sending domain verified. This is what makes both `worker/self-register.js`'s Admin API account creation (`email_confirm: true`, no email actually required to complete signup, but the project's Auth email settings now route through Resend regardless) and the existing invite email flow deliverable — previously outbound Auth email depended on Supabase's default/shared sender.
+- Re-confirmed the existing admin `create_member_account` flow (`snu-swim-approve-request` Worker, invite-based) still works normally after the SMTP change — the two account-creation paths (admin invite vs. whitelist self-signup) do not interfere with each other.
+
+## leadership.json memberId (2026-08-15)
+
+- `content/leadership.json` entries now support an optional `memberId` field (same pattern as `content/team.json`'s existing `memberId` — an optional public mirror of `public.members.id`, name fallback if absent). The team captain's leadership entry has been linked to their member account via this field.
