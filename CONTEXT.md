@@ -186,13 +186,19 @@
 - 전체 보안 감사(RLS 활성화 여부·SECURITY DEFINER 함수 권한, git 히스토리·클라이언트 코드 시크릿 하드코딩, Auth/세션 타임아웃, Worker CORS·에러 응답·rate limit, innerHTML 사용처·나누기 로직·maxlength·페이지네이션)를 수행. 유일한 심각(High) 발견은 저장형 XSS: `js/main.js`의 `memberCardHtml`/`leaderCardHtml`/`legacyEntryHtml`이 `bio`/`sns`/`department`/`photo`(회원 자가제출 정보 수정요청 → 관리자 승인 경로로 유입 가능) 등을 이스케이프 없이 `teamShell.innerHTML`에 직접 삽입했고, 기존 클라이언트 `sanitizeInput()`(`js/members.js`)은 `<`/`>` 제거뿐이라 `profile_edit_requests`에 정상 회원 RLS insert 권한으로 직접 삽입하면 우회 가능했음.
 - 수정: `js/main.js`에 `escapeHtml()` 추가해 TEAM 카드 렌더링의 모든 보간 필드(name/role/department/year/bio/sns/photo src·alt/legacy body·tag/membersNote)에 적용 — 이것이 실제 렌더링 시점 XSS 경계. `worker/approve-request.js`에는 클라이언트와 동일한 로직의 서버측 `sanitizeInput()` 미러를 추가해 `getRequest()` 한 지점에서 `new_value`에 적용 — private/public 승인 경로 전부에 자동 적용되는 심층 방어. 두 함수의 역할은 명확히 분리됨(`sanitizeInput`=입력 제한/문자 제거, `escapeHtml`=렌더링 시 엔티티 치환 — 연산이 달라 이중 이스케이프 없음).
 - 로컬에서 `<script>`/`<img onerror=...>` 페이로드를 부원 bio/sns/department에 임시 주입해 검증: 텍스트로만 표시, `#team` 내 `<script>` 요소 0개, `window.__xssFired` 미실행 확인 후 즉시 원복. `fix/team-card-xss-escape` 브랜치에서 작업 후 `main`에 머지(머지 커밋 `a3c860e`).
-- 감사에서 나온 나머지 항목(경미: Worker CORS 와일드카드, self-register rate limit 부재, approve-request 에러 메시지에 업스트림 원문 노출, GALLERY/RECORDS/NOTICES 무한 렌더링)은 아직 미수정 — 아래 "보안 최종 감사" 항목이 완전히 닫힌 것은 아님.
+- 감사에서 나온 나머지 경미 항목 4건도 배치로 수정 완료(아래 참고) — **"보안 최종 감사" 항목은 완료로 닫혔다.**
+
+**보안 감사 — 경미 항목 4건 배치 수정 완료**
+- **Worker CORS 화이트리스트**: `worker/approve-request.js`·`worker/self-register.js`의 `Access-Control-Allow-Origin: "*"`를 프로덕션 도메인(`snuswimmingteam.org`) + GitHub Pages 폴백 도메인 + `localhost`/`127.0.0.1`(모든 포트, 로컬 개발용) 화이트리스트로 제한. 요청 Origin이 목록에 있을 때만 그대로 반영하고, 아니면 프로덕션 오리진으로 폴백(어차피 브라우저가 자신의 오리진과 다르면 응답을 못 읽으므로 사실상 차단과 동일) — 인증 경계가 아니라 브라우저 CORS 레벨 방어라는 점은 동일.
+- **`requiredEnv()` 환경변수명 노출 제거**: `worker/approve-request.js`에서 env var가 없을 때 그 **이름**을 클라이언트 응답에 그대로 넣던 부분을 제거, 서버 로그(`console.error`)로만 남기고 클라이언트에는 일반 메시지만 반환. 다시 살펴보니 다른 에러 경로는 전부 이미 개발자가 직접 쓴 고정 문자열이었고 업스트림 원문은 애초에 로그로만 갔던 것이라, 진짜 노출 지점은 이거 하나였음. `createMemberAccount()`의 단계별 상태 메시지("Auth: invite sent; member: created (uuid)")는 CONTEXT.md에 이미 기록된 의도된 관리자 재시도 UX로 판단해 **의도적으로 손대지 않음** — self-register.js처럼 전면 코드화하면 `js/members.js`의 기존 설명형 메시지 소비 UI가 깨질 위험이 있었음.
+- **self-register.js rate limit**: IP 기반(`CF-Connecting-IP`), 10분당 5회. `env.RATE_LIMIT_KV` 바인딩이 있으면 사용(Cloudflare 대시보드에서 KV 네임스페이스를 만들어 그 이름으로 바인딩해야 실제로 켜짐 — 이 변경만으로는 자동 생성되지 않음), 없으면 Worker isolate 범위의 in-memory Map으로 폴백(콜드 스타트 시 리셋, edge 전역 공유 아님 — best-effort). 새 에러 코드 `rate_limited`를 `js/i18n.js`의 `members.signupError.rate_limited`(KR/EN)에 매핑.
+- **RECORDS/GALLERY/NOTICES 페이지네이션("더보기")**: RECORDS는 종목/계영 탭당 10행(숨긴 `<tr>`을 클릭 시 노출), GALLERY는 카테고리당 12개(필터 전환마다 재계산·재적용), NOTICES는 10개(기존 `createElement`/`textContent` 안전 패턴 유지). 전부 기존 `.button` 클래스를 재사용(`index.html`에 `.load-more-button` 위치 지정 1줄만 추가) — 각진 모서리·골드는 성과 강조 전용 원칙 그대로 유지.
+- `fix/security-audit-minor-findings` 브랜치에서 작업, 로컬 브라우저 검증(CORS/rate-limit는 로직만 분리해 Node 단위 테스트, 페이지네이션은 임시로 부풀린 테스트 데이터로 3개 섹션 전부 확인 후 원복) 거쳐 `main`에 머지(머지 커밋 `4eb9ae0`).
 
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등) — 저장형 XSS는 수정 완료, 위 경미 항목들은 남아있음.
-2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
+1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
+2. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
