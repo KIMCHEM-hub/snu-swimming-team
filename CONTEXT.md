@@ -176,15 +176,17 @@
 - 당시 검증에 썼던 연결(TEAM 링크 기능으로 문지성 프로필을 테스트 부원 계정에 연결, `memberId: 270bd3c4-60eb-4b11-a361-78188e31c98d`, 커밋 `47cef3b`)은 **무효화됨**: 그 테스트 계정(`mjs0323@snu.ac.kr`)이 6개 테스트/탈퇴 계정 정리 작업 중 Supabase Auth·`public.members`에서 완전히 삭제됐고, `content/team.json`의 해당 `memberId` 필드도 고아 참조가 되어 커밋 `6e3fa73`으로 제거했다.
 - 나머지 E2E 단계(부원 로그인 → department/bio 수정요청 제출 → 관리자 승인 → `team.json`이 memberId 매칭으로 정상 커밋되는지 확인)는 이 계정 삭제로 **처음부터 재검증 필요한 상태로 리셋됨** — 다음 세션에서 새 실제 계정으로 TEAM 링크부터 다시 시작할 것.
 
+**TRAINING 세션 상세 모달 구분선 너비 버그 수정**
+- 모바일(`max-width:760px`)에서 `.session-modal-sets-table`에 `display:block`을 직접 걸어 가로 스크롤을 만들던 방식이 원인이었음 — 자식 요소(`tr`/`td`)는 여전히 table-row/table-cell UA 기본값을 가지므로 브라우저가 별도 익명 테이블 박스를 만들어 실제 레이아웃을 그리는데, 이 박스는 바깥의 `width:100%`를 물려받지 않고 내용 크기로 좁게 렌더링되어 WARM-UP/MAIN SET 행과 구분선 폭이 안 맞았음. 스크롤 책임을 기존 wrapper `.session-modal-section-panel`(`overflow-x:auto`)로 옮기고 테이블은 기본 `display:table`을 유지하도록 수정. `index.html` 인라인 `<style>` 한 줄 교체, JS/HTML 구조 변경 없음. 커밋 `7a48d92`.
+
 ### 다음 작업 (우선순위 순)
 
 1. memberId E2E 검증: 2026-08-15 계정 정리로 이전 검증(문지성/mjs0323 연결)이 무효화되어 **재검증 필요 상태로 리셋됨**. 새 실제 계정으로 TEAM 링크 → 수정요청 제출 → 승인 → `team.json` 커밋 확인까지 처음부터 다시 진행할 것.
-2. TRAINING 세션 상세 모달의 구분선 너비 버그를 수정한다.
-3. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-4. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
-5. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
+2. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+3. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것.
+4. Android/iOS/PC 크로스 디바이스 반응형을 최종 점검한다(디자인 개편 이후 진행).
 
-(보류, 우선순위 없음: 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 5개 완료 후 여유 있을 때 진행.)
+(보류, 우선순위 없음: 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 4개 완료 후 여유 있을 때 진행.)
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
