@@ -215,6 +215,13 @@
 - 반응형 브레이크포인트 통일은 범위가 커서 이번엔 손대지 않고 별도 항목으로 기록만(§ "다듬을 디테일 후보" 참고).
 - 검증: 로컬 서버 + iframe 3폭(360/768/1440px) 전체 스크롤로 레이아웃 깨짐 없음과 색상 변경 5건 중 육안 확인 가능한 2건(④⑤)을 직접 확인. `git diff --check` 통과, `index.html` 중괄호 균형 확인. HTML 구조·JS 로직 변경 없음, `index.html` 인라인 `<style>`만 수정.
 
+**TEAM 디자인 리프레시 완료(2026-08-16)**
+- 사전 조사 결과 HOME과 다른 지점 2건 확인 후 수정: ① 두 줄 헤딩("MEET THE TEAM.")인데 line-height가 전역 h2 기본값(0.86)을 상속 중이던 것을 HOME과 동일한 이유(League Gothic tall cap-height, 과거 겹침 버그 `8a2f35b`)로 1.18로 통일. ② `.filter-bar button.is-active,.record-tabs button.is-active{border-color:var(--snu-gold)}` — LEADERSHIP/MEMBERS/LEGACY 탭과 재적부원/OB 서브필터, RECORDS 종목 탭의 "선택됨" 밑줄이 골드였던 것을 `var(--snu-blue)`로 변경(성과/승리 전용 원칙 위반이었음, 텍스트색은 원래도 네이비라 무변경). 카드 상단 보더(`--snu-blue`, 이미 일치)와 카드 자체의 골드 미사용은 조사 결과 이미 원칙에 맞아 손대지 않음.
+- **구현 중 발견 및 재타겟팅**: 처음엔 `#team-title` 선택자로 line-height를 넣으려 했으나, 실제 런타임에는 `js/main.js`의 `renderTeam()`이 `#team .shell` 내부를 매번 새로 그리며 그 템플릿의 `<h2>`엔 `id` 속성이 없다는 걸 확인함(`id="team-title"`은 JS 실행 전 정적 HTML에만 존재하는 죽은 참조). `#team .section-head h2{line-height:1.18}`로 스코프를 바꿔 실제 렌더링 요소에 적용되도록 재타겟팅.
+- 탭 밑줄 색 규칙은 `.filter-bar`뿐 아니라 `.record-tabs`도 공유하므로 RECORDS 종목 탭까지 함께 바뀜을 인지하고 양쪽 다 육안 확인함(아래 검증 참고). `GR`/`GOLD`/`SILVER`/`BRONZE` 기록 뱃지(`.record-badge`/`.result-tag`)는 별도 규칙이라 골드 그대로 유지 — 실제 성과 표시라 원칙에 맞음.
+- **별도 미해결로 남긴 발견**: `.event-tabs button.is-active{color:var(--snu-blue);border-color:var(--snu-gold)}`(SCHEDULE 페이지 시즌/종목 탭)도 동일한 골드 밑줄 패턴을 씀 — 이번 승인 범위(`.filter-bar`/`.record-tabs`)엔 없어서 미수정. SCHEDULE 페이지 리프레시 시 함께 판단할 것.
+- 검증: 로컬 서버 + iframe 3폭(360/768/1440px), TEAM은 LEADERSHIP→MEMBERS→재적/OB→LEGACY 탭을 실제 클릭 전환하며 밑줄이 전부 네이비로 뜨는지, 두 줄 헤딩 겹침이 없는지 확인. RECORDS는 종목 탭 밑줄이 네이비로 회귀 없이 바뀌었는지, 기록 뱃지 골드가 그대로인지 확인. `git diff --check` 통과. HTML 구조·JS 로직 변경 없음, `index.html` 인라인 `<style>`만 수정.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
 1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
@@ -228,8 +235,8 @@
 - **범위**: 사이트 전체, 순차적으로 진행(한 번에 전부 X, 페이지/섹션 단위).
 - **진행 순서 후보**(2026-08-15 갱신 — "좁은 뷰포트에서 nav 줄바꿈" 항목 제거: `963cf98` 커밋으로 이미 해결 완료된 사항(§8 기록)이며, 320px~1440px 전구간 iframe 재검증 결과 문제 재현 안 됨을 확인해 이 메모가 갱신 안 된 stale 항목이었음이 드러남):
   1. ~~HOME~~ — **완료(2026-08-16, 상세는 §8 참고)**
-  2. **TEAM(다음 작업 — 최근 작업으로 최신 패턴 보유, 다른 페이지 통일 기준점 후보)**
-  3. RECORDS/GALLERY/NOTICES(페이지네이션이 최근 추가된 곳들)
+  2. ~~TEAM~~ — **완료(2026-08-16, 상세는 §8 참고 — `.event-tabs`(SCHEDULE) 골드 밑줄은 별도 미해결로 남김)**
+  3. **RECORDS/GALLERY/NOTICES(다음 작업 — 페이지네이션이 최근 추가된 곳들)**
   4. 멤버 대시보드(로그인 후 화면)
 - **다듬을 디테일 후보**:
   - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
