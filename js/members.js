@@ -172,7 +172,8 @@ const coachEvaluationMember = document.querySelector("[data-coach-evaluation-mem
 const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
 const coachAttendanceStatus = document.querySelector("[data-coach-attendance-status]");
 const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
-let coachSubtabButtons = [];
+let coachSubtabs = null;
+let adminSubtabs = null;
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 const SELF_REGISTER_WORKER_URL = "https://snu-swim-self-register.chemi-kim1701.workers.dev";
 let currentUser = null;
@@ -878,26 +879,34 @@ function isCoachOrAdmin() {
   return ["coach", "admin"].includes(currentMember?.role);
 }
 
-function initCoachSubtabs() {
-  const views = coachPanel.querySelectorAll(":scope > .members-coach-section");
-  if (views.length < 2) return;
+// Generalized subtab controller: wires a panel's direct .members-coach-section
+// children into a tablist, keyed by i18n label keys. Used for both the coach
+// panel (3 sections) and the admin panel (6 sections).
+function initSubtabs(panel, tabKeys) {
+  const views = panel.querySelectorAll(":scope > .members-coach-section");
+  if (views.length < 2) return null;
   const tabList = document.createElement("div");
-  tabList.className = "members-coach-actions";
+  tabList.className = "members-subtabs";
   tabList.setAttribute("role", "tablist");
-  const keys = ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"];
-  coachSubtabButtons = keys.map((key, index) => {
+  const buttons = tabKeys.map((key, index) => {
     const button = document.createElement("button");
-    button.type = "button"; button.className = "members-edit-button"; button.setAttribute("role", "tab");
-    button.addEventListener("click", () => selectCoachSubtab(index)); tabList.append(button); return { button, key };
+    button.type = "button"; button.className = "members-subtab"; button.setAttribute("role", "tab");
+    button.addEventListener("click", () => select(index)); tabList.append(button); return { button, key };
   });
   views[0].before(tabList);
-  window.selectCoachSubtab = (index) => { views.forEach((view, viewIndex) => { view.hidden = viewIndex !== index; }); coachSubtabButtons.forEach((item, buttonIndex) => item.button.setAttribute("aria-selected", String(buttonIndex === index))); };
-  window.selectCoachSubtab(0);
-  renderCoachSubtabs();
+  function select(index) {
+    views.forEach((view, viewIndex) => { view.hidden = viewIndex !== index; });
+    buttons.forEach((item, buttonIndex) => {
+      const isActive = buttonIndex === index;
+      item.button.setAttribute("aria-selected", String(isActive));
+      item.button.classList.toggle("is-active", isActive);
+    });
+  }
+  select(0);
+  const render = () => buttons.forEach((item) => { item.button.textContent = t(item.key); });
+  render();
+  return { render };
 }
-
-function selectCoachSubtab(index) { window.selectCoachSubtab?.(index); }
-function renderCoachSubtabs() { coachSubtabButtons.forEach((item) => { item.button.textContent = t(item.key); }); }
 
 function appendOption(select, value, label) {
   const option = document.createElement("option");
@@ -2059,10 +2068,12 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 initLang();
 applyStaticTranslations();
-initCoachSubtabs();
+coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"]);
+adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports"]);
 window.addEventListener("langchange", () => {
   applyStaticTranslations();
-  renderCoachSubtabs();
+  coachSubtabs?.render();
+  adminSubtabs?.render();
   setStatus(statusKey);
   if (currentMember) {
     loadRecords(currentMember);
