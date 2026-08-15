@@ -67,10 +67,11 @@
 ## 5. 진행 중 / 미해결 이슈
 
 - **YouTube 자동정지 버그**: `52b1296`에서 최초 수정, 이후 `4f41308`(2026-08-14)에서 신뢰성을 보강해 **해결됨**. 현재 구현(`js/main.js:65-` `initNewsVideoAutoStop()`)은 iframe src에 `origin` 쿼리 파라미터를 붙이고 postMessage 대상 오리진도 명시적으로 좁혔으며, YT 플레이어의 `onReady` 메시지를 기다렸다가 pause를 전송(대기 중 요청이 들어오면 최대 12회·250ms 간격 재시도 후 강제 전송)한다. 재발 리포트가 오면 이 재시도 타이밍/횟수부터 재검토할 것.
-- **관리자 초대(`create_member_account`) 플로우 버그 — 미해결(2026-08-15 발견, 2026-08-15 근본 원인 갱신)**: 초대 메일 링크 클릭 시 Supabase가 자동 로그인 세션을 생성하지만, 실제로 테스트해보면 "초기 비밀번호 설정" 화면(`invitePasswordView`, §"Invite initial password setup" 참고)이 뜨지 않는다. 코드 자체(`js/members.js:6-7`의 `type=invite` 감지, `:333-346`의 `pendingInviteFor()`)는 존재한다.
-  - **근본 원인(조사 완료)**: 초대 링크 클릭 시 새 계정으로 세션 인증이 실제로 되지 않고, 브라우저에 기존에 로그인돼 있던 관리자(`chemi.kim1701@gmail.com`) 세션이 그대로 유지된 채로 남는다. 이 상태에서 (새 계정으로 로그인했다고 착각하고) 프로필 수정요청을 제출하면, 실제로는 관리자 본인 세션으로 제출되어 `profile_edit_requests.member_id`에 관리자 자신의 member_id가 정확히 기록된다 — 이는 별도의 "member_id mismatch" 버그가 아니라 이 초대 세션 인증 실패의 증상이었음을 확인(RLS INSERT policy와 `member_id` 컬럼 default 모두 정상 동작 확인됨, 데이터 오염 경로 아님).
-  - 결과적으로 신규 초대 계정은 로그인된 것처럼 보이지만 비밀번호가 없어 로그아웃 시 재로그인이 불가능하고(비밀번호 재설정 플로우를 타야만 함), 관리자 브라우저에서 테스트하면 기존 관리자 세션이 새 계정 세션을 가로채 위와 같은 오작동으로 이어진다. 신규 부원 초대 시마다 재발 예상.
-  - → 수정 방향: 초대 링크 클릭 시 새 계정으로 세션이 실제로 전환되는지부터 재조사(콜백 URL 형식이 코드가 기대하는 `?type=invite`/해시 `type=invite`와 다를 가능성, 기존 세션이 새 세션으로 교체되지 않는 Supabase client 동작 등). 세션 전환이 고쳐지면 `invitePasswordView` 트리거 여부도 같이 재검증할 것. 우선순위는 "다음 작업" §8 참고.
+- **관리자 초대(`create_member_account`) 플로우 버그 — 코드 수정 완료, 실제 메일 재검증 대기(2026-08-15 발견 → 원인 규명 → 수정)**: 초대 메일 링크 클릭 시 Supabase가 자동 로그인 세션을 생성하지만, 실제로 테스트해보면 "초기 비밀번호 설정" 화면(`invitePasswordView`, §"Invite initial password setup" 참고)이 뜨지 않았다.
+  - **증상 정리(조사 완료)**: 초대 링크 클릭 시 새 계정으로 세션 인증이 되지 않고, 브라우저에 기존에 로그인돼 있던 관리자(`chemi.kim1701@gmail.com`) 세션이 그대로 유지된 채 남았다. 이 상태에서 (새 계정으로 로그인했다고 착각하고) 프로필 수정요청을 제출하면, 실제로는 관리자 본인 세션으로 제출되어 `profile_edit_requests.member_id`에 관리자 자신의 member_id가 정확히 기록됨 — 별도의 "member_id mismatch" 버그가 아니라 이 초대 세션 인증 실패의 증상이었음을 확인(RLS INSERT policy와 `member_id` 컬럼 default 모두 정상 동작 확인됨, 데이터 오염 경로 아님).
+  - **근본 원인(코드 조사로 확정)**: `worker/approve-request.js`의 `inviteAuthUser()`가 Supabase Admin API `POST /auth/v1/invite`를 호출할 때 `redirect_to`를 전혀 지정하지 않았다 — 반면 비밀번호 재설정(`resetPasswordForEmail()`, `js/members.js`)은 `redirectTo: members.html?auth=reset`을 명시 지정. GoTrue는 `redirect_to` 없이 호출되면 프로젝트의 Auth 대시보드 "Site URL" 설정으로 폴백하는데, 그동안 대시보드 작업 기록엔 "Redirect URLs" 허용목록에 `members.html`을 추가했다는 내용만 있고 Site URL 자체를 맞췄다는 기록이 없었음. Site URL이 루트(`index.html`)로 남아있었다면 초대 메일 링크가 애초에 `index.html`로 떨어지는데, 그 페이지는 자체 Supabase 클라이언트(`js/main.js`)는 있어도 `onAuthStateChange` 핸들러나 초대 UI가 전혀 없어 토큰이 조용히 무시되고, 그 사이 브라우저에 이미 남아있던 관리자 세션(localStorage 공유)이 그대로 유지되는 것으로 확인됨. (`showPage()`의 SPA 라우터가 해시를 오인해서 지운다는 최초 가설은 코드 검토 결과 근거 없음으로 기각 — `location.hash`/`history.*State`를 쓰는 세 곳 모두 읽기 전용.)
+  - **적용한 수정**: (1) `worker/approve-request.js`의 `inviteAuthUser()` — `/auth/v1/invite` 요청 URL에 `?redirect_to=https://snuswimmingteam.org/members.html` 쿼리 파라미터 명시 추가(GoTrue는 `redirect_to`를 body가 아닌 쿼리 파라미터로 받음, `/recover`/`/signup`과 동일 컨벤션). (2) 안전망으로 `js/main.js` 최상단(`createClient()` 이전)에 `type=invite`/`type=recovery`가 해시나 쿼리스트링에서 감지되면 즉시 `./members.html`로 리다이렉트(해시·쿼리 원본 보존)하는 가드 추가 — Site URL 설정이 이후 다시 틀어져도 무해하게 처리됨. 로컬에서 `index.html#access_token=test&type=invite`/`type=recovery` 가짜 해시로 리다이렉트 동작 확인, `#team` 등 정상 섹션 해시는 리다이렉트 안 됨(오탐 없음) 확인, `node --check` 통과.
+  - **⚠️ 재검증 필요**: 위 검증은 가짜 해시로 안전망(2)만 로컬 테스트한 것 — `redirect_to` 파라미터(1)가 실제 Supabase 초대 메일 발송에 반영돼 처음부터 `members.html`로 오는지는 로컬 재현이 불가능하므로, **다음에 실제 신규 부원을 초대할 때 메일 링크가 바로 `members.html`의 초기 비밀번호 설정 화면으로 연결되는지 실제 초대 플로우로 재검증할 것.**
 - 그 외 코드베이스 전체에 `TODO`/`FIXME` 마커는 없음(grep 확인). 열린 이슈 트래커나 이슈 파일도 repo 내에 없음 — 알려진 미해결 사항은 사용자가 직접 구두로 전달하는 것이 유일한 경로이므로, 새로 파악되면 이 섹션에 추가할 것.
 
 ## 6. 디자인 오버홀 방향과 제약사항
@@ -202,7 +203,7 @@
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
 1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-2. 관리자 초대(`create_member_account`) 플로우의 초기 비밀번호 설정 화면 미표시 버그 수정(§5 참고) — 신규 부원 초대 때마다 재발하므로 다음 실제 초대 전에 해결 권장.
+2. 관리자 초대(`create_member_account`) 플로우 버그 — 코드 수정은 완료(§5 참고), **다음 실제 신규 부원 초대 때 메일 링크가 `members.html` 초기 비밀번호 설정 화면으로 바로 연결되는지 실제 초대로 재검증할 것** (로컬 재현 불가능한 부분).
 3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 ## 디자인 리프레시 방향 (다음 세션 시작 시 참고)
