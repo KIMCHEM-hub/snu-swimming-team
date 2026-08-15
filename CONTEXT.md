@@ -300,3 +300,26 @@
 ## leadership.json memberId (2026-08-15)
 
 - `content/leadership.json` entries now support an optional `memberId` field (same pattern as `content/team.json`'s existing `memberId` — an optional public mirror of `public.members.id`, name fallback if absent). The team captain's leadership entry has been linked to their member account via this field.
+
+## 출석 관련 작업 — 활동점수 및 월별 상품 규정(원문) (2026-08-16)
+
+> 아직 미구현. 사용자가 확정한 규정 원문을 그대로 기록해 둔다 — 구현 시 이 원문을 기준으로 한다. 코드/스키마 변경 없음, 기록만.
+
+```
+활동점수 및 월별 상품
+
+일단 정규훈련 절반 이상 참석은 기본
+정규훈련 1점
+자유수영 인증 0.5점
+3인이상 훈련표대로 이행시 0.75
+부원 4인 이상 사적 모임 인증 0.5점
+
+월 정규훈련 기준 100% 이상 → 2만원 상당 상품
+예시로, 자유수영 점수로 보충 가능
+
+<전체점수>
+월별 정규훈련 점수(ex. 9회시 9점) 기준 80% 이상: 기본
+월별 정규훈련 점수(ex. 9회시 9점) 기준 100% 이상: 깊티(1만원 상당)
+월별 정규훈련 점수(ex. 9회시 9점) 기준 120% 이상: 깊티(2만원)
+월별 점수 1등(앞선 상품 중복 불가능): 미정
+```
