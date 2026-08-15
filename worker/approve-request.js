@@ -265,10 +265,18 @@ async function createMemberRecord({ email, name, role }, env) {
   return { member: created[0], created: true };
 }
 
+// redirect_to is a query parameter on GoTrue's /invite endpoint (same convention as
+// /recover, /signup, /magiclink), not a JSON body field — matches the explicit redirectTo
+// already passed to resetPasswordForEmail() in js/members.js. Without it, GoTrue falls back
+// to the project's dashboard-configured Site URL, which may not be members.html; the invite
+// email would then land wherever that is (e.g. index.html, which has no session/invite UI
+// at all) instead of the page that actually knows how to finish the invite sign-in.
+const INVITE_REDIRECT_TO = "https://snuswimmingteam.org/members.html";
+
 async function inviteAuthUser(email, env) {
   const existing = await findAuthUserByEmail(email, env);
   if (existing) return { invited: false, existing: true };
-  const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/auth/v1/invite`, {
+  const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/auth/v1/invite?redirect_to=${encodeURIComponent(INVITE_REDIRECT_TO)}`, {
     method: "POST",
     headers: restHeaders(env),
     body: JSON.stringify({ email })

@@ -2,6 +2,22 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase-config.js";
 import { initLang, applyStaticTranslations, t, pick } from "./i18n.js";
 
+// Safety net: Supabase invite/password-recovery links should always land on members.html
+// (the Worker now sends redirect_to explicitly for invites, and resetPasswordForEmail()
+// already does for resets). If the dashboard Site URL ever falls back to this page instead
+// — misconfiguration, a future change, anything — this page has no onAuthStateChange
+// handler or invite/recovery UI to consume the token, so it would silently go unused. Catch
+// it before anything else runs (before the section router below reads the same hash for an
+// unrelated purpose) and hand it straight to members.html with the token intact.
+(function redirectAuthCallbackToMembersPage() {
+  const url = new URL(window.location.href);
+  const hashParams = new URLSearchParams(url.hash.slice(1));
+  const type = url.searchParams.get("type") || hashParams.get("type");
+  if (type === "invite" || type === "recovery") {
+    window.location.replace(`./members.html${url.search}${url.hash}`);
+  }
+})();
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---- RE-RENDER TEARDOWN REGISTRY ----
