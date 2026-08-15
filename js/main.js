@@ -454,9 +454,9 @@ function renderTraining(schedule, dryland) {
 
 // ---- WEEKLY TRAINING SESSIONS ----
 // Sits between the day-schedule table and the GROUPS/STRUCTURE/DRYLAND notes.
-// content/weekly-training.json holds one entry per session; if two entries share the
-// same day (e.g. admin forgot to remove last week's), the most recent date wins. If the
-// whole file is empty, the entire block stays hidden — no empty grid between the tables.
+// Sourced entirely from Supabase training_sessions; if two rows share the same day
+// (e.g. coach forgot to remove last week's), the most recent date wins. If there are no
+// sessions at all, the entire block stays hidden — no empty grid between the tables.
 const WEEKLY_TRAINING_DAYS = ["화", "목"];
 function latestWeeklyTrainingByDay(sessions) {
   const latestByDay = {};
@@ -1435,28 +1435,26 @@ let contentCache = null;
 let contentLoadPromise = null;
 
 async function loadContent() {
-  const [schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy] = await Promise.all([
+  const [schedule, records, relays, gallery, news, notices, trainingSessions, team, training, leadership, legacy] = await Promise.all([
     fetchJson("./content/schedule.json", { events: [] }),
     fetchJson("./content/records.json", { entries: [] }),
     fetchJson("./content/relays.json", { entries: [] }),
     fetchJson("./content/gallery.json", { photos: [] }),
     fetchJson("./content/news.json", { items: [] }),
     fetchJson("./content/notices.json", { items: [] }),
-    fetchJson("./content/weekly-training.json", { sessions: [] }),
     fetchTrainingSessions(),
     fetchJson("./content/team.json", { membersNote: "", members: [] }),
     fetchJson("./content/training.json", { schedule: [], dryland: {} }),
     fetchJson("./content/leadership.json", { members: [] }),
     fetchJson("./content/legacy.json", { entries: [] })
   ]);
-  contentCache = { schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy };
+  contentCache = { schedule, records, relays, gallery, news, notices, trainingSessions, team, training, leadership, legacy };
   loadActivePopups(team.members || []);
 }
 
 function renderAll() {
   if (!contentCache) return;
-  const { schedule, records, relays, gallery, news, notices, weeklyTraining, trainingSessions, team, training, leadership, legacy } = contentCache;
-  const mergedWeeklyTraining = [...(weeklyTraining.sessions || []), ...(trainingSessions || [])];
+  const { schedule, records, relays, gallery, news, notices, trainingSessions, team, training, leadership, legacy } = contentCache;
 
   runTeardowns();
 
@@ -1466,8 +1464,8 @@ function renderAll() {
   renderHomeNewsCarousel(news.items || []);
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
-  renderWeeklyTraining(mergedWeeklyTraining);
-  renderHomeWeeklyTraining(mergedWeeklyTraining);
+  renderWeeklyTraining(trainingSessions || []);
+  renderHomeWeeklyTraining(trainingSessions || []);
   renderTeam(team, leadership.members || [], team.members || [], legacy.entries || []);
   renderTraining(training.schedule || [], training.dryland || {});
 

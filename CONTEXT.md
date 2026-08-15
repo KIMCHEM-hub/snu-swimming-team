@@ -28,7 +28,7 @@
 | NEWS(홈 캐러셀 + NEWS 섹션 캐러셀 + READ MORE 모달) | `js/main.js:309-339`(렌더), `509-640`(홈 캐러셀), `755-891`(NEWS 캐러셀, 홈과 완전 별개 인스턴스), `642-753`(모달) |
 | NOTICES(목록 + 상세 모달) | `js/main.js:341-385`(렌더), `893-965`(모달) |
 | TRAINING(정기 훈련표 + GROUPS/STRUCTURE/DRYLAND) | `js/main.js:387-410`; GROUPS/STRUCTURE 문구는 철학적 내용이라 하드코딩, DRYLAND만 CMS 연동 |
-| 이번 주 훈련 세션(화/목 카드) | `js/main.js:412-442`, 데이터 `content/weekly-training.json` |
+| 이번 주 훈련 세션(화/목 카드) | `js/main.js:412-442`, 데이터 Supabase `training_sessions`(2026-08-15부터 단일 소스; 과거엔 `content/weekly-training.json`과 병합했으나 제거됨) |
 | TEAM(LEADERSHIP/MEMBERS/LEGACY 3탭) | `js/main.js:449-504`; 세 컬렉션 중 하나가 비어있으면 해당 탭만 `content/team.json`의 `membersNote` 폴백 표시 |
 | YouTube 뉴스 영상 자동정지 | `js/main.js:65-92` `initNewsVideoAutoStop()` — §5 참고 |
 | 히어로 패럴랙스 | `js/main.js:94-140`, 데스크톱 전용, `prefers-reduced-motion` 존중 |
@@ -53,7 +53,6 @@
 | `content/gallery.json` | `photos[]` | category(training/competition/team/events), label, title, meta, image, w?/sw?(축소본 srcset용) |
 | `content/news.json` | `items[]` | startDate, dateLabel, category, title, image, alt, result?(있으면 홈 카드가 VIEW RESULTS 링크), body?(READ MORE 모달용) |
 | `content/notices.json` | `items[]` | id(고정 식별자, 배열 인덱스 아님), date, title, author, body |
-| `content/weekly-training.json` | `sessions[]` | date, day(화/목), totalDistance, details{warmup, mainset, events, cooldown} |
 
 모든 텍스트 필드는 `*_En` 사이드카를 가질 수 있음(스키마 표에는 대표적인 것만 표기).
 
