@@ -210,6 +210,11 @@
 - 수정: `js/members.js`의 `setAdminCreateMemberStatus(message, isError)`에 성공(`false`)/실패(`true`)/중립(`null`, 기본값) 3단계 인자를 추가해 `members-coach-status--success`/`--error` 클래스를 토글, 성공/실패 세팅 직후 `adminCreateMemberStatus.scrollIntoView({ behavior: "smooth", block: "center" })` 호출. `members.html`에 `.members-coach-status.members-coach-status--success{color:var(--snu-blue);font-weight:700}` / `.members-coach-status.members-coach-status--error{color:#b3261e}`(기존 거절 상태 색상 재사용) 추가 — 골드는 성과/승리 강조 전용 원칙을 지켜 성공 메시지에 쓰지 않음.
 - 로컬 검증: 인증 없이 admin 패널 `hidden` 속성만 해제해 DOM 시뮬레이션. 성공 케이스 색상 `rgb(0,51,128)`(`--snu-blue`)·`font-weight:700`, 실패 케이스 `rgb(179,38,30)`, 중립(진행 중 메시지)은 기존과 동일한 `rgb(102,102,102)`로 무변화 확인. 페이지 하단(폼보다 한참 아래)까지 스크롤한 상태에서 트리거해도 `scrollIntoView`가 메시지를 뷰포트 정중앙으로 옮기는 것을 좌표로 확인. `node --check` 통과.
 
+**HOME 디자인 리프레시 완료(2026-08-16)**
+- 사전 조사(마크업/타이포/카드 여백·보더/브레이크포인트/골드 사용처 5개 항목) 결과를 바탕으로 5건 수정: ① `.schedule-access h2`의 캐스케이드에서 항상 지던 죽은 규칙 삭제 + `.current-grid h2`/`.home-news>div>h2`/`.home-join h2` line-height를 1.18로 통일(0.86 상속·0.9 등 제각각이던 값 정리 — 가장 많이 쓰이던 값 대신, League Gothic이 tall cap-height 때문에 과거 히어로 겹침 버그(`8a2f35b`)를 낸 전례를 고려해 사람이 이미 명시적으로 골랐던 안전한 값을 채택) ② `.current-grid`/`.home-news-grid article`의 2px 상단 보더 색을 `--ink`→`--snu-blue`로 통일(`.weekly-session`과 일치) ③ 섹션 패딩을 48/64/80px 3단 스케일로 정리(`.home-news` 90→80px, `.home-join` 54→48px, 나머지 4곳은 이미 부합해 무변경) ④ `.weekly-training-title` 골드→`--snu-blue`(성과·승리와 무관한 단순 섹션 라벨이었음) ⑤ `.home-join .eyebrow` 골드→`#d8dce3`(네이비 배경 대비 목적은 유지, 성과 색과 분리).
+- 반응형 브레이크포인트 통일은 범위가 커서 이번엔 손대지 않고 별도 항목으로 기록만(§ "다듬을 디테일 후보" 참고).
+- 검증: 로컬 서버 + iframe 3폭(360/768/1440px) 전체 스크롤로 레이아웃 깨짐 없음과 색상 변경 5건 중 육안 확인 가능한 2건(④⑤)을 직접 확인. `git diff --check` 통과, `index.html` 중괄호 균형 확인. HTML 구조·JS 로직 변경 없음, `index.html` 인라인 `<style>`만 수정.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
 1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
@@ -222,14 +227,14 @@
 - **성격**: 전면 재설계 아님. 기존 디자인 언어(각진 모서리, 골드는 성과/승리 순간 전용, 네이비가 배경/구조 위계 담당) 유지하며 디테일만 다듬는 리프레시.
 - **범위**: 사이트 전체, 순차적으로 진행(한 번에 전부 X, 페이지/섹션 단위).
 - **진행 순서 후보**(2026-08-15 갱신 — "좁은 뷰포트에서 nav 줄바꿈" 항목 제거: `963cf98` 커밋으로 이미 해결 완료된 사항(§8 기록)이며, 320px~1440px 전구간 iframe 재검증 결과 문제 재현 안 됨을 확인해 이 메모가 갱신 안 된 stale 항목이었음이 드러남):
-  1. HOME
-  2. TEAM(최근 작업으로 최신 패턴 보유 — 다른 페이지 통일 기준점 후보)
+  1. ~~HOME~~ — **완료(2026-08-16, 상세는 §8 참고)**
+  2. **TEAM(다음 작업 — 최근 작업으로 최신 패턴 보유, 다른 페이지 통일 기준점 후보)**
   3. RECORDS/GALLERY/NOTICES(페이지네이션이 최근 추가된 곳들)
   4. 멤버 대시보드(로그인 후 화면)
 - **다듬을 디테일 후보**:
   - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
   - 카드/버튼 여백, 보더 두께 일관성
-  - 반응형 브레이크포인트 통일(페이지마다 제각각일 가능성 있어 선확인 필요)
+  - 반응형 브레이크포인트 통일(2026-08-16 HOME 조사로 구체화: nav는 `css/style.css`의 `@media(max-width:980px)`에서 햄버거로 전환되는데, HOME 콘텐츠(hero/current-panel/home-news/quick-facts/home-join/home-contact)는 전부 `max-width:760px` 하나만 쓰고 981~760px 구간에서 데스크톱 레이아웃을 유지 — 두 시스템이 서로 다른 기준. HOME 자체 리프레시(2026-08-16, 타이포/보더/패딩/골드 5건)에서는 범위가 커서 일부러 손대지 않았고, 전체 사이트 반응형 QA 단계에서 nav·콘텐츠 브레이크포인트를 한 번에 통일 검토할 것)
 - **반응형 QA 기준 구간**: 모바일(360~430px) / 태블릿(768px) / 데스크톱
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
