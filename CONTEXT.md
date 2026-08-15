@@ -72,6 +72,8 @@
   - **근본 원인(코드 조사로 확정)**: `worker/approve-request.js`의 `inviteAuthUser()`가 Supabase Admin API `POST /auth/v1/invite`를 호출할 때 `redirect_to`를 전혀 지정하지 않았다 — 반면 비밀번호 재설정(`resetPasswordForEmail()`, `js/members.js`)은 `redirectTo: members.html?auth=reset`을 명시 지정. GoTrue는 `redirect_to` 없이 호출되면 프로젝트의 Auth 대시보드 "Site URL" 설정으로 폴백하는데, 그동안 대시보드 작업 기록엔 "Redirect URLs" 허용목록에 `members.html`을 추가했다는 내용만 있고 Site URL 자체를 맞췄다는 기록이 없었음. Site URL이 루트(`index.html`)로 남아있었다면 초대 메일 링크가 애초에 `index.html`로 떨어지는데, 그 페이지는 자체 Supabase 클라이언트(`js/main.js`)는 있어도 `onAuthStateChange` 핸들러나 초대 UI가 전혀 없어 토큰이 조용히 무시되고, 그 사이 브라우저에 이미 남아있던 관리자 세션(localStorage 공유)이 그대로 유지되는 것으로 확인됨. (`showPage()`의 SPA 라우터가 해시를 오인해서 지운다는 최초 가설은 코드 검토 결과 근거 없음으로 기각 — `location.hash`/`history.*State`를 쓰는 세 곳 모두 읽기 전용.)
   - **적용한 수정**: (1) `worker/approve-request.js`의 `inviteAuthUser()` — `/auth/v1/invite` 요청 URL에 `?redirect_to=https://snuswimmingteam.org/members.html` 쿼리 파라미터 명시 추가(GoTrue는 `redirect_to`를 body가 아닌 쿼리 파라미터로 받음, `/recover`/`/signup`과 동일 컨벤션). (2) 안전망으로 `js/main.js` 최상단(`createClient()` 이전)에 `type=invite`/`type=recovery`가 해시나 쿼리스트링에서 감지되면 즉시 `./members.html`로 리다이렉트(해시·쿼리 원본 보존)하는 가드 추가 — Site URL 설정이 이후 다시 틀어져도 무해하게 처리됨. 로컬에서 `index.html#access_token=test&type=invite`/`type=recovery` 가짜 해시로 리다이렉트 동작 확인, `#team` 등 정상 섹션 해시는 리다이렉트 안 됨(오탐 없음) 확인, `node --check` 통과.
   - **실사용 재검증 완료**: 로컬 가짜 해시 테스트(안전망 ②만 검증) 이후, memberId E2E 재검증 과정에서 실제로 `kmcsfc0@naver.com`을 `create_member_account`로 초대한 케이스로 `redirect_to`(①)까지 포함해 실제 메일 발송 경로 전체가 정상 동작함을 확인함(아래 "memberId 우선 매칭 fix — E2E 재검증 완료" 참고).
+- **RECORDS/RELAYS는 memberId 연동 없음(2026-08-16 조사, 설계 의도로 판단 — 조치 불필요)**: `content/records.json`/`content/relays.json`은 `athlete`/`athleteEn` 순수 텍스트 필드뿐이고 `memberId` 참조 필드가 없음(`admin/config.yml` CMS 스키마에도 없음). `js/main.js`의 공개 RECORDS 페이지 렌더링(`renderRecordsTable()`)은 members/team.json과 아무 조인도 안 하고 텍스트 그대로 표시 — 계정이 없는 코치·게스트 기록도 문제없이 실림. 유일한 조인은 `js/members.js:1586-1592` `loadRecords(member)` — 로그인한 부원의 "내 기록" 대시보드에서만 `record.athlete === member.name` **문자열 완전 일치**로 필터링(`memberId` 아님, role 분기도 없어 member/coach/admin 전부 동일하게 동작).
+  - **잠재 취약점(조치 불필요, 참고용)**: 문자열 완전 일치 비교라 CMS의 `athlete` 표기와 `members.name`이 오타·공백·개명 등으로 어긋나면 본인 대시보드에서 기록이 **에러 없이 조용히** 안 뜸(`renderRecords()`가 빈 배열이면 그냥 "기록 없음" 상태만 표시). 지금 당장 손댈 필요는 없음 — 실제로 이런 리포트가 들어오면 그때 `content/team.json`처럼 `records.json`에 optional `memberId` 사이드카 추가를 검토할 것.
 - 그 외 코드베이스 전체에 `TODO`/`FIXME` 마커는 없음(grep 확인). 열린 이슈 트래커나 이슈 파일도 repo 내에 없음 — 알려진 미해결 사항은 사용자가 직접 구두로 전달하는 것이 유일한 경로이므로, 새로 파악되면 이 섹션에 추가할 것.
 
 ## 6. 디자인 오버홀 방향과 제약사항
@@ -222,6 +224,12 @@
 - **별도 미해결로 남긴 발견**: `.event-tabs button.is-active{color:var(--snu-blue);border-color:var(--snu-gold)}`(SCHEDULE 페이지 시즌/종목 탭)도 동일한 골드 밑줄 패턴을 씀 — 이번 승인 범위(`.filter-bar`/`.record-tabs`)엔 없어서 미수정. SCHEDULE 페이지 리프레시 시 함께 판단할 것.
 - 검증: 로컬 서버 + iframe 3폭(360/768/1440px), TEAM은 LEADERSHIP→MEMBERS→재적/OB→LEGACY 탭을 실제 클릭 전환하며 밑줄이 전부 네이비로 뜨는지, 두 줄 헤딩 겹침이 없는지 확인. RECORDS는 종목 탭 밑줄이 네이비로 회귀 없이 바뀌었는지, 기록 뱃지 골드가 그대로인지 확인. `git diff --check` 통과. HTML 구조·JS 로직 변경 없음, `index.html` 인라인 `<style>`만 수정.
 
+**RECORDS/GALLERY/NOTICES 디자인 리프레시 완료(2026-08-16)**
+- 사전 조사 결과 세 페이지 공통·개별 지점 3건 수정: ① `#records-title`/`#gallery-title`/`#notices-title`(전부 `<br>` 포함 두 줄 헤딩)가 전역 h2 기본값(0.86)을 상속 중이던 것을 HOME/TEAM과 동일한 이유로 1.18로 통일 — 이 셋은 TEAM과 달리 JS가 `<h2>` 자체를 다시 그리지 않아 ID가 실렌더링에 그대로 살아있어서, 우회 없이 ID 선택자로 바로 처리 가능했음. ② `.notice-list{border-top:2px solid var(--ink)}`를 HOME(`.current-grid`/`.home-news-grid article`)과 동일하게 `var(--snu-blue)`로 통일. ③ `.dark .section-number`(GALLERY)·`.training .section-number`(TRAINING, 공유 규칙)의 골드를 HOME의 `.home-join .eyebrow`와 동일한 `#d8dce3`로 변경 — 다크 배경 대비 목적이지 성과 표시가 아니었음.
+- **`.info-grid .eyebrow`는 의도적으로 분리해 골드 유지**: 원래 `.info-grid .eyebrow,.training .section-number,.dark .section-number{color:var(--snu-gold)}` 한 규칙에 묶여 있었으나, `.info-grid .eyebrow`(ABOUT 페이지 정보 그리드 라벨)는 이번 조사·승인 범위 밖이라 판단해 셀렉터를 분리하고 골드 그대로 남김 — `.training .section-number,.dark .section-number{color:#d8dce3}`만 별도 규칙으로 변경.
+- **스코프 밖 참고 메모**(수정 안 함): GALLERY 필터 탭의 active 밑줄(`#8ed4e7`, 다크 배경 전용 시안색)은 골드 오남용이 아니라 우선순위 낮음으로 판단해 미적용. `css/style.css`의 `.photo`/`.photo.large`/`.photo.wide`/`.photo-placeholder`는 실제로는 `.gallery-item` 계열 클래스에 자리를 내준 죽은 코드로 보이나, 이번 스코프 밖이라 삭제하지 않음 — 추후 CSS 정리 작업 때 참고.
+- 검증: 로컬 서버 + iframe 3폭(360/768/1440px). RECORDS는 종목 탭 전환(50 FREE→100 FLY) 정상, 두 줄 헤딩 겹침 없음. GALLERY는 필터 전환(ALL→TRAINING) 정상, `getComputedStyle`로 섹션번호 `rgb(216,220,227)`(`#d8dce3`) 확인. NOTICES는 모달 열기/닫기 정상, `getComputedStyle`로 `.notice-list` 보더 `rgb(0,51,128)`(`--snu-blue`) 확인. TRAINING 회귀 확인: 섹션번호가 골드→`rgb(216,220,227)`로 정상 변경(회귀 없음). `index.html` 중괄호 균형, `git diff --check` 통과.
+
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
 1. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
@@ -236,8 +244,8 @@
 - **진행 순서 후보**(2026-08-15 갱신 — "좁은 뷰포트에서 nav 줄바꿈" 항목 제거: `963cf98` 커밋으로 이미 해결 완료된 사항(§8 기록)이며, 320px~1440px 전구간 iframe 재검증 결과 문제 재현 안 됨을 확인해 이 메모가 갱신 안 된 stale 항목이었음이 드러남):
   1. ~~HOME~~ — **완료(2026-08-16, 상세는 §8 참고)**
   2. ~~TEAM~~ — **완료(2026-08-16, 상세는 §8 참고 — `.event-tabs`(SCHEDULE) 골드 밑줄은 별도 미해결로 남김)**
-  3. **RECORDS/GALLERY/NOTICES(다음 작업 — 페이지네이션이 최근 추가된 곳들)**
-  4. 멤버 대시보드(로그인 후 화면)
+  3. ~~RECORDS/GALLERY/NOTICES~~ — **완료(2026-08-16, 상세는 §8 참고 — GALLERY 필터 탭 시안색·죽은 CSS 클래스는 스코프 밖 참고 메모로 남김)**
+  4. **멤버 대시보드(다음 작업 — 로그인 후 화면)**
 - **다듬을 디테일 후보**:
   - 타이포 크기/줄간격 일관성(Pretendard/League Gothic/세리프 조합, 페이지 간 통일 여부 확인 필요)
   - 카드/버튼 여백, 보더 두께 일관성
