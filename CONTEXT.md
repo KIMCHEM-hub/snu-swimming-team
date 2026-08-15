@@ -184,10 +184,9 @@
 
 ### 다음 작업 (우선순위 순, 2026-08-15 갱신)
 
-1. 화/목 세션 날짜 어긋남 표시 개선(엣지케이스): "이번 주 훈련 세션" 카드가 실제 세션 날짜와 화면상 표시 요일이 어긋나 보이는 경계 상황이 있음 — 정확한 재현 조건부터 파악 필요.
-2. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
-3. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
-4. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
+1. 모든 기능 완성 후 보안 최종 감사를 수행한다(RLS 전수 검토, XSS/CORS/권한 상승 테스트 등).
+2. 비주얼 디자인을 개편한다 — **각진 모서리를 유지**하고, **골드 색상은 성과/승리 순간에만** 사용하는 방향으로. §6/§7의 기존 디자인 원칙·이력을 먼저 참고할 것. + 개편 후 Android/iOS/PC 크로스 디바이스 반응형 최종 점검.
+3. 월간 자동화 Worker(`attendance_winner` 팝업 자동 생성, cron) — 필수는 아니며 위 항목들 완료 후 여유 있을 때 진행.
 
 - **폰트 로딩**: Google Fonts(`League Gothic`, `Oswald:wght@500;700`, `PT Serif`, `Noto Serif KR:wght@400;600;700`)는 `index.html`의 `<link href="fonts.googleapis.com/css2?...">`로, **Pretendard Variable은 별도로 jsDelivr CDN**(`cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/...`)에서 로드. 둘 다 `index.html:8-11`.
 - League Gothic은 Google Fonts에서 400(regular) 단일 굵기만 제공 — `font-weight:700/800`을 걸면 브라우저 합성 볼드가 걸려 획이 두꺼워지고 line-height 문제와 겹쳐 텍스트 겹침을 유발한 전례가 있음(§6의 `8a2f35b`). `--font-display` 관련 요소엔 `font-weight:400`을 유지할 것.
