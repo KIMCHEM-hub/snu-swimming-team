@@ -776,31 +776,43 @@ if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow acce
 // snapping back to the defaults.
 let activeTeamTab = "leadership";
 let memberStatusFilter = "active"; // "active" | "OB" — MEMBERS sub-filter, defaults to 재적부원
+// escapeHtml(value) — HTML-entity-escapes a string right before it's interpolated into an
+// innerHTML template. This is the actual XSS boundary for the TEAM cards below: bio/sns/
+// department/photo can originate from a member's self-submitted profile edit request
+// (admin-approved but not content-reviewed), and members.js's sanitizeInput() only trims
+// angle brackets client-side before submission — a direct insert into profile_edit_requests
+// bypasses it entirely. Applied to every interpolated field here (not just the ones with a
+// known member-submission path) so the escaping doesn't depend on tracking which source a
+// field currently has.
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
 function emptyTeamStateHtml(label, note) {
-  return `<div class="member-directory"><p>${label}</p><p>${note || t("team.membersNoteFallback")}</p></div>`;
+  return `<div class="member-directory"><p>${label}</p><p>${escapeHtml(note) || t("team.membersNoteFallback")}</p></div>`;
 }
 function leaderCardHtml(leader) {
-  const { role, photo } = leader;
-  const name = pick(leader, "name");
-  const koRole = pick(leader, "koRole");
-  const photoAlt = t("team.profilePhotoAlt", { name });
+  const { photo } = leader;
+  const role = escapeHtml(leader.role);
+  const name = escapeHtml(pick(leader, "name"));
+  const koRole = escapeHtml(pick(leader, "koRole"));
+  const photoAlt = escapeHtml(t("team.profilePhotoAlt", { name: pick(leader, "name") }));
   const photoHtml = photo
-    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
+    ? `<div class="member-photo has-photo"><img src="${escapeHtml(assetPath(photo))}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p></article>`;
 }
 function memberCardHtml(member) {
   const { photo } = member;
-  const name = pick(member, "name");
-  const department = pick(member, "department");
-  const year = pick(member, "year");
-  const bio = pick(member, "bio");
-  const sns = pick(member, "sns");
+  const name = escapeHtml(pick(member, "name"));
+  const department = escapeHtml(pick(member, "department"));
+  const year = escapeHtml(pick(member, "year"));
+  const bio = escapeHtml(pick(member, "bio"));
+  const sns = escapeHtml(pick(member, "sns"));
   const status = member.status === "OB" ? "OB" : "active";
   const statusLabel = status === "OB" ? t("team.statusOB") : t("team.statusActive");
-  const photoAlt = t("team.profilePhotoAlt", { name });
+  const photoAlt = escapeHtml(t("team.profilePhotoAlt", { name: pick(member, "name") }));
   const photoHtml = photo
-    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${photoAlt}" loading="lazy"></div>`
+    ? `<div class="member-photo has-photo"><img src="${escapeHtml(assetPath(photo))}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   const meta = [department, year].filter(Boolean).join(" · ");
   const extras = bio || sns ? `<div class="member-extra">${bio ? `<div class="member-bio"><span>${t("team.bio")}</span><p>${bio}</p></div>` : ""}${sns ? `<div class="member-sns"><span>${t("team.sns")}</span><p>${sns}</p></div>` : ""}</div>` : "";
@@ -821,10 +833,13 @@ function memberCardsHtml(members, membersNote) {
   return `<div data-member-cards>${inner}</div>`;
 }
 function legacyEntryHtml(entry) {
-  const { name, tag, photo } = entry;
-  const body = pick(entry, "body");
+  const { photo } = entry;
+  const name = escapeHtml(entry.name);
+  const tag = escapeHtml(entry.tag);
+  const body = escapeHtml(pick(entry, "body"));
+  const photoAlt = escapeHtml(t("team.profilePhotoAlt", { name: entry.name }));
   const photoHtml = photo
-    ? `<div class="member-photo has-photo"><img src="${assetPath(photo)}" alt="${t("team.profilePhotoAlt", { name })}" loading="lazy" data-legacy-photo></div>`
+    ? `<div class="member-photo has-photo"><img src="${escapeHtml(assetPath(photo))}" alt="${photoAlt}" loading="lazy" data-legacy-photo></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
   return `<article class="legacy-note"><div>${photoHtml}<p class="eyebrow">TEAM LEGACY</p><strong>${name}</strong></div><div><p>${body}</p>${tag ? `<p class="legacy-pending">${tag}</p>` : ""}</div></article>`;
 }
