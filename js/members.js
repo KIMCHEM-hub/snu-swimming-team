@@ -169,8 +169,10 @@ const sessionDetailGroups = Array.from(document.querySelectorAll("[data-coach-se
   return map;
 }, {});
 const coachEvaluationForm = document.querySelector("[data-coach-evaluation-form]");
+const coachEvaluationBulkTemplate = document.querySelector("[data-coach-evaluation-bulk-template]");
+coachEvaluationForm.replaceChildren(coachEvaluationBulkTemplate.content.cloneNode(true));
 const coachEvaluationSession = document.querySelector("[data-coach-evaluation-session]");
-const coachEvaluationMember = document.querySelector("[data-coach-evaluation-member]");
+const coachEvaluationRows = document.querySelector("[data-coach-evaluation-rows]");
 const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
 const coachAttendanceStatus = document.querySelector("[data-coach-attendance-status]");
 const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
@@ -202,7 +204,7 @@ let legacyPhotoStatus;
 let legacyPhotoUrl = "";
 let legacyPhotoUploading = false;
 let coachSessions = [];
-let currentCoachEvaluation = null;
+let coachMemberDirectory = [];
 const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const IMAGE_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -1123,14 +1125,6 @@ function renderCoachSessionOptions() {
   coachEvaluationSession.value = coachSessions.some((session) => session.id === selectedEvaluationId) ? selectedEvaluationId : "";
 }
 
-function renderCoachMemberOptions(members) {
-  const selectedMemberId = coachEvaluationMember.value;
-  coachEvaluationMember.replaceChildren();
-  appendOption(coachEvaluationMember, "", t("members.coachSelectMember"));
-  members.forEach((member) => appendOption(coachEvaluationMember, member.id, member.name));
-  coachEvaluationMember.value = members.some((member) => member.id === selectedMemberId) ? selectedMemberId : "";
-}
-
 async function loadCoachSessions() {
   if (!isCoachOrAdmin() || !currentUser) return;
   let query = supabase
@@ -1154,32 +1148,62 @@ async function loadCoachMemberDirectory() {
     setCoachStatus(coachEvaluationStatus, "members.coachDirectoryLoadFailed");
     return;
   }
-  renderCoachMemberOptions(data || []);
+  coachMemberDirectory = data || [];
 }
 
-async function loadCoachEvaluation() {
-  const sessionId = coachEvaluationSession.value;
-  const memberId = coachEvaluationMember.value;
-  currentCoachEvaluation = null;
-  coachEvaluationForm.elements.attendance_type.value = "";
-  coachEvaluationForm.elements.comment.value = "";
-  if (!sessionId || !memberId) return;
+function renderCoachEvaluationRows(sessionId, evaluations = []) {
+  coachEvaluationRows.replaceChildren();
+  if (!sessionId) return;
+  const evaluationsByMemberId = new Map(evaluations.map((evaluation) => [evaluation.member_id, evaluation]));
+  coachMemberDirectory.forEach((member) => {
+    const evaluation = evaluationsByMemberId.get(member.id);
+    const row = document.createElement("div");
+    row.className = "members-coach-grid";
+    row.dataset.memberId = member.id;
+    const name = document.createElement("p");
+    name.textContent = member.name;
+    const attendanceLabel = document.createElement("label");
+    attendanceLabel.className = "members-label";
+    const attendanceName = document.createElement("span");
+    attendanceName.textContent = t("members.evaluationAttendanceType");
+    const attendance = document.createElement("select");
+    attendance.className = "members-input";
+    attendance.dataset.coachEvaluationAttendance = "";
+    appendOption(attendance, "", t("members.attendanceTypeUnset"));
+    ATTENDANCE_TYPES.forEach((type) => appendOption(attendance, type, attendanceTypeLabel(type)));
+    attendance.value = evaluation?.attendance_type || "";
+    attendanceLabel.append(attendanceName, attendance);
+    const commentLabel = document.createElement("label");
+    commentLabel.className = "members-label";
+    const commentName = document.createElement("span");
+    commentName.textContent = t("members.evaluationComment");
+    const comment = document.createElement("input");
+    comment.className = "members-input";
+    comment.type = "text";
+    comment.dataset.coachEvaluationComment = "";
+    comment.value = evaluation?.comment || "";
+    commentLabel.append(commentName, comment);
+    row.append(name, attendanceLabel, commentLabel);
+    coachEvaluationRows.append(row);
+  });
+}
+
+async function loadSessionEvaluations(sessionId = coachEvaluationSession.value) {
+  if (!sessionId) {
+    renderCoachEvaluationRows("", []);
+    return;
+  }
   let query = supabase
     .from("training_evaluations")
-    .select("id, attendance_type, comment")
-    .eq("session_id", sessionId)
-    .eq("member_id", memberId);
+    .select("member_id, attendance_type, comment")
+    .eq("session_id", sessionId);
   if (currentMember.role === "coach") query = query.eq("created_by", currentUser.id);
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query;
   if (error) {
     setCoachStatus(coachEvaluationStatus, "members.evaluationLoadFailed");
     return;
   }
-  currentCoachEvaluation = data;
-  if (data) {
-    coachEvaluationForm.elements.attendance_type.value = data.attendance_type || "";
-    coachEvaluationForm.elements.comment.value = data.comment || "";
-  }
+  renderCoachEvaluationRows(sessionId, data || []);
 }
 
 function renderAttendanceRateList(rows) {
@@ -1231,7 +1255,7 @@ async function loadAttendanceRateList() {
 async function loadCoachData() {
   if (!isCoachOrAdmin()) return;
   await Promise.all([loadCoachSessions(), loadCoachMemberDirectory(), loadAttendanceRateList()]);
-  await loadCoachEvaluation();
+  await loadSessionEvaluations();
 }
 
 function requestMemberName(request) {
@@ -1812,40 +1836,39 @@ coachSessionForm.addEventListener("submit", async (event) => {
   setCoachStatus(coachSessionStatus, "members.sessionSaved");
 });
 
-coachEvaluationSession.addEventListener("change", loadCoachEvaluation);
-coachEvaluationMember.addEventListener("change", loadCoachEvaluation);
+coachEvaluationSession.addEventListener("change", () => loadSessionEvaluations());
 coachEvaluationForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isCoachOrAdmin() || !currentUser) return;
-  const submitButton = coachEvaluationForm.querySelector("button[type=submit]");
-  const formData = new FormData(coachEvaluationForm);
-  const attendanceType = formData.get("attendance_type");
-  if (!ATTENDANCE_TYPES.includes(attendanceType)) {
-    setCoachStatus(coachEvaluationStatus, "members.evaluationAttendanceTypeRequired");
+  const sessionId = coachEvaluationSession.value;
+  if (!sessionId) {
+    setCoachStatus(coachEvaluationStatus, "members.evaluationLoadFailed");
     return;
   }
-  const payload = {
-    attendance_type: attendanceType,
-    comment: sanitizeInput(formData.get("comment")) || null
-  };
+  const submitButton = coachEvaluationForm.querySelector("button[type=submit]");
+  const payload = Array.from(coachEvaluationRows.children)
+    .map((row) => ({
+      member_id: row.dataset.memberId,
+      attendance_type: row.querySelector("[data-coach-evaluation-attendance]").value,
+      comment: sanitizeInput(row.querySelector("[data-coach-evaluation-comment]").value) || null
+    }))
+    .filter((row) => ATTENDANCE_TYPES.includes(row.attendance_type))
+    .map((row) => ({ ...row, session_id: sessionId, created_by: currentUser.id }));
   submitButton.disabled = true;
   setCoachStatus(coachEvaluationStatus);
-  const { error } = currentCoachEvaluation?.id
-    ? await supabase.from("training_evaluations").update(payload).eq("id", currentCoachEvaluation.id)
-    : await supabase.from("training_evaluations").insert({
-      ...payload,
-      session_id: formData.get("session_id"),
-      member_id: formData.get("member_id"),
-      created_by: currentUser.id
-    });
+  // Coach RLS is created_by-based, so an upsert of rows authored by another
+  // coach may be rejected. The current workflow has one coach per session.
+  const { error } = payload.length
+    ? await supabase.from("training_evaluations").upsert(payload, { onConflict: "session_id,member_id" })
+    : { error: null };
   submitButton.disabled = false;
   if (error) {
-    setCoachStatus(coachEvaluationStatus, "members.evaluationSaveFailed");
+    setCoachStatus(coachEvaluationStatus, "members.evaluationBulkSaveFailed");
     return;
   }
-  await loadCoachEvaluation();
+  await loadSessionEvaluations(sessionId);
   await loadAttendanceRateList();
-  setCoachStatus(coachEvaluationStatus, "members.evaluationSaved");
+  setCoachStatus(coachEvaluationStatus, "members.evaluationBulkSaved");
 });
 
 function selectedSelfReportParticipantIds() {
@@ -2179,7 +2202,7 @@ window.addEventListener("langchange", () => {
       loadSelfReports(currentMember);
     }
     if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); }
-    if (isCoachOrAdmin() && !coachPanel.hidden) loadAttendanceRateList();
+    if (isCoachOrAdmin() && !coachPanel.hidden) { loadAttendanceRateList(); loadSessionEvaluations(); }
   }
 });
 window.addEventListener("pageshow", checkSession);
