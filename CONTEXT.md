@@ -382,3 +382,30 @@
 - role별(멤버/코치/관리자) 화면이 서로 명확히 구분되는지도 포함 검토 대상
 
 상태: 요청만 접수, 구체적 방향/우선순위는 아직 미논의. 다음 세션에서 현황 조사(어느 페이지/화면이 가장 위계가 안 보이는지 스크린샷 기반 리뷰)부터 시작 필요.
+
+## 출석 점수 시스템 — DB 스키마 적용 완료 (2026-08-16)
+
+`supabase/attendance-rewards.sql` 작성 및 Supabase에 직접 실행 완료(사용자 확인, "Success. No rows returned"). 내용:
+- `self_reported_activities.activity_type`에 '3인훈련' 추가, `participants` 컬럼 신규(3인훈련일 때만 not null)
+- 하루 그룹 상한 강제: partial unique index로 그룹A(자유수영+3인훈련 합산 1건)/그룹B(4인모임 1건) 하루 제한
+- `monthly_attendance_rates()` 함수 재정의 — 승인된 자가기록 점수를 반영하도록 확장, `self_report_score` 컬럼 반환에 추가. 캡 없음(120%+ 그대로 표시). 함수 리턴 타입이 바뀌어 `drop function` 후 재생성 필요했음(마이그레이션 파일에 이미 반영됨).
+- `monthly_prizes` 테이블 신규(tier: 80/100/120/winner, RLS: 본인 조회 + 관리자 전체 관리)
+
+**아직 미착수(3단계 UI)**:
+- 코치 탭 "출석률 현황" 표에 `self_report_score` 컬럼 미노출 — 함수는 이미 반환하지만 UI가 아직 안 그림
+- 부원용 "이번 달 출석률: XX%" 한 줄 요약도 자가기록 기여분 안 보임
+- 자가기록 제출 폼(`members.html`)에 3인훈련 옵션 + 참여자 명단 입력 필드 없음(activity_type 드롭다운에 자유수영/4인모임만 있음)
+- 월별 순위/티어 확정 관리자 화면 없음
+- Worker cron(월간 자동 마감) 없음 — §5의 "다음 작업" 순서 그대로 유효
+
+## 자가기록 안내 문구 정정 + SEO 파일 추가 (2026-08-16)
+
+- `js/i18n.js`의 `members.selfReportIntro`(KR/EN) — "정식 출석률에는 반영되지 않습니다" 옛 문구가 위 스키마 변경과 모순되어 "월별 점수에 반영됩니다"로 수정 (커밋 `ee7c4ba`)
+- 루트에 `robots.txt`(`/admin/` 제외) + `sitemap.xml`(루트 URL 1건, 해시 기반 SPA라 크롤링 가능 URL이 이거 하나) 신규 추가 (커밋 `21d010a`). Google Search Console에 sitemap 제출은 사용자가 직접 해야 함(대시보드 작업, 미완료).
+
+## RECORDS 이름매칭 버그 실사례 발견 + 수정 (2026-08-16)
+
+- §5에 기록된 "이름 문자열 완전일치라 오타/공백 시 조용히 실패" 취약점이 실제로 발생: 관리자(`chemi.kim1701@gmail.com`)의 `members.name`이 "김민찬(주장)"으로 저장돼 있어 `records.json`의 "김민찬"과 매칭 실패, "대회 실적" 탭이 빈 목록으로 뜸(에러 없음).
+- Supabase Table Editor에서 `members.name`을 "김민찬(주장)" → "김민찬"으로 직접 수정. `leadership.json`의 주장 항목은 이미 `memberId`로 연결돼 있어 이름 변경에 영향 없음(memberId 우선 매칭).
+- 수정 후 재로그인 확인: 대회 실적 4건(50 FREE ×2, 100 FREE, 50 BREAST) 정상 표시 확인 완료.
+- **참고**: RECORDS/RELAYS의 이름매칭 방식 자체는 아직 미변경(설계상 의도, §5 참고) — 이번은 개별 데이터 정정으로 해결, 구조적 수정 아님.
