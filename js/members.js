@@ -474,7 +474,10 @@ function renderMonthlyPrizeTable(rows) {
     tbody.append(tr);
   });
   table.append(thead, tbody);
-  monthlyPrizeList.append(table);
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "table-wrap";
+  tableWrap.append(table);
+  monthlyPrizeList.append(tableWrap);
 }
 
 async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value), month = Number(monthlyPrizeMonthSelect.value)) {
@@ -1498,7 +1501,10 @@ function renderAttendanceRateList(rows) {
       tbody.append(tr);
     });
   table.append(thead, tbody);
-  coachAttendanceListEl.append(table);
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "table-wrap";
+  tableWrap.append(table);
+  coachAttendanceListEl.append(tableWrap);
 }
 
 async function loadAttendanceRateList() {
