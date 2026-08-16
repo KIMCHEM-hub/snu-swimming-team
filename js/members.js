@@ -195,6 +195,9 @@ const coachEvaluationRows = document.querySelector("[data-coach-evaluation-rows]
 const coachEvaluationStatus = document.querySelector("[data-coach-evaluation-status]");
 const coachAttendanceStatus = document.querySelector("[data-coach-attendance-status]");
 const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
+const setTimesSessionSelect = document.querySelector("[data-set-times-session-select]");
+const setTimesDetailList = document.querySelector("[data-set-times-detail-list]");
+const setTimesStatus = document.querySelector("[data-set-times-status]");
 let coachSubtabs = null;
 let adminSubtabs = null;
 let monthlyPrizeRows = [];
@@ -227,6 +230,8 @@ let legacyPhotoUrl = "";
 let legacyPhotoUploading = false;
 let coachSessions = [];
 let coachMemberDirectory = [];
+let setTimesDetails = [];
+let setTimesRecordsByDetailId = new Map();
 const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const IMAGE_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
@@ -235,6 +240,10 @@ const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "3인훈련", "4인모임"];
 const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
 const STROKE_TYPES = ["freestyle", "backstroke", "butterfly", "breaststroke", "drill"];
 const SESSION_DETAIL_CATEGORIES = ["warmup", "mainset", "events", "cooldown"];
+// Matches the category labels used in the public session modal (js/main.js) — always
+// English, unrelated to the site's KR/EN toggle, same as the coach form's own
+// hardcoded WARM-UP/MAIN SET/EVENTS/COOL-DOWN section labels in members.html.
+const SET_TIMES_CATEGORY_LABELS = { warmup: "WARM-UP", mainset: "MAIN SET", events: "EVENTS", cooldown: "COOL-DOWN" };
 const SESSION_DETAIL_DISTANCES = [25, 50, 75, 100, 150, 200, 300, 400, 500, 800, 1000, 1500];
 const SESSION_DETAIL_SETS = Array.from({ length: 11 }, (_, i) => i); // 0..10
 const SESSION_DETAIL_PACE_UNITS = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, "0")); // "00".."99"
@@ -1444,17 +1453,22 @@ function populateCoachSessionForm(sessionId) {
 function renderCoachSessionOptions() {
   const selectedEditId = coachSessionSelect.value;
   const selectedEvaluationId = coachEvaluationSession.value;
+  const selectedSetTimesId = setTimesSessionSelect.value;
   coachSessionSelect.replaceChildren();
   coachEvaluationSession.replaceChildren();
+  setTimesSessionSelect.replaceChildren();
   appendOption(coachSessionSelect, "", t("members.newSession"));
   appendOption(coachEvaluationSession, "", t("members.coachSelectSession"));
+  appendOption(setTimesSessionSelect, "", t("members.coachSelectSession"));
   coachSessions.forEach((session) => {
     const label = sessionLabel(session);
     appendOption(coachSessionSelect, session.id, label);
     appendOption(coachEvaluationSession, session.id, label);
+    appendOption(setTimesSessionSelect, session.id, label);
   });
   coachSessionSelect.value = coachSessions.some((session) => session.id === selectedEditId) ? selectedEditId : "";
   coachEvaluationSession.value = coachSessions.some((session) => session.id === selectedEvaluationId) ? selectedEvaluationId : "";
+  setTimesSessionSelect.value = coachSessions.some((session) => session.id === selectedSetTimesId) ? selectedSetTimesId : "";
 }
 
 async function loadCoachSessions() {
@@ -1481,6 +1495,201 @@ async function loadCoachMemberDirectory() {
     return;
   }
   coachMemberDirectory = data || [];
+}
+
+async function loadSessionDetailsForTimes(sessionId) {
+  setTimesDetails = [];
+  setTimesRecordsByDetailId = new Map();
+  setTimesDetailList.replaceChildren();
+  if (!sessionId) return;
+  setCoachStatus(setTimesStatus);
+  const { data, error } = await supabase
+    .from("training_session_details")
+    .select("id, category, stroke, distance, sets, pace, content, sort_order")
+    .eq("session_id", sessionId)
+    .order("category")
+    .order("sort_order");
+  if (error) {
+    setCoachStatus(setTimesStatus, "members.sessionLoadFailed");
+    return;
+  }
+  setTimesDetails = data || [];
+  if (setTimesDetails.length) {
+    const { data: records, error: recordsError } = await supabase
+      .from("training_set_times")
+      .select("session_detail_id, member_id, rep_number, time_seconds")
+      .in("session_detail_id", setTimesDetails.map((detail) => detail.id));
+    if (!recordsError) {
+      (records || []).forEach((record) => {
+        const list = setTimesRecordsByDetailId.get(record.session_detail_id) || [];
+        list.push(record);
+        setTimesRecordsByDetailId.set(record.session_detail_id, list);
+      });
+    }
+  }
+  renderSetTimesDetailList();
+}
+
+function setTimesDetailSummary(detail) {
+  const parts = [
+    SET_TIMES_CATEGORY_LABELS[detail.category] || detail.category,
+    strokeLabel(detail.stroke),
+    `${detail.distance}m`,
+    `${detail.sets}세트`
+  ];
+  if (detail.pace) parts.push(`${t("members.setTimesPaceLabel")} ${detail.pace}`);
+  return parts.join(" · ");
+}
+
+function setTimesRecordedSummaryText(detailId) {
+  const records = setTimesRecordsByDetailId.get(detailId) || [];
+  const memberIds = [...new Set(records.map((record) => record.member_id))];
+  if (!memberIds.length) return "";
+  const names = memberIds.map((id) => coachMemberDirectory.find((member) => member.id === id)?.name || id).join(", ");
+  return `${t("members.setTimesRecordedCount", { count: memberIds.length })}: ${names}`;
+}
+
+function renderSetTimesDetailList() {
+  setTimesDetailList.replaceChildren();
+  if (!setTimesDetails.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.setTimesEmpty");
+    setTimesDetailList.append(empty);
+    return;
+  }
+  setTimesDetails.forEach((detail) => setTimesDetailList.append(createSetTimesDetailCard(detail)));
+}
+
+function createSetTimesDetailCard(detail) {
+  const card = document.createElement("article");
+  card.className = "members-admin-request";
+
+  const heading = document.createElement("p");
+  heading.className = "members-admin-requester";
+  heading.textContent = setTimesDetailSummary(detail);
+  card.append(heading);
+
+  if (detail.content) {
+    const content = document.createElement("p");
+    content.textContent = detail.content;
+    card.append(content);
+  }
+
+  const recorded = document.createElement("p");
+  recorded.textContent = setTimesRecordedSummaryText(detail.id);
+  card.append(recorded);
+
+  const inputButton = document.createElement("button");
+  inputButton.type = "button";
+  inputButton.className = "members-edit-button";
+  inputButton.textContent = t("members.setTimesInputButton");
+  inputButton.addEventListener("click", () => toggleSetTimesForm(detail, card, recorded));
+  card.append(inputButton);
+
+  return card;
+}
+
+function toggleSetTimesForm(detail, card, recordedEl) {
+  const existingForm = card.querySelector(`[data-set-times-form="${detail.id}"]`);
+  if (existingForm) {
+    existingForm.remove();
+    return;
+  }
+
+  const form = document.createElement("form");
+  form.className = "members-coach-form";
+  form.dataset.setTimesForm = detail.id;
+
+  const memberLabel = document.createElement("label");
+  memberLabel.className = "members-label";
+  const memberLabelText = document.createElement("span");
+  memberLabelText.textContent = t("members.setTimesMemberSelect");
+  const memberSelect = document.createElement("select");
+  memberSelect.className = "members-input";
+  memberSelect.name = "member_id";
+  memberSelect.required = true;
+  appendOption(memberSelect, "", t("members.setTimesMemberSelect"));
+  coachMemberDirectory.forEach((member) => appendOption(memberSelect, member.id, member.name));
+  memberLabel.append(memberLabelText, memberSelect);
+
+  const repsContainer = document.createElement("div");
+  repsContainer.className = "members-coach-grid";
+
+  function renderRepInputs(memberId) {
+    repsContainer.replaceChildren();
+    if (!memberId) return;
+    const existingByRep = new Map(
+      (setTimesRecordsByDetailId.get(detail.id) || [])
+        .filter((record) => record.member_id === memberId)
+        .map((record) => [record.rep_number, record.time_seconds])
+    );
+    for (let rep = 1; rep <= detail.sets; rep += 1) {
+      const repLabel = document.createElement("label");
+      repLabel.className = "members-label";
+      const repLabelText = document.createElement("span");
+      repLabelText.textContent = t("members.setTimesRepLabel", { n: rep });
+      const repInput = document.createElement("input");
+      repInput.className = "members-input";
+      repInput.type = "number";
+      repInput.min = "0";
+      repInput.step = "0.01";
+      repInput.dataset.rep = String(rep);
+      if (existingByRep.has(rep)) repInput.value = existingByRep.get(rep);
+      repLabel.append(repLabelText, repInput);
+      repsContainer.append(repLabel);
+    }
+  }
+
+  memberSelect.addEventListener("change", () => renderRepInputs(memberSelect.value));
+
+  const actions = document.createElement("div");
+  actions.className = "members-coach-actions";
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "members-button members-button--secondary";
+  cancelButton.textContent = t("members.setTimesCancel");
+  cancelButton.addEventListener("click", () => form.remove());
+  const saveButton = document.createElement("button");
+  saveButton.type = "submit";
+  saveButton.className = "members-button";
+  saveButton.textContent = t("members.setTimesSave");
+  actions.append(cancelButton, saveButton);
+
+  form.append(memberLabel, repsContainer, actions);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const memberId = memberSelect.value;
+    if (!memberId) return;
+    const payload = Array.from(repsContainer.querySelectorAll("input[data-rep]"))
+      .map((input) => ({ rep: Number(input.dataset.rep), value: input.value }))
+      .filter((entry) => entry.value !== "" && Number(entry.value) > 0)
+      .map((entry) => ({
+        session_detail_id: detail.id,
+        member_id: memberId,
+        rep_number: entry.rep,
+        time_seconds: Number(entry.value),
+        created_by: currentUser.id
+      }));
+    if (!payload.length) return;
+    saveButton.disabled = true;
+    const { error } = await supabase
+      .from("training_set_times")
+      .upsert(payload, { onConflict: "session_detail_id,member_id,rep_number" });
+    saveButton.disabled = false;
+    if (error) {
+      setCoachStatus(setTimesStatus, "members.setTimesSaveFailed");
+      return;
+    }
+    const untouched = (setTimesRecordsByDetailId.get(detail.id) || [])
+      .filter((record) => !(record.member_id === memberId && payload.some((row) => row.rep_number === record.rep_number)));
+    setTimesRecordsByDetailId.set(detail.id, [...untouched, ...payload]);
+    recordedEl.textContent = setTimesRecordedSummaryText(detail.id);
+    form.remove();
+    setCoachStatus(setTimesStatus, "members.setTimesSaved");
+  });
+
+  card.append(form);
 }
 
 function renderCoachEvaluationRows(sessionId, evaluations = []) {
@@ -2226,6 +2435,7 @@ profilePhotoInput.addEventListener("change", () => {
 });
 
 coachSessionSelect.addEventListener("change", () => populateCoachSessionForm(coachSessionSelect.value));
+setTimesSessionSelect.addEventListener("change", () => loadSessionDetailsForTimes(setTimesSessionSelect.value));
 coachSessionNewButton.addEventListener("click", resetCoachSessionForm);
 
 SESSION_DETAIL_CATEGORIES.forEach((category) => {
@@ -2713,7 +2923,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 initLang();
 applyStaticTranslations();
 initMonthlyPrizeSelectors();
-coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"]);
+coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance", "members.coachTabSetTimes"]);
 adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports", "members.adminTabPrizes", "members.adminTabMemberHistory"]);
 monthlyPrizeLoadButton.addEventListener("click", () => loadMonthlyPrizeReview());
 monthlyPrizeConfirmButton.addEventListener("click", async () => {
