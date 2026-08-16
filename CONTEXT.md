@@ -506,3 +506,5 @@ Tier 1(MFA + CAPTCHA) 전체 완료. 다음은 Tier 2(훈련 기록 시스템, �
 부원별 이력 조회 화면 완료(2026-08-16, Claude Code): render 함수 3개는 이전 세션에서 이미 구현 완료 상태였음(CONTEXT.md의 "미완성" 기록이 stale이었음 — 교훈: 코딩 에이전트 응답 요약과 실제 디스크 파일 상태가 다를 수 있으니 항상 rg/cat으로 재확인할 것). training_evaluations 정렬 쿼리의 referencedTable 옵션이 최상위 결과 정렬에 효과 없던 버그만 수정(클라이언트 sort로 대체). 실데이터 검증 완료: 최신순 정렬/상태뱃지/3인훈련 참여자 이름매핑+fallback/empty-state 확인. 자동반영(source_report_id) 뱃지는 활성 부원 부족으로 실증 못 함(코드 리뷰로만 확인, RPC 스킵 로직은 이전 세션에 SQL로 별도 검증됨).
 
 Tier 2 절반 완료. 남은 건: 훈련 기록 시스템(rep별 기록 DB→코치UI→부원그래프).
+
+훈련 기록 시스템 — DB 스키마 실행 완료(2026-08-16): training_set_times 테이블(session_detail_id/member_id/rep_number/time_seconds, RLS 5개 정책) Supabase에 실행 완료. 다음 단계: 코치 입력 UI(계획된 세트별 rep당 실측시간 입력) → 부원 그래프 대시보드(본인 종목/거리별 기록 추이, SVG 라인차트 직접 구현 — 사이트가 순수 vanilla JS라 차트 라이브러리 없음).
