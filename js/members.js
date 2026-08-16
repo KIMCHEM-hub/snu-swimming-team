@@ -51,6 +51,8 @@ const recordsEl = document.querySelector("[data-member-records]");
 const trainingEvaluationsEl = document.querySelector("[data-member-training-evaluations]");
 const memberAttendanceRateEl = document.querySelector("[data-member-attendance-rate]");
 const selfReportForm = document.querySelector("[data-self-report-form]");
+const selfReportParticipantsField = document.querySelector("[data-self-report-participants]");
+const selfReportParticipantList = document.querySelector("[data-self-report-participant-list]");
 const selfReportStatus = document.querySelector("[data-self-report-status]");
 const selfReportListEl = document.querySelector("[data-self-report-list]");
 const selfReportAdminStatus = document.querySelector("[data-self-report-admin-status]");
@@ -178,6 +180,8 @@ const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim17
 const SELF_REGISTER_WORKER_URL = "https://snu-swim-self-register.chemi-kim1701.workers.dev";
 let currentUser = null;
 let currentMember = null;
+let activeMemberDirectory = [];
+let activeMemberDirectoryLoaded = false;
 let currentTeamMember = null;
 let statusKey = "";
 const isPasswordResetRoute = new URL(window.location.href).searchParams.get("auth") === "reset";
@@ -203,7 +207,7 @@ const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const IMAGE_UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ATTENDANCE_TYPES = ["출석", "지각", "인정결석", "미인정결석"];
-const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "4인모임"];
+const SELF_REPORT_ACTIVITY_TYPES = ["자유수영", "3인훈련", "4인모임"];
 const ATTENDANCE_RATE_WARNING_THRESHOLD = 50;
 const STROKE_TYPES = ["freestyle", "backstroke", "butterfly", "breaststroke", "drill"];
 const SESSION_DETAIL_CATEGORIES = ["warmup", "mainset", "events", "cooldown"];
@@ -227,6 +231,23 @@ function attendanceTypeLabel(value) {
 
 function activityTypeLabel(value) {
   return value ? t(`members.activityType.${value}`) : "—";
+}
+
+function activeMemberName(memberId) {
+  return activeMemberDirectory.find((member) => member.id === memberId)?.name || memberId;
+}
+
+function participantNames(participantIds) {
+  return (participantIds || []).map(activeMemberName).join(", ") || "—";
+}
+
+async function loadActiveMemberDirectory() {
+  if (activeMemberDirectoryLoaded) return activeMemberDirectory;
+  const { data, error } = await supabase.rpc("active_member_directory");
+  if (error) return null;
+  activeMemberDirectory = data || [];
+  activeMemberDirectoryLoaded = true;
+  return activeMemberDirectory;
 }
 
 function selfReportStatusLabel(value) {
@@ -1173,7 +1194,7 @@ function renderAttendanceRateList(rows) {
   const table = document.createElement("table");
   table.className = "members-records";
   const thead = document.createElement("thead");
-  thead.innerHTML = `<tr><th>${t("members.name")}</th><th>${t("members.attendanceRateSessions")}</th><th>${t("members.attendanceRateColumn")}</th></tr>`;
+  thead.innerHTML = `<tr><th>${t("members.name")}</th><th>${t("members.attendanceRateSessions")}</th><th>${t("members.attendanceRateSelfReport")}</th><th>${t("members.attendanceRateColumn")}</th></tr>`;
   const tbody = document.createElement("tbody");
   [...rows]
     .sort((a, b) => a.member_name.localeCompare(b.member_name, "ko"))
@@ -1184,9 +1205,11 @@ function renderAttendanceRateList(rows) {
       nameTd.textContent = row.member_name;
       const sessionsTd = document.createElement("td");
       sessionsTd.textContent = row.session_count;
+      const selfReportTd = document.createElement("td");
+      selfReportTd.textContent = row.self_report_score ?? 0;
       const rateTd = document.createElement("td");
       rateTd.textContent = `${row.attendance_rate}%`;
-      tr.append(nameTd, sessionsTd, rateTd);
+      tr.append(nameTd, sessionsTd, selfReportTd, rateTd);
       tbody.append(tr);
     });
   table.append(thead, tbody);
@@ -1352,6 +1375,7 @@ function renderSelfReportAdminList(items) {
     const details = document.createElement("dl");
     details.className = "members-admin-detail";
     appendAdminDetail(details, t("members.activityType"), activityTypeLabel(item.activity_type));
+    if (item.activity_type === "3인훈련") appendAdminDetail(details, t("members.selfReportParticipants"), participantNames(item.participant_ids));
 
     const actions = document.createElement("div");
     actions.className = "members-admin-actions";
@@ -1377,13 +1401,14 @@ async function loadSelfReportAdminData() {
   setSelfReportAdminStatus(t("members.adminLoading"));
   const { data, error } = await supabase
     .from("self_reported_activities")
-    .select("id, activity_type, date, status, members!self_reported_activities_member_id_fkey(name)")
+    .select("id, activity_type, participant_ids, date, status, members!self_reported_activities_member_id_fkey(name)")
     .eq("status", "pending")
     .order("date", { ascending: false });
   if (error) {
     setSelfReportAdminStatus(t("members.selfReportAdminLoadFailed", { message: error.message }));
     return;
   }
+  await loadActiveMemberDirectory();
   const items = (data || []).map((item) => ({ ...item, member_name: Array.isArray(item.members) ? item.members[0]?.name : item.members?.name }));
   renderSelfReportAdminList(items);
   setSelfReportAdminStatus();
@@ -1395,10 +1420,7 @@ async function reviewSelfReport(id, action, card) {
   const buttons = card.querySelectorAll("button");
   buttons.forEach((button) => { button.disabled = true; });
   setSelfReportAdminStatus();
-  const { error } = await supabase
-    .from("self_reported_activities")
-    .update({ status: action, approved_by: currentUser.id, approved_at: new Date().toISOString() })
-    .eq("id", id);
+  const { data, error } = await supabase.rpc("approve_self_report", { p_id: id, p_action: action });
   if (error) {
     setSelfReportAdminStatus(t("members.selfReportAdminActionFailed", { message: error.message }));
     buttons.forEach((button) => { button.disabled = false; });
@@ -1406,7 +1428,13 @@ async function reviewSelfReport(id, action, card) {
   }
   card.remove();
   if (!selfReportAdminList.children.length) renderSelfReportAdminList([]);
-  setSelfReportAdminStatus(t("members.adminActionSuccess", { action: actionLabel }));
+  const result = data?.[0];
+  const creditedCount = result?.credited_member_ids?.length || 0;
+  const skippedCount = result?.skipped_member_ids?.length || 0;
+  const details = [];
+  if (action === "approved" && creditedCount) details.push(t("members.selfReportApprovalCredited", { count: creditedCount }));
+  if (action === "approved" && skippedCount) details.push(t("members.selfReportApprovalSkipped", { count: skippedCount }));
+  setSelfReportAdminStatus(`${t(action === "approved" ? "members.selfReportApprovalApproved" : "members.selfReportApprovalRejected")}${details.length ? ` (${details.join(", ")})` : ""}`);
 }
 
 function setPopupAdminStatus(key = "") { popupAdminStatus.textContent = key ? t(key) : ""; popupAdminStatus.hidden = !key; }
@@ -1533,6 +1561,11 @@ function renderMemberAttendanceRate(row) {
     wrapper.textContent = t("members.attendanceRateThisMonth", { rate: row.attendance_rate });
   }
   memberAttendanceRateEl.append(wrapper);
+  if (Number(row?.self_report_score) > 0) {
+    const note = document.createElement("small");
+    note.textContent = t("members.attendanceRateSelfReportNote", { score: row.self_report_score });
+    memberAttendanceRateEl.append(note);
+  }
 }
 
 async function loadMemberAttendanceRate(member) {
@@ -1566,6 +1599,11 @@ function renderSelfReportList(items) {
     badge.textContent = selfReportStatusLabel(item.status);
     heading.append(badge);
     card.append(heading);
+    if (item.activity_type === "3인훈련") {
+      const participants = document.createElement("p");
+      participants.textContent = `${t("members.selfReportParticipants")}: ${participantNames(item.participant_ids)}`;
+      card.append(participants);
+    }
     selfReportListEl.append(card);
   });
 }
@@ -1582,13 +1620,14 @@ async function loadSelfReports(member) {
   renderSelfReportMessage("members.loading");
   const { data, error } = await supabase
     .from("self_reported_activities")
-    .select("id, activity_type, date, status")
+    .select("id, activity_type, participant_ids, date, status")
     .eq("member_id", member.id)
     .order("date", { ascending: false });
   if (error) {
     renderSelfReportMessage("members.selfReportLoadFailed");
     return;
   }
+  await loadActiveMemberDirectory();
   renderSelfReportList(data || []);
 }
 
@@ -1809,6 +1848,53 @@ coachEvaluationForm.addEventListener("submit", async (event) => {
   setCoachStatus(coachEvaluationStatus, "members.evaluationSaved");
 });
 
+function selectedSelfReportParticipantIds() {
+  return Array.from(selfReportParticipantList.querySelectorAll("input[type=checkbox]:checked"), (input) => input.value);
+}
+
+function updateSelfReportParticipantRequirement() {
+  const submitButton = selfReportForm.querySelector("button[type=submit]");
+  submitButton.disabled = selfReportForm.elements.activity_type.value === "3인훈련" && selectedSelfReportParticipantIds().length < 3;
+}
+
+async function renderSelfReportParticipants() {
+  const members = await loadActiveMemberDirectory();
+  selfReportParticipantList.replaceChildren();
+  if (!members || !currentMember) {
+    const message = document.createElement("p");
+    message.textContent = t("members.selfReportParticipantsLoadFailed");
+    selfReportParticipantList.append(message);
+    updateSelfReportParticipantRequirement();
+    return;
+  }
+  members.forEach((member) => {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = "participant_ids";
+    input.value = member.id;
+    input.checked = member.id === currentMember.id;
+    input.disabled = member.id === currentMember.id;
+    input.addEventListener("change", updateSelfReportParticipantRequirement);
+    label.append(input, ` ${member.name}`);
+    selfReportParticipantList.append(label);
+  });
+  updateSelfReportParticipantRequirement();
+}
+
+async function toggleSelfReportParticipants() {
+  const isThreePersonTraining = selfReportForm.elements.activity_type.value === "3인훈련";
+  selfReportParticipantsField.hidden = !isThreePersonTraining;
+  if (isThreePersonTraining) await renderSelfReportParticipants();
+  else {
+    selfReportParticipantList.replaceChildren();
+    updateSelfReportParticipantRequirement();
+  }
+}
+
+selfReportForm.elements.activity_type.addEventListener("change", toggleSelfReportParticipants);
+toggleSelfReportParticipants();
+
 selfReportForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentUser || !currentMember) return;
@@ -1820,16 +1906,25 @@ selfReportForm.addEventListener("submit", async (event) => {
     activity_type: activityType,
     date: formData.get("date")
   };
+  if (activityType === "3인훈련") {
+    const participantIds = selectedSelfReportParticipantIds();
+    if (participantIds.length < 3) {
+      setCoachStatus(selfReportStatus, "members.selfReportParticipantsMinimum");
+      return;
+    }
+    payload.participant_ids = participantIds;
+  }
   const submitButton = selfReportForm.querySelector("button[type=submit]");
   submitButton.disabled = true;
   setCoachStatus(selfReportStatus);
   const { error } = await supabase.from("self_reported_activities").insert(payload);
   submitButton.disabled = false;
   if (error) {
-    setCoachStatus(selfReportStatus, "members.selfReportSaveFailed");
+    setCoachStatus(selfReportStatus, error.code === "23505" ? "members.selfReportDuplicateGroup" : "members.selfReportSaveFailed");
     return;
   }
   selfReportForm.reset();
+  await toggleSelfReportParticipants();
   await loadSelfReports(currentMember);
   setCoachStatus(selfReportStatus, "members.selfReportSaved");
 });
