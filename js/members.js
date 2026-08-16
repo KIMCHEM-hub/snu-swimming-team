@@ -72,6 +72,10 @@ const monthlyPrizeMonthSelect = document.querySelector("[data-monthly-prize-mont
 const monthlyPrizeLoadButton = document.querySelector("[data-monthly-prize-load]");
 const monthlyPrizeConfirmButton = document.querySelector("[data-monthly-prize-confirm]");
 const monthlyPrizeList = document.querySelector("[data-monthly-prize-list]");
+const memberHistorySelect = document.querySelector("[data-member-history-select]");
+const memberHistoryEvaluations = document.querySelector("[data-member-history-evaluations]");
+const memberHistorySelfReports = document.querySelector("[data-member-history-self-reports]");
+const memberHistoryPrizes = document.querySelector("[data-member-history-prizes]");
 const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
@@ -715,7 +719,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); }
+  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); loadMemberHistoryDirectory(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "profile" && currentMember?.role === "admin") checkMfaStatus();
   if (tabName === "training" && currentMember) {
@@ -1232,7 +1236,7 @@ function isCoachOrAdmin() {
 
 // Generalized subtab controller: wires a panel's direct .members-coach-section
 // children into a tablist, keyed by i18n label keys. Used for both the coach
-// panel (3 sections) and the admin panel (6 sections).
+// panel (3 sections) and the admin panel.
 function initSubtabs(panel, tabKeys) {
   const views = panel.querySelectorAll(":scope > .members-coach-section");
   if (views.length < 2) return null;
@@ -1819,6 +1823,110 @@ async function loadPopupAdminData() {
 async function savePopup(values) { const { error } = await supabase.from("popups").update(values).eq("id", values.id); if (error) setPopupAdminStatus("members.popupSaveFailed"); else { await loadPopupAdminData(); setPopupAdminStatus("members.popupSaved"); } }
 async function deletePopup(id) { if (!window.confirm(t("members.delete"))) return; const { error } = await supabase.from("popups").delete().eq("id", id); if (error) setPopupAdminStatus("members.popupDeleteFailed"); else { await loadPopupAdminData(); setPopupAdminStatus("members.popupDeleted"); } }
 
+function renderMemberHistoryMessage(container, key) {
+  container.replaceChildren();
+  const message = document.createElement("p");
+  message.className = "members-records-empty";
+  message.textContent = t(key);
+  container.append(message);
+}
+
+function renderMemberHistoryEvaluations(items) {
+  memberHistoryEvaluations.replaceChildren();
+  if (!items.length) return renderMemberHistoryMessage(memberHistoryEvaluations, "members.memberHistoryEmpty");
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const heading = document.createElement("p");
+    heading.className = "members-admin-requester";
+    const session = Array.isArray(item.training_sessions) ? item.training_sessions[0] : item.training_sessions;
+    heading.textContent = `${session?.date || "—"}${session?.day ? ` · ${session.day}` : ""}`;
+    heading.append(prizeBadge(attendanceTypeLabel(item.attendance_type), "members-status-badge--approved"));
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    appendAdminDetail(details, t("members.trainingComment"), item.comment || "—");
+    card.append(heading, details);
+    memberHistoryEvaluations.append(card);
+  });
+}
+
+function renderMemberHistorySelfReports(items) {
+  memberHistorySelfReports.replaceChildren();
+  if (!items.length) return renderMemberHistoryMessage(memberHistorySelfReports, "members.memberHistoryEmpty");
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const heading = document.createElement("p");
+    heading.className = "members-admin-requester";
+    heading.textContent = `${activityTypeLabel(item.activity_type)} · ${item.date}`;
+    heading.append(prizeBadge(selfReportStatusLabel(item.status), `members-status-badge--${item.status}`));
+    if (item.source_report_id) heading.append(prizeBadge(t("members.memberHistoryAutoCredited"), "members-status-badge--approved"));
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    if (item.activity_type === "3인훈련") appendAdminDetail(details, t("members.selfReportParticipants"), participantNames(item.participant_ids));
+    card.append(heading, details);
+    memberHistorySelfReports.append(card);
+  });
+}
+
+function renderMemberHistoryPrizes(items) {
+  memberHistoryPrizes.replaceChildren();
+  if (!items.length) return renderMemberHistoryMessage(memberHistoryPrizes, "members.memberHistoryEmpty");
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "members-admin-request";
+    const heading = document.createElement("p");
+    heading.className = "members-admin-requester";
+    heading.textContent = item.year_month || "—";
+    const tierLabel = item.tier === "winner" ? t("members.prizeWinnerBadge") : t("members.prizeTierBadge", { tier: item.tier });
+    heading.append(prizeBadge(tierLabel, "members-status-badge--approved"));
+    const details = document.createElement("dl");
+    details.className = "members-admin-detail";
+    appendAdminDetail(details, "SCORE", `${Number(item.score || 0).toFixed(1)}%`);
+    appendAdminDetail(details, t("members.memberHistoryDistributed"), item.distributed ? "✓" : "—");
+    card.append(heading, details);
+    memberHistoryPrizes.append(card);
+  });
+}
+
+async function loadMemberHistoryDirectory() {
+  if (currentMember?.role !== "admin") return;
+  const members = await loadActiveMemberDirectory();
+  const selectedMemberId = memberHistorySelect.value;
+  memberHistorySelect.replaceChildren();
+  appendOption(memberHistorySelect, "", t("members.memberHistorySelect"));
+  (members || []).forEach((member) => appendOption(memberHistorySelect, member.id, member.name));
+  if (selectedMemberId && (members || []).some((member) => member.id === selectedMemberId)) {
+    memberHistorySelect.value = selectedMemberId;
+    await loadMemberHistory(selectedMemberId);
+    return;
+  }
+  renderMemberHistoryMessage(memberHistoryEvaluations, "members.memberHistoryEmpty");
+  renderMemberHistoryMessage(memberHistorySelfReports, "members.memberHistoryEmpty");
+  renderMemberHistoryMessage(memberHistoryPrizes, "members.memberHistoryEmpty");
+}
+
+async function loadMemberHistory(memberId) {
+  if (currentMember?.role !== "admin" || !memberId) return;
+  const [evaluations, selfReports, prizes] = await Promise.all([
+    // referencedTable ordering only sorts rows within the joined table, not the
+    // top-level result order, so this list came back unsorted despite the option
+    // below looking correct — sort client-side instead once the data is in hand.
+    supabase.from("training_evaluations").select("attendance_type, comment, training_sessions!training_evaluations_session_id_fkey(date, day)").eq("member_id", memberId),
+    supabase.from("self_reported_activities").select("activity_type, date, status, participant_ids, source_report_id").eq("member_id", memberId).order("date", { ascending: false }),
+    supabase.from("monthly_prizes").select("year_month, tier, score, distributed").eq("member_id", memberId).order("year_month", { ascending: false })
+  ]);
+  if (evaluations.error) renderMemberHistoryMessage(memberHistoryEvaluations, "members.memberHistoryLoadFailed");
+  else {
+    const items = (evaluations.data || []).slice().sort((a, b) => b.training_sessions.date.localeCompare(a.training_sessions.date));
+    renderMemberHistoryEvaluations(items);
+  }
+  if (selfReports.error) renderMemberHistoryMessage(memberHistorySelfReports, "members.memberHistoryLoadFailed");
+  else renderMemberHistorySelfReports(selfReports.data || []);
+  if (prizes.error) renderMemberHistoryMessage(memberHistoryPrizes, "members.memberHistoryLoadFailed");
+  else renderMemberHistoryPrizes(prizes.data || []);
+}
+
 function showLogin(messageKey = "") {
   currentMember = null;
   currentTeamMember = null;
@@ -2107,6 +2215,7 @@ async function checkSession() {
 }
 
 tabs.forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.memberTab)));
+memberHistorySelect.addEventListener("change", () => loadMemberHistory(memberHistorySelect.value));
 requestOpenButton.addEventListener("click", openRequestModal);
 requestCloseButtons.forEach((button) => button.addEventListener("click", closeRequestModal));
 requestModal.addEventListener("click", (event) => { if (event.target === requestModal) closeRequestModal(); });
@@ -2605,7 +2714,7 @@ initLang();
 applyStaticTranslations();
 initMonthlyPrizeSelectors();
 coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"]);
-adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports", "members.adminTabPrizes"]);
+adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports", "members.adminTabPrizes", "members.adminTabMemberHistory"]);
 monthlyPrizeLoadButton.addEventListener("click", () => loadMonthlyPrizeReview());
 monthlyPrizeConfirmButton.addEventListener("click", async () => {
   if (!monthlyPrizeLoadedYearMonth || monthlyPrizeYearMonth() !== monthlyPrizeLoadedYearMonth) {
@@ -2643,7 +2752,7 @@ window.addEventListener("langchange", () => {
       loadMemberAttendanceRate(currentMember);
       loadSelfReports(currentMember);
     }
-    if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); }
+    if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); loadMemberHistoryDirectory(); }
     if (isCoachOrAdmin() && !coachPanel.hidden) { loadAttendanceRateList(); loadSessionEvaluations(); }
   }
 });
