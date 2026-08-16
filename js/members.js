@@ -59,6 +59,9 @@ const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
 const trainingEvaluationsEl = document.querySelector("[data-member-training-evaluations]");
 const memberAttendanceRateEl = document.querySelector("[data-member-attendance-rate]");
+const recordTrendSelect = document.querySelector("[data-record-trend-select]");
+const recordTrendChart = document.querySelector("[data-record-trend-chart]");
+const recordTrendMessage = document.querySelector("[data-record-trend-message]");
 const selfReportForm = document.querySelector("[data-self-report-form]");
 const selfReportParticipantsField = document.querySelector("[data-self-report-participants]");
 const selfReportParticipantList = document.querySelector("[data-self-report-participant-list]");
@@ -735,6 +738,7 @@ function selectTab(tabName) {
     loadTrainingEvaluations(currentMember);
     loadMemberAttendanceRate(currentMember);
     loadSelfReports(currentMember);
+    loadRecordTrendOptions(currentMember);
   }
 }
 
@@ -2306,6 +2310,171 @@ async function loadSelfReports(member) {
   renderSelfReportList(data || []);
 }
 
+function setRecordTrendMessage(key) {
+  recordTrendMessage.textContent = key ? t(key) : "";
+  recordTrendMessage.hidden = !key;
+}
+
+// option value = "stroke:distance" — stroke is always a plain english token (no
+// colon) and distance is always numeric, so a single split is safe.
+function recordTrendOptionValue(stroke, distance) {
+  return `${stroke}:${distance}`;
+}
+
+async function loadRecordTrendOptions(member) {
+  recordTrendSelect.replaceChildren();
+  recordTrendChart.replaceChildren();
+  setRecordTrendMessage("");
+  const { data, error } = await supabase
+    .from("training_set_times")
+    .select("training_session_details!inner(stroke, distance)")
+    .eq("member_id", member.id);
+  if (error) {
+    setRecordTrendMessage("members.recordTrendLoadFailed");
+    return;
+  }
+  const combos = new Map();
+  (data || []).forEach((row) => {
+    const detail = Array.isArray(row.training_session_details) ? row.training_session_details[0] : row.training_session_details;
+    if (!detail) return;
+    const value = recordTrendOptionValue(detail.stroke, detail.distance);
+    if (!combos.has(value)) combos.set(value, detail);
+  });
+  appendOption(recordTrendSelect, "", t("members.recordTrendSelect"));
+  if (!combos.size) {
+    setRecordTrendMessage("members.recordTrendNoData");
+    return;
+  }
+  combos.forEach((detail, value) => {
+    appendOption(recordTrendSelect, value, `${strokeLabel(detail.stroke)} ${detail.distance}m`);
+  });
+  setRecordTrendMessage("members.recordTrendEmpty");
+}
+
+function handleRecordTrendSelectChange() {
+  const value = recordTrendSelect.value;
+  recordTrendChart.replaceChildren();
+  if (!value) {
+    setRecordTrendMessage("members.recordTrendEmpty");
+    return;
+  }
+  const [stroke, distance] = value.split(":");
+  loadRecordTrend(currentMember, stroke, Number(distance));
+}
+
+async function loadRecordTrend(member, stroke, distance) {
+  recordTrendChart.replaceChildren();
+  setRecordTrendMessage("members.loading");
+  const { data, error } = await supabase
+    .from("training_set_times")
+    .select("time_seconds, training_session_details!inner(stroke, distance, session_id, training_sessions(date))")
+    .eq("member_id", member.id)
+    .eq("training_session_details.stroke", stroke)
+    .eq("training_session_details.distance", distance);
+  if (error) {
+    setRecordTrendMessage("members.recordTrendLoadFailed");
+    return;
+  }
+  // Multiple reps in the same session collapse into one averaged point, keyed by
+  // session_id (not date) so two sessions that happen to share a date never merge.
+  const bySessionId = new Map();
+  (data || []).forEach((row) => {
+    const detail = Array.isArray(row.training_session_details) ? row.training_session_details[0] : row.training_session_details;
+    if (!detail) return;
+    const session = Array.isArray(detail.training_sessions) ? detail.training_sessions[0] : detail.training_sessions;
+    const date = session?.date;
+    if (!date) return;
+    const bucket = bySessionId.get(detail.session_id) || { date, times: [] };
+    bucket.times.push(Number(row.time_seconds));
+    bySessionId.set(detail.session_id, bucket);
+  });
+  const points = [...bySessionId.values()]
+    .map(({ date, times }) => ({ date, avgTime: times.reduce((sum, value) => sum + value, 0) / times.length }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!points.length) {
+    setRecordTrendMessage("members.recordTrendEmpty");
+    return;
+  }
+  setRecordTrendMessage("");
+  renderRecordTrendChart(points);
+}
+
+function renderRecordTrendChart(points) {
+  recordTrendChart.replaceChildren();
+  const svgNS = "http://www.w3.org/2000/svg";
+  const width = 600;
+  const height = 300;
+  const marginLeft = 50;
+  const marginRight = 20;
+  const marginTop = 20;
+  const marginBottom = 40;
+  const chartWidth = width - marginLeft - marginRight;
+  const chartHeight = height - marginTop - marginBottom;
+
+  const times = points.map((point) => point.avgTime);
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  const range = maxTime - minTime || 1; // flat/single-point data still gets a usable scale
+
+  const xForIndex = (index) => (points.length > 1
+    ? marginLeft + (chartWidth * index) / (points.length - 1)
+    : marginLeft + chartWidth / 2);
+  const yForTime = (value) => marginTop + chartHeight * (1 - (value - minTime) / range);
+
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("class", "members-record-trend-chart");
+  svg.setAttribute("role", "img");
+
+  [minTime, maxTime].forEach((value) => {
+    const label = document.createElementNS(svgNS, "text");
+    label.setAttribute("x", String(marginLeft - 8));
+    label.setAttribute("y", String(yForTime(value)));
+    label.setAttribute("text-anchor", "end");
+    label.setAttribute("dominant-baseline", "middle");
+    label.setAttribute("class", "members-record-trend-axis-label");
+    label.setAttribute("font-size", "10");
+    label.setAttribute("fill", "var(--muted)");
+    label.textContent = `${value.toFixed(2)} ${t("members.recordTrendTimeUnit")}`;
+    svg.append(label);
+  });
+
+  points.forEach((point, index) => {
+    const label = document.createElementNS(svgNS, "text");
+    label.setAttribute("x", String(xForIndex(index)));
+    label.setAttribute("y", String(height - marginBottom + 16));
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("class", "members-record-trend-axis-label");
+    label.setAttribute("font-size", "10");
+    label.setAttribute("fill", "var(--muted)");
+    label.textContent = point.date;
+    svg.append(label);
+  });
+
+  if (points.length > 1) {
+    const polyline = document.createElementNS(svgNS, "polyline");
+    polyline.setAttribute("points", points.map((point, index) => `${xForIndex(index)},${yForTime(point.avgTime)}`).join(" "));
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", "var(--snu-blue)");
+    polyline.setAttribute("stroke-width", "2");
+    svg.append(polyline);
+  }
+
+  points.forEach((point, index) => {
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", String(xForIndex(index)));
+    circle.setAttribute("cy", String(yForTime(point.avgTime)));
+    circle.setAttribute("r", "4");
+    circle.setAttribute("fill", "var(--snu-blue)");
+    const title = document.createElementNS(svgNS, "title");
+    title.textContent = `${point.date} · ${point.avgTime.toFixed(2)} ${t("members.recordTrendTimeUnit")}`;
+    circle.append(title);
+    svg.append(circle);
+  });
+
+  recordTrendChart.append(svg);
+}
+
 async function loadRecords(member) {
   recordsEl.innerHTML = `<p class="members-records-empty">${t("members.loading")}</p>`;
   try {
@@ -2436,6 +2605,7 @@ profilePhotoInput.addEventListener("change", () => {
 
 coachSessionSelect.addEventListener("change", () => populateCoachSessionForm(coachSessionSelect.value));
 setTimesSessionSelect.addEventListener("change", () => loadSessionDetailsForTimes(setTimesSessionSelect.value));
+recordTrendSelect.addEventListener("change", () => handleRecordTrendSelectChange());
 coachSessionNewButton.addEventListener("click", resetCoachSessionForm);
 
 SESSION_DETAIL_CATEGORIES.forEach((category) => {
@@ -2961,6 +3131,7 @@ window.addEventListener("langchange", () => {
       loadTrainingEvaluations(currentMember);
       loadMemberAttendanceRate(currentMember);
       loadSelfReports(currentMember);
+      loadRecordTrendOptions(currentMember);
     }
     if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); loadMemberHistoryDirectory(); }
     if (isCoachOrAdmin() && !coachPanel.hidden) { loadAttendanceRateList(); loadSessionEvaluations(); }
