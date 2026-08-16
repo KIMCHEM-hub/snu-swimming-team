@@ -508,3 +508,7 @@ Tier 1(MFA + CAPTCHA) 전체 완료. 다음은 Tier 2(훈련 기록 시스템, �
 Tier 2 절반 완료. 남은 건: 훈련 기록 시스템(rep별 기록 DB→코치UI→부원그래프).
 
 훈련 기록 시스템 — DB 스키마 실행 완료(2026-08-16): training_set_times 테이블(session_detail_id/member_id/rep_number/time_seconds, RLS 5개 정책) Supabase에 실행 완료. 다음 단계: 코치 입력 UI(계획된 세트별 rep당 실측시간 입력) → 부원 그래프 대시보드(본인 종목/거리별 기록 추이, SVG 라인차트 직접 구현 — 사이트가 순수 vanilla JS라 차트 라이브러리 없음).
+
+코치 입력 UI 완료(2026-08-16): 코치 훈련관리 탭에 4번째 서브탭 "실측 기록" 추가. 세션 선택 → 계획된 세트(training_session_details) 카드 목록 → 부원별 "기록 입력" 인라인 폼(sets 개수만큼 rep 입력칸 동적 생성, 기존 기록 프리필) → upsert 저장. 빈 입력칸은 저장 대상에서 제외(기존 값 보존). training_set_times onConflict(session_detail_id,member_id,rep_number) 재사용. 실사용 검증 완료.
+
+다음 단계: 부원 그래프 대시보드(본인 종목/거리별 기록 추이, SVG 라인차트 직접 구현 — 차트 라이브러리 없는 순수 vanilla JS 사이트).
