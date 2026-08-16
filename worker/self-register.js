@@ -1,6 +1,7 @@
 // Cloudflare Worker source for whitelist-gated member self-registration.
 // Deploy manually in Cloudflare as its own Worker (separate from snu-swim-approve-request)
-// and configure this environment variable there: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+// and configure these environment variables there: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+// TURNSTILE_SECRET_KEY.
 // This Worker is intentionally unauthenticated (no Supabase session exists yet at signup
 // time) — that is exactly why it is kept out of approve-request.js, which gates every
 // action behind an admin bearer token at the top of its fetch handler. Keeping this Worker
@@ -93,6 +94,27 @@ function requiredEnv(env, name) {
   const value = env[name];
   if (!value) throw new HttpError(500, "server_error");
   return value;
+}
+
+async function verifyTurnstile(token, ip, env) {
+  if (typeof token !== "string" || !token || token.length > 2048) return false;
+  const form = new URLSearchParams({
+    secret: requiredEnv(env, "TURNSTILE_SECRET_KEY"),
+    response: token
+  });
+  if (ip) form.set("remoteip", ip);
+  try {
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString()
+    });
+    const result = await response.json().catch(() => null);
+    return response.ok && result?.success === true;
+  } catch (error) {
+    console.error("Turnstile verification failed.", error);
+    return false;
+  }
 }
 
 function restHeaders(env) {
@@ -277,6 +299,10 @@ export default {
       const allowed = await checkRateLimit(request, env);
       if (!allowed) return json({ error: "rate_limited" }, 429, corsOrigin);
       const body = await request.json();
+      const turnstileToken = body?.turnstileToken;
+      if (!turnstileToken || !(await verifyTurnstile(turnstileToken, request.headers.get("CF-Connecting-IP"), env))) {
+        throw new HttpError(400, "captcha_failed");
+      }
       const result = await selfRegister(body, env);
       return json(result, 201, corsOrigin);
     } catch (error) {

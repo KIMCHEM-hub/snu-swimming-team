@@ -496,3 +496,7 @@ Tier 5: 크로스 디바이스 반응형 QA → 전체 UI 시각적 위계 개�
 부수적으로 발견한 사이트 전역 버그: `css/style.css`에 `[hidden]` 규칙이 없어서 `.members-button` 등 인라인 display 속성이 hidden 속성을 무시하던 문제 발견. `[hidden]{display:none!important}` 추가로 해결. MFA 버튼뿐 아니라 오늘 만든 다른 모든 hidden 토글 UI(팝업 폼, 조건부 표시 요소 등)에 잠재적으로 영향 있었을 버그라 파급력 있는 수정이었음.
 
 Tier 1 완료 — 남은 건 CAPTCHA.
+
+회원가입 CAPTCHA(Cloudflare Turnstile) 완료(2026-08-16): 위젯을 signup 폼에만 적용(로그인/비밀번호재설정은 제외 — 봇 계정생성 방지가 주목적). Turnstile Spin으로 위젯 생성, Site Key는 `members.html`에 하드코딩(공개값), Secret Key는 self-register Worker 환경변수 `TURNSTILE_SECRET_KEY`로 등록. 서버측 siteverify 검증 포함(`worker/self-register.js` `verifyTurnstile()`). 실사용 검증 완료.
+
+Tier 1(MFA + CAPTCHA) 전체 완료. 다음은 Tier 2(훈련 기록 시스템, 부원별 출결 이력 조회).
