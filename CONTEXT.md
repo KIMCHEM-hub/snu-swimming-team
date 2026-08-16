@@ -502,3 +502,7 @@ Tier 1 완료 — 남은 건 CAPTCHA.
 Tier 1(MFA + CAPTCHA) 전체 완료. 다음은 Tier 2(훈련 기록 시스템, 부원별 출결 이력 조회).
 
 다음 작업: 부원별 이력 조회 화면 — 설계 완료, 프롬프트 작성 완료, 구현 시도했으나 render 함수 3개가 미완성 상태로 중단됨(diff 있지만 커밋 안 함). 다음 세션에서 render 함수 3개 완성 + training_evaluations 정렬 쿼리 버그 (referencedTable 옵션이 세션 내부만 정렬하고 전체 목록 정렬 안 함, 클라이언트 정렬로 대체 필요) 수정부터 시작할 것.
+
+부원별 이력 조회 화면 완료(2026-08-16, Claude Code): render 함수 3개는 이전 세션에서 이미 구현 완료 상태였음(CONTEXT.md의 "미완성" 기록이 stale이었음 — 교훈: 코딩 에이전트 응답 요약과 실제 디스크 파일 상태가 다를 수 있으니 항상 rg/cat으로 재확인할 것). training_evaluations 정렬 쿼리의 referencedTable 옵션이 최상위 결과 정렬에 효과 없던 버그만 수정(클라이언트 sort로 대체). 실데이터 검증 완료: 최신순 정렬/상태뱃지/3인훈련 참여자 이름매핑+fallback/empty-state 확인. 자동반영(source_report_id) 뱃지는 활성 부원 부족으로 실증 못 함(코드 리뷰로만 확인, RPC 스킵 로직은 이전 세션에 SQL로 별도 검증됨).
+
+Tier 2 절반 완료. 남은 건: 훈련 기록 시스템(rep별 기록 DB→코치UI→부원그래프).
