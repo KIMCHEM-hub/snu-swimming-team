@@ -2386,6 +2386,11 @@ signupForm.addEventListener("submit", async (event) => {
     setStatus("members.signupPasswordMismatch");
     return;
   }
+  const turnstileToken = window.turnstile?.getResponse?.();
+  if (!turnstileToken) {
+    setStatus("members.turnstileRequired");
+    return;
+  }
   const submitButton = signupForm.querySelector("button[type=submit]");
   submitButton.disabled = true;
   setStatus("members.signupSubmitting");
@@ -2393,11 +2398,13 @@ signupForm.addEventListener("submit", async (event) => {
     const response = await fetch(SELF_REGISTER_WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name, password })
+      body: JSON.stringify({ email, name, password, turnstileToken })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const errorKey = `members.signupError.${payload.error || "server_error"}`;
+      const errorKey = payload.error === "captcha_failed"
+        ? "members.signupCaptchaFailed"
+        : `members.signupError.${payload.error || "server_error"}`;
       setStatus(t(errorKey) === errorKey ? "members.signupError.server_error" : errorKey);
       return;
     }
@@ -2409,6 +2416,7 @@ signupForm.addEventListener("submit", async (event) => {
     setStatus("members.signupError.server_error");
   } finally {
     submitButton.disabled = false;
+    window.turnstile?.reset?.();
   }
 });
 
