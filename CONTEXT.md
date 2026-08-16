@@ -490,3 +490,9 @@ Tier 5: 크로스 디바이스 반응형 QA → 전체 UI 시각적 위계 개�
 백로그: Worker cron(필요성 낮음)
 
 **다음 작업은 Tier 1의 MFA다.**
+
+관리자 MFA(TOTP) 완료(2026-08-16): `auth.mfa` API 기반 등록(QR+검증)/로그인 챌린지(AAL 체크 후 코드 입력). 관리자 role에만 노출, 강제는 아니고 등록 시 자동 적용되는 방식. 실사용 검증 완료(등록→로그아웃→재로그인→챌린지→대시보드 진입까지 실제 확인).
+
+부수적으로 발견한 사이트 전역 버그: `css/style.css`에 `[hidden]` 규칙이 없어서 `.members-button` 등 인라인 display 속성이 hidden 속성을 무시하던 문제 발견. `[hidden]{display:none!important}` 추가로 해결. MFA 버튼뿐 아니라 오늘 만든 다른 모든 hidden 토글 UI(팝업 폼, 조건부 표시 요소 등)에 잠재적으로 영향 있었을 버그라 파급력 있는 수정이었음.
+
+Tier 1 완료 — 남은 건 CAPTCHA.

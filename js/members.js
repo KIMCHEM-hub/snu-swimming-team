@@ -11,6 +11,7 @@ const loginView = document.querySelector("[data-login-view]");
 const passwordResetRequestView = document.querySelector("[data-password-reset-request-view]");
 const passwordResetView = document.querySelector("[data-password-reset-view]");
 const invitePasswordView = document.querySelector("[data-invite-password-view]");
+const mfaChallengeView = document.querySelector("[data-mfa-challenge-view]");
 const signupView = document.querySelector("[data-signup-view]");
 const dashboardView = document.querySelector("[data-profile-view]");
 const loginForm = document.querySelector("[data-login-form]");
@@ -22,6 +23,8 @@ const passwordResetCancelButton = document.querySelector("[data-password-reset-c
 const passwordResetRequestForm = document.querySelector("[data-password-reset-request-form]");
 const passwordResetForm = document.querySelector("[data-password-reset-form]");
 const invitePasswordForm = document.querySelector("[data-invite-password-form]");
+const mfaChallengeForm = document.querySelector("[data-mfa-challenge-form]");
+const mfaCancelButton = document.querySelector("[data-mfa-cancel]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const sessionWarning = document.querySelector("[data-session-warning]");
 const sessionRemaining = document.querySelector("[data-session-remaining]");
@@ -45,6 +48,12 @@ const requestOpenButton = document.querySelector("[data-edit-request-open]");
 const requestCloseButtons = document.querySelectorAll("[data-edit-request-close]");
 const profilePhotoInput = document.querySelector("[data-profile-photo-input]");
 const profilePhotoPreview = document.querySelector("[data-profile-photo-preview]");
+const mfaSection = document.querySelector("[data-mfa-section]");
+const mfaStatus = document.querySelector("[data-mfa-status]");
+const mfaMessage = document.querySelector("[data-mfa-message]");
+const mfaEnrollButton = document.querySelector("[data-mfa-enroll-button]");
+const mfaQrContainer = document.querySelector("[data-mfa-qr-container]");
+const mfaVerifyForm = document.querySelector("[data-mfa-verify-form]");
 const tabs = document.querySelectorAll("[data-member-tab]");
 const panels = document.querySelectorAll("[data-member-panel]");
 const recordsEl = document.querySelector("[data-member-records]");
@@ -201,6 +210,7 @@ const resetCallbackError = ["error", "error_code"].some((key) => {
 });
 let resetSessionReady = false;
 let invitePasswordReady = false;
+let pendingMfaFactorId = "";
 let pendingRequestCount = 0;
 let profilePhotoUrl = "";
 let profilePhotoUploading = false;
@@ -593,6 +603,7 @@ function showPasswordResetRequest() {
   passwordResetRequestView.hidden = false;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = true;
   setStatus();
 }
@@ -603,6 +614,7 @@ function showPasswordReset(messageKey = "") {
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = false;
   invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = true;
   passwordResetForm.hidden = !resetSessionReady;
   setStatus(messageKey);
@@ -614,6 +626,7 @@ function showSignup() {
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = true;
   setStatus();
 }
@@ -643,8 +656,58 @@ function showInvitePassword() {
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = false;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = true;
   setStatus();
+}
+
+function setMfaMessage(key = "") {
+  mfaMessage.textContent = key ? t(key) : "";
+  mfaMessage.hidden = !key;
+}
+
+function resetMfaEnrollment() {
+  pendingMfaFactorId = "";
+  mfaQrContainer.replaceChildren();
+  mfaQrContainer.hidden = true;
+  mfaVerifyForm.hidden = true;
+  mfaVerifyForm.reset();
+}
+
+async function checkMfaStatus() {
+  if (currentMember?.role !== "admin") return;
+  mfaSection.hidden = false;
+  setMfaMessage();
+  const { data, error } = await supabase.auth.mfa.listFactors();
+  const enrolled = !error && Boolean(data?.totp?.some((factor) => factor.status === "verified"));
+  mfaStatus.textContent = t(enrolled ? "members.mfaStatus.enrolled" : "members.mfaStatus.notEnrolled");
+  mfaEnrollButton.hidden = enrolled;
+  if (enrolled) resetMfaEnrollment();
+}
+
+async function mfaChallengeRequired() {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return !error && data?.currentLevel === "aal1" && data?.nextLevel === "aal2";
+}
+
+function showMfaChallenge() {
+  loginView.hidden = true;
+  signupView.hidden = true;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = true;
+  invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = false;
+  dashboardView.hidden = true;
+  mfaChallengeForm.reset();
+  setStatus();
+}
+
+async function showAuthenticatedDashboard(user, resetSession = false) {
+  if (await mfaChallengeRequired()) {
+    showMfaChallenge();
+    return;
+  }
+  await showDashboard(user, resetSession);
 }
 
 function selectTab(tabName) {
@@ -654,6 +717,7 @@ function selectTab(tabName) {
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
   if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); }
   if (tabName === "coach") loadCoachData();
+  if (tabName === "profile" && currentMember?.role === "admin") checkMfaStatus();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
     loadMemberAttendanceRate(currentMember);
@@ -1771,7 +1835,10 @@ function showLogin(messageKey = "") {
   passwordResetRequestView.hidden = true;
   passwordResetView.hidden = true;
   invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = true;
+  mfaSection.hidden = true;
+  resetMfaEnrollment();
   selectTab("profile");
   setStatus(messageKey);
 }
@@ -1960,11 +2027,17 @@ async function loadTeamProfile(member) {
   }
 }
 
-async function showDashboard(user) {
-  startSessionTimer(user);
+async function showDashboard(user, resetSession = false) {
+  startSessionTimer(user, resetSession);
   loginView.hidden = true;
   signupView.hidden = true;
+  passwordResetRequestView.hidden = true;
+  passwordResetView.hidden = true;
+  invitePasswordView.hidden = true;
+  mfaChallengeView.hidden = true;
   dashboardView.hidden = false;
+  mfaSection.hidden = true;
+  resetMfaEnrollment();
   selectTab("profile");
   emailEl.textContent = user.email || "";
   nameEl.textContent = t("members.loading");
@@ -2012,7 +2085,7 @@ async function showDashboard(user) {
   nameEl.textContent = member.name || "—";
   studentIdEl.textContent = member.student_id || "—";
   contactEl.textContent = member.contact || "—";
-  await Promise.all([loadRecords(member), loadTeamProfile(member), loadPendingRequests()]);
+  await Promise.all([loadRecords(member), loadTeamProfile(member), loadPendingRequests(), member.role === "admin" ? checkMfaStatus() : Promise.resolve()]);
 }
 
 async function checkSession() {
@@ -2029,7 +2102,7 @@ async function checkSession() {
     showInvitePassword();
     return;
   }
-  if (currentUser) await showDashboard(currentUser);
+  if (currentUser) await showAuthenticatedDashboard(currentUser);
   else showLogin();
 }
 
@@ -2402,6 +2475,76 @@ invitePasswordForm.addEventListener("submit", async (event) => {
   await showDashboard(currentUser);
 });
 
+mfaEnrollButton.addEventListener("click", async () => {
+  if (currentMember?.role !== "admin") return;
+  mfaEnrollButton.disabled = true;
+  setMfaMessage();
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+  mfaEnrollButton.disabled = false;
+  if (error || !data?.id || !data?.totp?.qr_code) {
+    setMfaMessage("members.mfaEnrollFailed");
+    return;
+  }
+  pendingMfaFactorId = data.id;
+  const qrImage = document.createElement("img");
+  qrImage.className = "members-photo-preview";
+  qrImage.src = data.totp.qr_code;
+  qrImage.alt = "";
+  mfaQrContainer.replaceChildren(qrImage);
+  mfaQrContainer.hidden = false;
+  mfaVerifyForm.hidden = false;
+});
+
+mfaVerifyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = new FormData(mfaVerifyForm).get("code")?.trim();
+  if (!pendingMfaFactorId || !/^\d{6}$/.test(code)) {
+    setMfaMessage("members.mfaEnrollFailed");
+    return;
+  }
+  const submitButton = mfaVerifyForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  setMfaMessage();
+  const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: pendingMfaFactorId });
+  const { error } = challengeError ? { error: challengeError } : await supabase.auth.mfa.verify({ factorId: pendingMfaFactorId, challengeId: challenge.id, code });
+  submitButton.disabled = false;
+  if (error) {
+    setMfaMessage("members.mfaEnrollFailed");
+    return;
+  }
+  await checkMfaStatus();
+  setMfaMessage("members.mfaEnrollSuccess");
+});
+
+mfaChallengeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = new FormData(mfaChallengeForm).get("code")?.trim();
+  if (!/^\d{6}$/.test(code)) {
+    setStatus("members.mfaChallengeFailed");
+    return;
+  }
+  const submitButton = mfaChallengeForm.querySelector("button[type=submit]");
+  submitButton.disabled = true;
+  const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+  const factor = factors?.totp?.find((entry) => entry.status === "verified");
+  const { data: challenge, error: challengeError } = factorsError || !factor
+    ? { error: factorsError || new Error("No verified TOTP factor.") }
+    : await supabase.auth.mfa.challenge({ factorId: factor.id });
+  const { error } = challengeError ? { error: challengeError } : await supabase.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.id, code });
+  submitButton.disabled = false;
+  if (error) {
+    setStatus("members.mfaChallengeFailed");
+    return;
+  }
+  await showDashboard(currentUser, true);
+});
+
+mfaCancelButton.addEventListener("click", async () => {
+  stopSessionTimer();
+  await supabase.auth.signOut();
+  showLogin();
+});
+
 logoutButton.addEventListener("click", async () => {
   logoutButton.disabled = true;
   stopSessionTimer();
@@ -2420,7 +2563,7 @@ sessionExtendButton.addEventListener("click", () => {
   if (currentUser) startSessionTimer(currentUser, true);
 });
 
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
   currentUser = session?.user || null;
   if (isPasswordResetRoute) {
     if (resetCallbackError) {
@@ -2443,8 +2586,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     return;
   }
   if (currentUser) {
-    startSessionTimer(currentUser, event === "SIGNED_IN");
-    showDashboard(currentUser);
+    await showAuthenticatedDashboard(currentUser, event === "SIGNED_IN");
   } else {
     stopSessionTimer();
     showLogin();
@@ -2485,6 +2627,7 @@ window.addEventListener("langchange", () => {
   adminSubtabs?.render();
   setStatus(statusKey);
   if (currentMember) {
+    if (currentMember.role === "admin" && !document.querySelector('[data-member-panel="profile"]').hidden) checkMfaStatus();
     loadRecords(currentMember);
     loadPendingRequests();
     if (!document.querySelector('[data-member-panel="training"]').hidden) {
