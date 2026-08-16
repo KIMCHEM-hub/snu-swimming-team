@@ -57,6 +57,12 @@ const selfReportStatus = document.querySelector("[data-self-report-status]");
 const selfReportListEl = document.querySelector("[data-self-report-list]");
 const selfReportAdminStatus = document.querySelector("[data-self-report-admin-status]");
 const selfReportAdminList = document.querySelector("[data-self-report-admin-list]");
+const monthlyPrizeStatus = document.querySelector("[data-monthly-prize-status]");
+const monthlyPrizeYearSelect = document.querySelector("[data-monthly-prize-year]");
+const monthlyPrizeMonthSelect = document.querySelector("[data-monthly-prize-month]");
+const monthlyPrizeLoadButton = document.querySelector("[data-monthly-prize-load]");
+const monthlyPrizeConfirmButton = document.querySelector("[data-monthly-prize-confirm]");
+const monthlyPrizeList = document.querySelector("[data-monthly-prize-list]");
 const adminTab = document.querySelector("[data-admin-tab]");
 const adminPanel = document.querySelector('[data-member-panel="admin"]');
 const adminStatus = document.querySelector("[data-admin-status]");
@@ -178,6 +184,8 @@ const coachAttendanceStatus = document.querySelector("[data-coach-attendance-sta
 const coachAttendanceListEl = document.querySelector("[data-coach-attendance-list]");
 let coachSubtabs = null;
 let adminSubtabs = null;
+let monthlyPrizeRows = [];
+let monthlyPrizeLoadedYearMonth = "";
 const APPROVE_REQUEST_WORKER_URL = "https://snu-swim-approve-request.chemi-kim1701.workers.dev";
 const SELF_REGISTER_WORKER_URL = "https://snu-swim-self-register.chemi-kim1701.workers.dev";
 let currentUser = null;
@@ -259,6 +267,148 @@ function selfReportStatusLabel(value) {
 function currentYearMonth() {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function previousYearMonth() {
+  const { year, month } = currentYearMonth();
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+}
+
+function monthlyPrizeYearMonth() {
+  return `${monthlyPrizeYearSelect.value}-${String(monthlyPrizeMonthSelect.value).padStart(2, "0")}-01`;
+}
+
+function initMonthlyPrizeSelectors() {
+  const { year, month } = previousYearMonth();
+  [year - 1, year, year + 1].forEach((value) => appendOption(monthlyPrizeYearSelect, String(value), String(value)));
+  Array.from({ length: 12 }, (_, index) => index + 1)
+    .forEach((value) => appendOption(monthlyPrizeMonthSelect, String(value), String(value)));
+  monthlyPrizeYearSelect.value = String(year);
+  monthlyPrizeMonthSelect.value = String(month);
+}
+
+function monthlyPrizeTier(rate) {
+  if (rate >= 120) return "120";
+  if (rate >= 100) return "100";
+  if (rate >= 80) return "80";
+  return null;
+}
+
+function prizeBadge(text, modifier = "") {
+  const badge = document.createElement("span");
+  badge.className = `members-status-badge ${modifier}`.trim();
+  badge.textContent = text;
+  return badge;
+}
+
+function createMonthlyPrizeCancelButton(memberId, tier) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "members-edit-button";
+  button.textContent = t("members.prizeCancelButton");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    const { error } = await supabase
+      .from("monthly_prizes")
+      .delete()
+      .eq("member_id", memberId)
+      .eq("year_month", monthlyPrizeLoadedYearMonth)
+      .eq("tier", tier);
+    if (error) {
+      button.disabled = false;
+      setCoachStatus(monthlyPrizeStatus, "members.prizeConfirmFailed");
+      return;
+    }
+    await loadMonthlyPrizeReview();
+  });
+  return button;
+}
+
+function renderMonthlyPrizeTable(rows) {
+  monthlyPrizeList.replaceChildren();
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "members-records-empty";
+    empty.textContent = t("members.attendanceRateEmpty");
+    monthlyPrizeList.append(empty);
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "members-records";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr><th>${t("members.name")}</th><th>${t("members.attendanceRateSessions")}</th><th>${t("members.attendanceRateSelfReport")}</th><th>${t("members.attendanceRateColumn")}</th><th>${t("members.prizeTierColumn")}</th><th>${t("members.prizeWinnerColumn")}</th></tr>`;
+  const tbody = document.createElement("tbody");
+
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    const tierCell = document.createElement("td");
+    const winnerCell = document.createElement("td");
+    const confirmedTiers = row.confirmedTiers || new Set();
+
+    [row.member_name, row.session_count, row.self_report_score ?? 0, `${row.attendance_rate}%`].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      tr.append(cell);
+    });
+
+    tierCell.append(prizeBadge(
+      row.tier ? t("members.prizeTierBadge", { tier: row.tier }) : t("members.prizeTierNone"),
+      row.tier ? "members-status-badge--approved" : "members-status-badge--pending"
+    ));
+    if (row.tier && confirmedTiers.has(row.tier)) {
+      tierCell.append(
+        prizeBadge(t("members.prizeConfirmedBadge"), "members-status-badge--approved"),
+        createMonthlyPrizeCancelButton(row.member_id, row.tier)
+      );
+    }
+
+    if (row.isWinner) winnerCell.append(prizeBadge(t("members.prizeWinnerBadge"), "members-status-badge--approved"));
+    if (confirmedTiers.has("winner")) {
+      winnerCell.append(
+        prizeBadge(t("members.prizeConfirmedBadge"), "members-status-badge--approved"),
+        createMonthlyPrizeCancelButton(row.member_id, "winner")
+      );
+    }
+
+    tr.append(tierCell, winnerCell);
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  monthlyPrizeList.append(table);
+}
+
+async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value), month = Number(monthlyPrizeMonthSelect.value)) {
+  if (currentMember?.role !== "admin") return;
+  setCoachStatus(monthlyPrizeStatus);
+  const yearMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+  const [{ data: rates, error: ratesError }, { data: prizes, error: prizesError }] = await Promise.all([
+    supabase.rpc("monthly_attendance_rates", { p_year: year, p_month: month }),
+    supabase.from("monthly_prizes").select("member_id, tier").eq("year_month", yearMonth)
+  ]);
+  if (ratesError || prizesError) {
+    setCoachStatus(monthlyPrizeStatus, "members.prizeLoadFailed");
+    return;
+  }
+
+  monthlyPrizeLoadedYearMonth = yearMonth;
+  const highestRate = (rates || []).reduce((highest, row) => Math.max(highest, Number(row.attendance_rate)), -Infinity);
+  const confirmedByMember = (prizes || []).reduce((map, prize) => {
+    if (!map.has(prize.member_id)) map.set(prize.member_id, new Set());
+    map.get(prize.member_id).add(prize.tier);
+    return map;
+  }, new Map());
+  monthlyPrizeRows = (rates || []).map((row) => {
+    const attendanceRate = Number(row.attendance_rate);
+    return {
+      ...row,
+      attendance_rate: attendanceRate,
+      tier: monthlyPrizeTier(attendanceRate),
+      isWinner: attendanceRate === highestRate,
+      confirmedTiers: confirmedByMember.get(row.member_id) || new Set()
+    };
+  });
+  renderMonthlyPrizeTable(monthlyPrizeRows);
 }
 
 function setStatus(key = "") {
@@ -388,7 +538,7 @@ function selectTab(tabName) {
   if (tabName === "coach" && !["coach", "admin"].includes(currentMember?.role)) return;
   tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.memberTab === tabName));
   panels.forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== tabName; });
-  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); }
+  if (tabName === "admin") { loadAdminRequests(); loadAdminMemberDirectory(); loadAdminCreateTeamProfiles(); loadAdminWhitelist(); loadLegacyPhotoEntries(); loadPopupAdminData(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); }
   if (tabName === "coach") loadCoachData();
   if (tabName === "training" && currentMember) {
     loadTrainingEvaluations(currentMember);
@@ -2186,8 +2336,32 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 initLang();
 applyStaticTranslations();
+initMonthlyPrizeSelectors();
 coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance"]);
-adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports"]);
+adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports", "members.adminTabPrizes"]);
+monthlyPrizeLoadButton.addEventListener("click", () => loadMonthlyPrizeReview());
+monthlyPrizeConfirmButton.addEventListener("click", async () => {
+  if (!monthlyPrizeLoadedYearMonth || monthlyPrizeYearMonth() !== monthlyPrizeLoadedYearMonth) {
+    setCoachStatus(monthlyPrizeStatus, "members.prizeStaleData");
+    return;
+  }
+  const rowsToConfirm = monthlyPrizeRows.flatMap((row) => {
+    const records = [];
+    if (row.tier) records.push({ member_id: row.member_id, year_month: monthlyPrizeLoadedYearMonth, tier: row.tier, score: row.attendance_rate });
+    if (row.isWinner) records.push({ member_id: row.member_id, year_month: monthlyPrizeLoadedYearMonth, tier: "winner", score: row.attendance_rate });
+    return records;
+  });
+  if (!rowsToConfirm.length) return;
+  monthlyPrizeConfirmButton.disabled = true;
+  const { error } = await supabase.from("monthly_prizes").upsert(rowsToConfirm, { onConflict: "member_id,year_month,tier" });
+  monthlyPrizeConfirmButton.disabled = false;
+  if (error) {
+    setCoachStatus(monthlyPrizeStatus, "members.prizeConfirmFailed");
+    return;
+  }
+  setCoachStatus(monthlyPrizeStatus, "members.prizeConfirmed");
+  await loadMonthlyPrizeReview();
+});
 window.addEventListener("langchange", () => {
   applyStaticTranslations();
   coachSubtabs?.render();
@@ -2201,7 +2375,7 @@ window.addEventListener("langchange", () => {
       loadMemberAttendanceRate(currentMember);
       loadSelfReports(currentMember);
     }
-    if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); }
+    if (currentMember.role === "admin" && !adminPanel.hidden) { loadAdminRequests(); loadSelfReportAdminData(); loadMonthlyPrizeReview(); }
     if (isCoachOrAdmin() && !coachPanel.hidden) { loadAttendanceRateList(); loadSessionEvaluations(); }
   }
 });
