@@ -324,6 +324,93 @@ function createMonthlyPrizeCancelButton(memberId, tier) {
   return button;
 }
 
+function renderMonthlyPrizePopupForm(row, anchorRow) {
+  const existingFormRow = anchorRow.parentElement.querySelector(`[data-monthly-prize-popup-form="${row.member_id}"]`);
+  if (existingFormRow) {
+    existingFormRow.remove();
+    return;
+  }
+
+  const formRow = document.createElement("tr");
+  formRow.dataset.monthlyPrizePopupForm = row.member_id;
+  const cell = document.createElement("td");
+  cell.colSpan = 6;
+  const form = document.createElement("form");
+  form.className = "members-coach-form";
+
+  const bodyLabel = document.createElement("label");
+  bodyLabel.className = "members-label";
+  const bodyLabelText = document.createElement("span");
+  bodyLabelText.textContent = t("members.prizePopupBody");
+  const bodyInput = document.createElement("textarea");
+  bodyInput.className = "members-input members-textarea";
+  bodyInput.name = "body";
+  bodyInput.required = true;
+  bodyLabel.append(bodyLabelText, bodyInput);
+
+  const dateGrid = document.createElement("div");
+  dateGrid.className = "members-coach-grid";
+  [
+    ["starts_at", "members.prizePopupStartsAt"],
+    ["ends_at", "members.prizePopupEndsAt"]
+  ].forEach(([name, key]) => {
+    const label = document.createElement("label");
+    label.className = "members-label";
+    const labelText = document.createElement("span");
+    labelText.textContent = t(key);
+    const input = document.createElement("input");
+    input.className = "members-input";
+    input.name = name;
+    input.type = "date";
+    input.required = true;
+    label.append(labelText, input);
+    dateGrid.append(label);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "members-coach-actions";
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "members-button members-button--secondary";
+  cancelButton.textContent = t("members.prizePopupCancel");
+  cancelButton.addEventListener("click", () => formRow.remove());
+  const saveButton = document.createElement("button");
+  saveButton.type = "submit";
+  saveButton.className = "members-button";
+  saveButton.textContent = t("members.prizePopupSave");
+  actions.append(cancelButton, saveButton);
+
+  form.append(bodyLabel, dateGrid, actions);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    saveButton.disabled = true;
+    const values = new FormData(form);
+    const { error } = await supabase.from("popups").insert({
+      type: "attendance_winner",
+      member_id: row.member_id,
+      title: row.member_name,
+      body: sanitizeInput(values.get("body")),
+      starts_at: values.get("starts_at"),
+      ends_at: values.get("ends_at"),
+      created_by: currentUser.id
+    });
+    saveButton.disabled = false;
+    if (error) {
+      setCoachStatus(monthlyPrizeStatus, "members.prizePopupSaveFailed");
+      return;
+    }
+    row.hasPopup = true;
+    formRow.remove();
+    renderMonthlyPrizeTable(monthlyPrizeRows);
+    await loadPopupAdminData();
+    setCoachStatus(monthlyPrizeStatus, "members.prizePopupSaved");
+  });
+
+  cell.append(form);
+  formRow.append(cell);
+  anchorRow.after(formRow);
+}
+
 function renderMonthlyPrizeTable(rows) {
   monthlyPrizeList.replaceChildren();
   if (!rows.length) {
@@ -363,7 +450,19 @@ function renderMonthlyPrizeTable(rows) {
       );
     }
 
-    if (row.isWinner) winnerCell.append(prizeBadge(t("members.prizeWinnerBadge"), "members-status-badge--approved"));
+    const canCreatePopup = row.isWinner || ["100", "120"].includes(row.tier);
+    if (row.isWinner) {
+      winnerCell.append(prizeBadge(t("members.prizeWinnerBadge"), "members-status-badge--approved"));
+    }
+    if (canCreatePopup) {
+      const popupButton = document.createElement("button");
+      popupButton.type = "button";
+      popupButton.className = "members-edit-button";
+      popupButton.textContent = t(row.hasPopup ? "members.prizePopupExists" : "members.prizePopupCreate");
+      popupButton.disabled = row.hasPopup;
+      if (!row.hasPopup) popupButton.addEventListener("click", () => renderMonthlyPrizePopupForm(row, tr));
+      winnerCell.append(popupButton);
+    }
     if (confirmedTiers.has("winner")) {
       winnerCell.append(
         prizeBadge(t("members.prizeConfirmedBadge"), "members-status-badge--approved"),
@@ -382,11 +481,22 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
   if (currentMember?.role !== "admin") return;
   setCoachStatus(monthlyPrizeStatus);
   const yearMonth = `${year}-${String(month).padStart(2, "0")}-01`;
-  const [{ data: rates, error: ratesError }, { data: prizes, error: prizesError }] = await Promise.all([
+  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  const [
+    { data: rates, error: ratesError },
+    { data: prizes, error: prizesError },
+    { data: winnerPopups, error: winnerPopupsError }
+  ] = await Promise.all([
     supabase.rpc("monthly_attendance_rates", { p_year: year, p_month: month }),
-    supabase.from("monthly_prizes").select("member_id, tier").eq("year_month", yearMonth)
+    supabase.from("monthly_prizes").select("member_id, tier").eq("year_month", yearMonth),
+    supabase
+      .from("popups")
+      .select("type, member_id")
+      .eq("type", "attendance_winner")
+      .lte("starts_at", monthEnd)
+      .gte("ends_at", yearMonth)
   ]);
-  if (ratesError || prizesError) {
+  if (ratesError || prizesError || winnerPopupsError) {
     setCoachStatus(monthlyPrizeStatus, "members.prizeLoadFailed");
     return;
   }
@@ -405,7 +515,8 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
       attendance_rate: attendanceRate,
       tier: monthlyPrizeTier(attendanceRate),
       isWinner: attendanceRate === highestRate,
-      confirmedTiers: confirmedByMember.get(row.member_id) || new Set()
+      confirmedTiers: confirmedByMember.get(row.member_id) || new Set(),
+      hasPopup: (winnerPopups || []).some((popup) => popup.member_id === row.member_id)
     };
   });
   renderMonthlyPrizeTable(monthlyPrizeRows);
