@@ -500,3 +500,5 @@ Tier 1 완료 — 남은 건 CAPTCHA.
 회원가입 CAPTCHA(Cloudflare Turnstile) 완료(2026-08-16): 위젯을 signup 폼에만 적용(로그인/비밀번호재설정은 제외 — 봇 계정생성 방지가 주목적). Turnstile Spin으로 위젯 생성, Site Key는 `members.html`에 하드코딩(공개값), Secret Key는 self-register Worker 환경변수 `TURNSTILE_SECRET_KEY`로 등록. 서버측 siteverify 검증 포함(`worker/self-register.js` `verifyTurnstile()`). 실사용 검증 완료.
 
 Tier 1(MFA + CAPTCHA) 전체 완료. 다음은 Tier 2(훈련 기록 시스템, 부원별 출결 이력 조회).
+
+다음 작업: 부원별 이력 조회 화면 — 설계 완료, 프롬프트 작성 완료, 구현 시도했으나 render 함수 3개가 미완성 상태로 중단됨(diff 있지만 커밋 안 함). 다음 세션에서 render 함수 3개 완성 + training_evaluations 정렬 쿼리 버그 (referencedTable 옵션이 세션 내부만 정렬하고 전체 목록 정렬 안 함, 클라이언트 정렬로 대체 필요) 수정부터 시작할 것.
