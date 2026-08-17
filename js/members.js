@@ -865,7 +865,7 @@ function renderAdminMemberDirectory(members) {
     const name = document.createElement("p");
     name.className = "members-status-name";
     name.textContent = member.name || "—";
-    const currentStatus = member.status === "OB" ? "OB" : "active";
+    const currentStatus = member.status === "ob" ? "ob" : "active";
     const statusText = document.createElement("span");
     statusText.className = "members-status-value";
     statusText.textContent = currentStatus;
@@ -874,17 +874,17 @@ function renderAdminMemberDirectory(members) {
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
     toggle.setAttribute("role", "switch");
-    toggle.checked = currentStatus === "OB";
+    toggle.checked = currentStatus === "ob";
     toggle.setAttribute("aria-label", `${member.name || "Member"}: ${currentStatus}`);
     toggle.setAttribute("aria-describedby", `member-status-${member.id}`);
     statusText.id = `member-status-${member.id}`;
     toggle.addEventListener("change", async () => {
       const previousStatus = currentStatus;
-      const nextStatus = toggle.checked ? "OB" : "active";
+      const nextStatus = toggle.checked ? "ob" : "active";
       toggle.disabled = true;
       const saved = await setMemberStatus(member.id, nextStatus);
       if (!saved) {
-        toggle.checked = previousStatus === "OB";
+        toggle.checked = previousStatus === "ob";
         statusText.textContent = previousStatus;
       }
     });
@@ -1077,7 +1077,7 @@ adminWhitelistForm.addEventListener("submit", async (event) => {
 });
 
 async function setMemberStatus(memberId, nextStatus) {
-  if (currentMember?.role !== "admin" || !["active", "OB"].includes(nextStatus)) return;
+  if (currentMember?.role !== "admin" || !["active", "ob"].includes(nextStatus)) return;
   setAdminMemberStatus("Saving member status…");
   try {
     const { data: { session } } = await supabase.auth.getSession();

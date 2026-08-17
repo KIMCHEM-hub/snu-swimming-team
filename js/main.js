@@ -864,7 +864,7 @@ if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow acce
 // content reload) preserves whatever tab the user is currently looking at instead of
 // snapping back to the defaults.
 let activeTeamTab = "leadership";
-let memberStatusFilter = "active"; // "active" | "OB" — MEMBERS sub-filter, defaults to 재적부원
+let memberStatusFilter = "active"; // "active" | "ob" — MEMBERS sub-filter, defaults to 재적부원
 // escapeHtml(value) — HTML-entity-escapes a string right before it's interpolated into an
 // innerHTML template. This is the actual XSS boundary for the TEAM cards below: bio/sns/
 // department/photo can originate from a member's self-submitted profile edit request
@@ -897,8 +897,8 @@ function memberCardHtml(member) {
   const year = escapeHtml(pick(member, "year"));
   const bio = escapeHtml(pick(member, "bio"));
   const sns = escapeHtml(pick(member, "sns"));
-  const status = member.status === "OB" ? "OB" : "active";
-  const statusLabel = status === "OB" ? t("team.statusOB") : t("team.statusActive");
+  const status = member.status === "ob" ? "ob" : "active";
+  const statusLabel = status === "ob" ? t("team.statusOb") : t("team.statusActive");
   const photoAlt = escapeHtml(t("team.profilePhotoAlt", { name: pick(member, "name") }));
   const photoHtml = photo
     ? `<div class="member-photo has-photo"><img src="${escapeHtml(assetPath(photo))}" alt="${photoAlt}" loading="lazy"></div>`
@@ -912,10 +912,10 @@ function memberCardHtml(member) {
 // instead of rebuilding the whole #team shell — that would also reset the outer
 // LEADERSHIP/MEMBERS/LEGACY tab back to its default.
 function memberStatusTabsHtml() {
-  return `<div class="filter-bar member-status-tabs" role="tablist"><button class="${memberStatusFilter === "active" ? "is-active" : ""}" data-member-status-tab="active">${t("team.statusActive")}</button><button class="${memberStatusFilter === "OB" ? "is-active" : ""}" data-member-status-tab="OB">${t("team.statusOB")}</button></div>`;
+  return `<div class="filter-bar member-status-tabs" role="tablist"><button class="${memberStatusFilter === "active" ? "is-active" : ""}" data-member-status-tab="active">${t("team.statusActive")}</button><button class="${memberStatusFilter === "ob" ? "is-active" : ""}" data-member-status-tab="ob">${t("team.statusOb")}</button></div>`;
 }
 function memberCardsHtml(members, membersNote) {
-  const filtered = (members || []).filter((member) => (memberStatusFilter === "OB" ? member.status === "OB" : member.status !== "OB"));
+  const filtered = (members || []).filter((member) => (memberStatusFilter === "ob" ? member.status === "ob" : member.status !== "ob"));
   const inner = filtered.length
     ? `<div class="leadership-directory">${filtered.map(memberCardHtml).join("")}</div>`
     : emptyTeamStateHtml("MEMBER DIRECTORY", membersNote);
