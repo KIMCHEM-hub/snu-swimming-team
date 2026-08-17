@@ -2,9 +2,6 @@
 -- Do not run this file from the application. public.members.status is the source of truth.
 
 alter table public.members add column if not exists status text;
-update public.members set status = 'active' where status is null;
-alter table public.members alter column status set default 'active';
-alter table public.members alter column status set not null;
 
 do $$
 begin
@@ -13,7 +10,13 @@ begin
   end if;
 end $$;
 
-alter table public.members add constraint members_status_check check (status in ('active', 'OB'));
+update public.members set status = 'ob' where status = 'OB';
+update public.members set status = 'active' where status is null;
+alter table public.members alter column status set default 'active';
+alter table public.members alter column status set not null;
+alter table public.members add constraint members_status_check check (status in ('active', 'ob'));
+
+create index if not exists members_status_idx on public.members (status);
 
 -- SECURITY DEFINER helpers keep RLS policies from reading members directly.
 create or replace function public.member_is_active(p_member_id uuid)
@@ -70,7 +73,7 @@ begin
   if not public.is_admin() then
     raise exception 'Administrator role required.' using errcode = '42501';
   end if;
-  if p_status not in ('active', 'OB') then
+  if p_status not in ('active', 'ob') then
     raise exception 'Invalid member status.' using errcode = '22023';
   end if;
 
@@ -93,7 +96,7 @@ grant execute on function public.coach_member_directory() to authenticated;
 grant execute on function public.admin_member_directory() to authenticated;
 grant execute on function public.set_member_status(uuid, text) to authenticated;
 
--- OB members retain read access to their existing history, but no new self-report rows.
+-- ob members retain read access to their existing history, but no new self-report rows.
 drop policy if exists "Members insert their own self-reported activities" on public.self_reported_activities;
 drop policy if exists "Active members insert their own self-reported activities" on public.self_reported_activities;
 create policy "Active members insert their own self-reported activities"

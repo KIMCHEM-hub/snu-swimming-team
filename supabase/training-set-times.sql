@@ -23,7 +23,7 @@ create index if not exists training_set_times_member_id_idx
 
 alter table public.training_set_times enable row level security;
 
--- Members (including OB) can read their own past times.
+-- Members (including ob) can read their own past times.
 create policy "Members read their own set times"
 on public.training_set_times for select
 to authenticated
