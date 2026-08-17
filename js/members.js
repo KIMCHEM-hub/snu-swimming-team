@@ -7,6 +7,32 @@ let inviteCallbackDetected = initialUrl.searchParams.get("type") === "invite"
   || new URLSearchParams(initialUrl.hash.slice(1)).get("type") === "invite";
 const INVITE_PENDING_STORAGE_KEY = "snu-swim-invite-password-user";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let activeToast = null;
+let toastDismissTimer = null;
+let toastRemoveTimer = null;
+
+function showToast(message, type = "success") {
+  if (!message) return;
+  window.clearTimeout(toastDismissTimer);
+  window.clearTimeout(toastRemoveTimer);
+  activeToast?.remove();
+
+  const toast = document.createElement("div");
+  toast.className = `site-toast site-toast--${type === "error" ? "error" : "success"}`;
+  toast.setAttribute("role", type === "error" ? "alert" : "status");
+  toast.textContent = message;
+  document.body.append(toast);
+  activeToast = toast;
+  window.requestAnimationFrame(() => toast.classList.add("is-visible"));
+
+  toastDismissTimer = window.setTimeout(() => {
+    toast.classList.remove("is-visible");
+    toastRemoveTimer = window.setTimeout(() => {
+      if (activeToast === toast) activeToast = null;
+      toast.remove();
+    }, 240);
+  }, 2500);
+}
 const loginView = document.querySelector("[data-login-view]");
 const passwordResetRequestView = document.querySelector("[data-password-reset-request-view]");
 const passwordResetView = document.querySelector("[data-password-reset-view]");
@@ -325,6 +351,24 @@ function prizeBadge(text, modifier = "") {
   badge.className = `members-status-badge ${modifier}`.trim();
   badge.textContent = text;
   return badge;
+}
+
+function updateCoachEvaluationBadge(row) {
+  const attendance = row.querySelector("[data-coach-evaluation-attendance]");
+  const badge = row.querySelector("[data-coach-evaluation-badge]");
+  const isEntered = ATTENDANCE_TYPES.includes(attendance.value);
+  badge.textContent = isEntered ? attendanceTypeLabel(attendance.value) : t("members.attendanceTypeUnset");
+  badge.className = `members-status-badge ${isEntered ? "members-status-badge--approved" : "members-status-badge--pending"}`;
+}
+
+function sortCoachEvaluationRows() {
+  Array.from(coachEvaluationRows.children)
+    .sort((a, b) => {
+      const aEntered = ATTENDANCE_TYPES.includes(a.querySelector("[data-coach-evaluation-attendance]").value);
+      const bEntered = ATTENDANCE_TYPES.includes(b.querySelector("[data-coach-evaluation-attendance]").value);
+      return Number(aEntered) - Number(bEntered) || Number(a.dataset.memberOrder) - Number(b.dataset.memberOrder);
+    })
+    .forEach((row) => coachEvaluationRows.append(row));
 }
 
 function createMonthlyPrizeCancelButton(memberId, tier) {
@@ -742,9 +786,10 @@ function selectTab(tabName) {
   }
 }
 
-function setRequestStatus(key = "") {
+function setRequestStatus(key = "", isSuccess = false) {
   requestStatus.textContent = key ? t(key) : "";
   requestStatus.hidden = !key;
+  if (isSuccess && key) showToast(t(key), "success");
 }
 
 function sanitizeInput(value) {
@@ -847,14 +892,16 @@ async function loadPendingRequests() {
   if (!error) renderPendingRequests(data || []);
 }
 
-function setAdminStatus(message = "") {
+function setAdminStatus(message = "", isSuccess = false) {
   adminStatus.textContent = message;
   adminStatus.hidden = !message;
+  if (isSuccess && message) showToast(message, "success");
 }
 
-function setAdminMemberStatus(message = "") {
+function setAdminMemberStatus(message = "", isSuccess = false) {
   adminMemberStatus.textContent = message;
   adminMemberStatus.hidden = !message;
+  if (isSuccess) showToast(message || "Member status saved.", "success");
 }
 
 function renderAdminMemberDirectory(members) {
@@ -913,6 +960,7 @@ function setAdminCreateMemberStatus(message = "", isError = null) {
   adminCreateMemberStatus.hidden = !message;
   adminCreateMemberStatus.classList.toggle("members-coach-status--success", isError === false);
   adminCreateMemberStatus.classList.toggle("members-coach-status--error", isError === true);
+  if (isError === false && message) showToast(message, "success");
 }
 
 async function loadAdminCreateTeamProfiles() {
@@ -981,9 +1029,10 @@ adminCreateMemberForm.addEventListener("submit", async (event) => {
   }
 });
 
-function setAdminWhitelistStatus(message = "") {
+function setAdminWhitelistStatus(message = "", isSuccess = false) {
   adminWhitelistStatus.textContent = message;
   adminWhitelistStatus.hidden = !message;
+  if (isSuccess && message) showToast(message, "success");
 }
 
 function renderAdminWhitelist(rows) {
@@ -1073,7 +1122,7 @@ adminWhitelistForm.addEventListener("submit", async (event) => {
   }
   adminWhitelistForm.reset();
   await loadAdminWhitelist();
-  setAdminWhitelistStatus(`Registered ${rows.length} whitelist ${rows.length === 1 ? "entry" : "entries"}.`);
+  setAdminWhitelistStatus(`Registered ${rows.length} whitelist ${rows.length === 1 ? "entry" : "entries"}.`, true);
 });
 
 async function setMemberStatus(memberId, nextStatus) {
@@ -1090,6 +1139,7 @@ async function setMemberStatus(memberId, nextStatus) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
     await loadAdminMemberDirectory();
+    setAdminMemberStatus("", true);
     if (payload.public_mirror === "pending") {
       setAdminMemberStatus("DB 상태는 변경됐지만 공개 TEAM 반영은 보류됨");
     }
@@ -1238,9 +1288,19 @@ async function submitLegacyPhotoRequest(event) {
   loadAdminRequests();
 }
 
+const COACH_SUCCESS_STATUS_KEYS = new Set([
+  "members.prizePopupSaved",
+  "members.setTimesSaved",
+  "members.sessionSaved",
+  "members.evaluationBulkSaved",
+  "members.selfReportSaved",
+  "members.prizeConfirmed"
+]);
+
 function setCoachStatus(element, key = "") {
   element.textContent = key ? t(key) : "";
   element.hidden = !key;
+  if (COACH_SUCCESS_STATUS_KEYS.has(key)) showToast(t(key), "success");
 }
 
 function isCoachOrAdmin() {
@@ -1700,13 +1760,37 @@ function renderCoachEvaluationRows(sessionId, evaluations = []) {
   coachEvaluationRows.replaceChildren();
   if (!sessionId) return;
   const evaluationsByMemberId = new Map(evaluations.map((evaluation) => [evaluation.member_id, evaluation]));
-  coachMemberDirectory.forEach((member) => {
+  coachMemberDirectory.forEach((member, index) => {
     const evaluation = evaluationsByMemberId.get(member.id);
-    const row = document.createElement("div");
-    row.className = "members-coach-grid";
+    const row = document.createElement("article");
+    row.className = "members-coach-evaluation-card";
     row.dataset.memberId = member.id;
-    const name = document.createElement("p");
+    row.dataset.memberOrder = String(index);
+    const header = document.createElement("button");
+    header.className = "members-coach-evaluation-header";
+    header.type = "button";
+    header.setAttribute("aria-expanded", "false");
+    const name = document.createElement("span");
+    name.className = "members-coach-evaluation-name";
     name.textContent = member.name;
+    const meta = document.createElement("span");
+    meta.className = "members-coach-evaluation-meta";
+    const badge = document.createElement("span");
+    badge.dataset.coachEvaluationBadge = "";
+    const toggle = document.createElement("span");
+    toggle.className = "members-coach-evaluation-toggle";
+    toggle.setAttribute("aria-hidden", "true");
+    toggle.textContent = "+";
+    meta.append(badge, toggle);
+    header.append(name, meta);
+    const body = document.createElement("div");
+    body.className = "members-coach-evaluation-body";
+    body.hidden = true;
+    header.addEventListener("click", () => {
+      body.hidden = !body.hidden;
+      header.setAttribute("aria-expanded", String(!body.hidden));
+      toggle.textContent = body.hidden ? "+" : "−";
+    });
     const attendanceLabel = document.createElement("label");
     attendanceLabel.className = "members-label";
     const attendanceName = document.createElement("span");
@@ -1717,20 +1801,28 @@ function renderCoachEvaluationRows(sessionId, evaluations = []) {
     appendOption(attendance, "", t("members.attendanceTypeUnset"));
     ATTENDANCE_TYPES.forEach((type) => appendOption(attendance, type, attendanceTypeLabel(type)));
     attendance.value = evaluation?.attendance_type || "";
+    attendance.addEventListener("change", () => {
+      updateCoachEvaluationBadge(row);
+      sortCoachEvaluationRows();
+    });
     attendanceLabel.append(attendanceName, attendance);
     const commentLabel = document.createElement("label");
     commentLabel.className = "members-label";
     const commentName = document.createElement("span");
     commentName.textContent = t("members.evaluationComment");
-    const comment = document.createElement("input");
+    const comment = document.createElement("textarea");
     comment.className = "members-input";
-    comment.type = "text";
+    comment.classList.add("members-textarea");
     comment.dataset.coachEvaluationComment = "";
     comment.value = evaluation?.comment || "";
     commentLabel.append(commentName, comment);
-    row.append(name, attendanceLabel, commentLabel);
+    commentLabel.classList.add("members-coach-evaluation-comment");
+    body.append(attendanceLabel, commentLabel);
+    row.append(header, body);
+    updateCoachEvaluationBadge(row);
     coachEvaluationRows.append(row);
   });
+  sortCoachEvaluationRows();
 }
 
 async function loadSessionEvaluations(sessionId = coachEvaluationSession.value) {
@@ -1909,16 +2001,17 @@ async function reviewAdminRequest(requestId, action, card) {
     if (!response.ok) throw new Error(payload.error || response.statusText || "Request failed.");
     card.remove();
     if (!adminRequestList.children.length) renderAdminRequests([]);
-    setAdminStatus(t("members.adminActionSuccess", { action: actionLabel }));
+    setAdminStatus(t("members.adminActionSuccess", { action: actionLabel }), true);
   } catch (error) {
     setAdminStatus(t("members.adminActionFailed", { message: error.message || "Request failed." }));
     buttons.forEach((button) => { button.disabled = false; });
   }
 }
 
-function setSelfReportAdminStatus(message = "") {
+function setSelfReportAdminStatus(message = "", isSuccess = false) {
   selfReportAdminStatus.textContent = message;
   selfReportAdminStatus.hidden = !message;
+  if (isSuccess && message) showToast(message, "success");
 }
 
 function renderSelfReportAdminList(items) {
@@ -2006,10 +2099,11 @@ async function reviewSelfReport(id, action, card) {
   const details = [];
   if (action === "approved" && creditedCount) details.push(t("members.selfReportApprovalCredited", { count: creditedCount }));
   if (action === "approved" && skippedCount) details.push(t("members.selfReportApprovalSkipped", { count: skippedCount }));
-  setSelfReportAdminStatus(`${t(action === "approved" ? "members.selfReportApprovalApproved" : "members.selfReportApprovalRejected")}${details.length ? ` (${details.join(", ")})` : ""}`);
+  setSelfReportAdminStatus(`${t(action === "approved" ? "members.selfReportApprovalApproved" : "members.selfReportApprovalRejected")}${details.length ? ` (${details.join(", ")})` : ""}`, true);
 }
 
-function setPopupAdminStatus(key = "") { popupAdminStatus.textContent = key ? t(key) : ""; popupAdminStatus.hidden = !key; }
+const POPUP_SUCCESS_STATUS_KEYS = new Set(["members.popupSaved", "members.popupDeleted"]);
+function setPopupAdminStatus(key = "") { popupAdminStatus.textContent = key ? t(key) : ""; popupAdminStatus.hidden = !key; if (POPUP_SUCCESS_STATUS_KEYS.has(key)) showToast(t(key), "success"); }
 function renderPopupAdminList(container, items, readOnly = false) {
   container.replaceChildren();
   if (!items.length) { const empty = document.createElement("p"); empty.className = "members-records-empty"; empty.textContent = t("members.popupEmpty"); container.append(empty); return; }
@@ -2495,7 +2589,13 @@ async function loadTeamProfile(member) {
     const response = await fetch("./content/team.json");
     if (!response.ok) throw new Error("Could not load team profile.");
     const { members = [] } = await response.json();
-    const teamMember = members.find((entry) => entry.name === member.name);
+    let teamMember = members.find((entry) => entry.name === member.name);
+    if (!teamMember) {
+      const leadershipResponse = await fetch("./content/leadership.json");
+      if (!leadershipResponse.ok) throw new Error("Could not load leadership profile.");
+      const { members: leaders = [] } = await leadershipResponse.json();
+      teamMember = leaders.find((entry) => entry.name === member.name);
+    }
     if (!teamMember) return;
     currentTeamMember = teamMember;
     const bio = pick(teamMember, "bio");
@@ -2843,6 +2943,7 @@ requestForm.addEventListener("submit", async (event) => {
   }
   closeRequestModal();
   setStatus("members.requestSubmitted");
+  setRequestStatus("members.requestSubmitted", true);
   await loadPendingRequests();
 });
 

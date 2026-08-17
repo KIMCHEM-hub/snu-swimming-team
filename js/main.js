@@ -884,11 +884,14 @@ function leaderCardHtml(leader) {
   const role = escapeHtml(leader.role);
   const name = escapeHtml(pick(leader, "name"));
   const koRole = escapeHtml(pick(leader, "koRole"));
+  const bio = escapeHtml(pick(leader, "bio"));
+  const sns = escapeHtml(pick(leader, "sns"));
   const photoAlt = escapeHtml(t("team.profilePhotoAlt", { name: pick(leader, "name") }));
   const photoHtml = photo
     ? `<div class="member-photo has-photo"><img src="${escapeHtml(assetPath(photo))}" alt="${photoAlt}" loading="lazy"></div>`
     : '<div class="member-photo no-photo"><img src="./assets/images/university-logo.png" alt="Seoul National University logo"></div>';
-  return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p></article>`;
+  const extras = bio || sns ? `<div class="member-extra">${bio ? `<div class="member-bio"><span>${t("team.bio")}</span><p>${bio}</p></div>` : ""}${sns ? `<div class="member-sns"><span>${t("team.sns")}</span><p>${sns}</p></div>` : ""}</div>` : "";
+  return `<article class="leader">${photoHtml}<p class="leader-role">${role}</p><h3>${name}</h3><p class="ko-role">${koRole}</p>${extras}</article>`;
 }
 function memberCardHtml(member) {
   const { photo } = member;

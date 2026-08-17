@@ -369,22 +369,43 @@ async function updatePublicTeamMember(editRequest, env) {
     "X-GitHub-Api-Version": "2022-11-28",
     "content-type": "application/json"
   };
-  const fileUrl = `https://api.github.com/repos/${repository}/contents/content/team.json?ref=${encodeURIComponent(branch)}`;
-  const fileResponse = await fetch(fileUrl, { headers: githubHeaders });
-  if (!fileResponse.ok) {
-    const errorBody = await fileResponse.clone().text();
-    console.error("GitHub content/team.json request failed.", { status: fileResponse.status, body: errorBody });
+  const teamFileUrl = `https://api.github.com/repos/${repository}/contents/content/team.json?ref=${encodeURIComponent(branch)}`;
+  const teamFileResponse = await fetch(teamFileUrl, { headers: githubHeaders });
+  if (!teamFileResponse.ok) {
+    const errorBody = await teamFileResponse.clone().text();
+    console.error("GitHub content/team.json request failed.", { status: teamFileResponse.status, body: errorBody });
   }
-  const file = await readJson(fileResponse, "Could not load content/team.json from GitHub.");
+  const teamFile = await readJson(teamFileResponse, "Could not load content/team.json from GitHub.");
 
-  let team;
+  let publicDirectory;
   try {
-    team = JSON.parse(decodeBase64Utf8(file.content));
+    publicDirectory = JSON.parse(decodeBase64Utf8(teamFile.content));
   } catch {
     throw new HttpError(502, "GitHub returned an invalid team.json file.");
   }
-  const teamMember = team?.members?.find((entry) => entry.memberId === member.id)
-    || team?.members?.find((entry) => entry.name === member.name);
+  let fileUrl = teamFileUrl;
+  let file = teamFile;
+  let targetFileName = "team.json";
+  let teamMember = publicDirectory?.members?.find((entry) => entry.memberId === member.id)
+    || publicDirectory?.members?.find((entry) => entry.name === member.name);
+
+  if (!teamMember) {
+    fileUrl = `https://api.github.com/repos/${repository}/contents/content/leadership.json?ref=${encodeURIComponent(branch)}`;
+    const leadershipFileResponse = await fetch(fileUrl, { headers: githubHeaders });
+    if (!leadershipFileResponse.ok) {
+      const errorBody = await leadershipFileResponse.clone().text();
+      console.error("GitHub content/leadership.json request failed.", { status: leadershipFileResponse.status, body: errorBody });
+    }
+    file = await readJson(leadershipFileResponse, "Could not load content/leadership.json from GitHub.");
+    targetFileName = "leadership.json";
+    try {
+      publicDirectory = JSON.parse(decodeBase64Utf8(file.content));
+    } catch {
+      throw new HttpError(502, "GitHub returned an invalid leadership.json file.");
+    }
+    teamMember = publicDirectory?.members?.find((entry) => entry.memberId === member.id)
+      || publicDirectory?.members?.find((entry) => entry.name === member.name);
+  }
   if (!teamMember) throw new HttpError(404, "Matching public team member was not found.");
 
   // A retry after a GitHub commit but before the status update must not make a duplicate commit.
@@ -396,12 +417,12 @@ async function updatePublicTeamMember(editRequest, env) {
     headers: githubHeaders,
     body: JSON.stringify({
       message: `Approve profile edit request ${editRequest.id}`,
-      content: encodeBase64Utf8(`${JSON.stringify(team, null, 2)}\n`),
+      content: encodeBase64Utf8(`${JSON.stringify(publicDirectory, null, 2)}\n`),
       sha: file.sha,
       branch
     })
   });
-  await readJson(commitResponse, "Could not commit content/team.json to GitHub.");
+  await readJson(commitResponse, `Could not commit content/${targetFileName} to GitHub.`);
 }
 
 async function updatePublicLegacyPhoto(editRequest, env) {
