@@ -100,6 +100,7 @@ const monthlyPrizeYearSelect = document.querySelector("[data-monthly-prize-year]
 const monthlyPrizeMonthSelect = document.querySelector("[data-monthly-prize-month]");
 const monthlyPrizeLoadButton = document.querySelector("[data-monthly-prize-load]");
 const monthlyPrizeConfirmButton = document.querySelector("[data-monthly-prize-confirm]");
+const monthlyPrizeDraftPopupButton = document.querySelector("[data-monthly-prize-draft-popup]");
 const monthlyPrizeList = document.querySelector("[data-monthly-prize-list]");
 const memberHistorySelect = document.querySelector("[data-member-history-select]");
 const memberHistoryEvaluations = document.querySelector("[data-member-history-evaluations]");
@@ -503,11 +504,28 @@ function renderMonthlyPrizeTable(rows) {
     const winnerCell = document.createElement("td");
     const confirmedTiers = row.confirmedTiers || new Set();
 
-    [row.member_name, row.session_count, row.self_report_score ?? 0, `${row.attendance_rate}%`].forEach((value) => {
+    [row.member_name, row.session_count].forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;
       tr.append(cell);
     });
+
+    const selfReportCell = document.createElement("td");
+    selfReportCell.textContent = row.self_report_score ?? 0;
+    const selfReportDetails = ["자유수영", "3인훈련", "4인모임"]
+      .filter((activityType) => (row.selfReportBreakdown?.[activityType] || 0) > 0)
+      .map((activityType) => `${t(`members.activityType.${activityType}`)}×${row.selfReportBreakdown[activityType]}`);
+    if (selfReportDetails.length) {
+      const detail = document.createElement("small");
+      detail.className = "members-self-report-breakdown";
+      detail.textContent = `(${selfReportDetails.join(", ")})`;
+      selfReportCell.append(document.createElement("br"), detail);
+    }
+    tr.append(selfReportCell);
+
+    const attendanceRateCell = document.createElement("td");
+    attendanceRateCell.textContent = `${row.attendance_rate}%`;
+    tr.append(attendanceRateCell);
 
     tierCell.append(prizeBadge(
       row.tier ? t("members.prizeTierBadge", { tier: row.tier }) : t("members.prizeTierNone"),
@@ -558,7 +576,8 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
   const [
     { data: rates, error: ratesError },
     { data: prizes, error: prizesError },
-    { data: winnerPopups, error: winnerPopupsError }
+    { data: winnerPopups, error: winnerPopupsError },
+    { data: selfReports, error: selfReportsError }
   ] = await Promise.all([
     supabase.rpc("monthly_attendance_rates", { p_year: year, p_month: month }),
     supabase.from("monthly_prizes").select("member_id, tier").eq("year_month", yearMonth),
@@ -567,9 +586,15 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
       .select("type, member_id")
       .eq("type", "attendance_winner")
       .lte("starts_at", monthEnd)
-      .gte("ends_at", yearMonth)
+      .gte("ends_at", yearMonth),
+    supabase
+      .from("self_reported_activities")
+      .select("member_id, activity_type")
+      .eq("status", "approved")
+      .gte("date", yearMonth)
+      .lte("date", monthEnd)
   ]);
-  if (ratesError || prizesError || winnerPopupsError) {
+  if (ratesError || prizesError || winnerPopupsError || selfReportsError) {
     setCoachStatus(monthlyPrizeStatus, "members.prizeLoadFailed");
     return;
   }
@@ -581,6 +606,12 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
     map.get(prize.member_id).add(prize.tier);
     return map;
   }, new Map());
+  const selfReportBreakdownByMember = (selfReports || []).reduce((map, report) => {
+    if (!map.has(report.member_id)) map.set(report.member_id, {});
+    const breakdown = map.get(report.member_id);
+    breakdown[report.activity_type] = (breakdown[report.activity_type] || 0) + 1;
+    return map;
+  }, new Map());
   monthlyPrizeRows = (rates || []).map((row) => {
     const attendanceRate = Number(row.attendance_rate);
     return {
@@ -589,7 +620,8 @@ async function loadMonthlyPrizeReview(year = Number(monthlyPrizeYearSelect.value
       tier: monthlyPrizeTier(attendanceRate),
       isWinner: attendanceRate === highestRate,
       confirmedTiers: confirmedByMember.get(row.member_id) || new Set(),
-      hasPopup: (winnerPopups || []).some((popup) => popup.member_id === row.member_id)
+      hasPopup: (winnerPopups || []).some((popup) => popup.member_id === row.member_id),
+      selfReportBreakdown: selfReportBreakdownByMember.get(row.member_id) || {}
     };
   });
   renderMonthlyPrizeTable(monthlyPrizeRows);
@@ -3197,6 +3229,36 @@ initMonthlyPrizeSelectors();
 coachSubtabs = initSubtabs(coachPanel, ["members.coachTabSessions", "members.coachTabEvaluations", "members.coachTabAttendance", "members.coachTabSetTimes"]);
 adminSubtabs = initSubtabs(adminPanel, ["members.adminTabAccount", "members.adminTabStatus", "members.adminTabWhitelist", "members.adminTabPopups", "members.adminTabWinners", "members.adminTabSelfReports", "members.adminTabPrizes", "members.adminTabMemberHistory"]);
 monthlyPrizeLoadButton.addEventListener("click", () => loadMonthlyPrizeReview());
+monthlyPrizeDraftPopupButton.addEventListener("click", () => {
+  if (!monthlyPrizeLoadedYearMonth || monthlyPrizeYearMonth() !== monthlyPrizeLoadedYearMonth) {
+    setCoachStatus(monthlyPrizeStatus, "members.prizeStaleData");
+    return;
+  }
+  const achievers = monthlyPrizeRows
+    .filter((row) => ["100", "120"].includes(monthlyPrizeTier(row.attendance_rate)))
+    .sort((a, b) => Number(b.tier) - Number(a.tier));
+  if (!achievers.length) {
+    setCoachStatus(monthlyPrizeStatus, "members.prizeDraftPopupEmpty");
+    return;
+  }
+
+  const year = monthlyPrizeYearSelect.value;
+  const month = monthlyPrizeMonthSelect.value;
+  popupAdminForm.reset();
+  popupAdminForm.elements.id.value = "";
+  popupImageUrl = "";
+  popupImagePreview.hidden = true;
+  popupAdminForm.elements.title.value = `${year}년 ${month}월 훈련 우수 부원 안내`;
+  popupAdminForm.elements.body.value = [
+    "이번 달 정규훈련 기준 우수 부원을 소개합니다!",
+    "",
+    ...achievers.map((row) => `- ${row.member_name}: ${row.tier}% 달성 (${row.tier === "120" ? "기프티콘 2만원 상당" : "기프티콘 1만원 상당"})`),
+    "",
+    "모두 축하드립니다, 다음 달도 화이팅!"
+  ].join("\n");
+  popupAdminForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  popupAdminForm.elements.title.focus();
+});
 monthlyPrizeConfirmButton.addEventListener("click", async () => {
   if (!monthlyPrizeLoadedYearMonth || monthlyPrizeYearMonth() !== monthlyPrizeLoadedYearMonth) {
     setCoachStatus(monthlyPrizeStatus, "members.prizeStaleData");
