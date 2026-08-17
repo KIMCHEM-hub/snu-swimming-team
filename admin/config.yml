@@ -61,7 +61,7 @@ collections:
                 widget: select
                 options:
                   - { label: 재적부원, value: active }
-                  - { label: OB, value: OB }
+                  - { label: OB, value: ob }
                 default: active
                 hint: "TEAM 페이지 MEMBERS 탭의 재적부원/OB 필터에 사용됩니다."
               - { label: 자기소개, name: bio, widget: text, required: false }

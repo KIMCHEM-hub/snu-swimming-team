@@ -114,7 +114,7 @@ async function verifyAdmin(request, env) {
 }
 
 async function setMemberStatus(memberId, status, authorization, env) {
-  if (!memberId || !["active", "OB"].includes(status)) {
+  if (!memberId || !["active", "ob"].includes(status)) {
     throw new HttpError(400, "member_id and a valid status are required.");
   }
   const response = await fetch(`${requiredEnv(env, "SUPABASE_URL")}/rest/v1/rpc/set_member_status`, {
