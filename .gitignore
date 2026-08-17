@@ -2,3 +2,4 @@
 Thumbs.db
 .env
 delete-test-accounts.sql
+.claude/settings.local.json
