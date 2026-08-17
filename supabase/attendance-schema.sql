@@ -83,47 +83,68 @@ with check (public.is_admin());
 -- members, so role-scoping is done explicitly inside the function body instead (same pattern as
 -- coach_member_directory() / active_popups() in the other migrations).
 --
--- Only regular training_sessions/training_evaluations count toward the rate — self-reported
--- activities are informational only and are never included here. The denominator is the total
--- number of sessions held that month, so a session the coach never evaluated for a given member
--- still counts against them (weight 0), matching the "정규세션만 기준" requirement.
+-- Approved self-reported activities contribute their configured score. The denominator remains
+-- the total number of sessions held that month, so a session the coach never evaluated for a
+-- given member still counts against them (weight 0).
 create or replace function public.monthly_attendance_rates(p_year int default null, p_month int default null)
 returns table (
   member_id uuid,
   member_name text,
   month date,
   session_count bigint,
-  attendance_rate numeric
+  attendance_rate numeric,
+  self_report_score numeric
 )
 language sql
 stable
 security definer
 set search_path = public
 as $$
+  with approved_self_report_scores as (
+    select
+      sra.member_id,
+      date_trunc('month', sra.date)::date as month,
+      sum(case sra.activity_type
+        when '자유수영' then 0.5
+        when '3인훈련' then 0.75
+        when '4인모임' then 0.5
+        else 0
+      end)::numeric as self_report_score
+    from public.self_reported_activities sra
+    where sra.status = 'approved'
+    group by sra.member_id, date_trunc('month', sra.date)::date
+  )
   select
     m.id,
     m.name,
     date_trunc('month', ts.date)::date,
     count(distinct ts.id),
     round(
-      coalesce(sum(
-        case te.attendance_type
+      (
+        coalesce(sum(case te.attendance_type
           when '출석' then 1.0
           when '지각' then 0.8
           when '인정결석' then 0.5
           when '미인정결석' then 0
           else 0
-        end
-      ), 0) / count(distinct ts.id) * 100
-    , 1)
+        end), 0)
+        + coalesce(srs.self_report_score, 0)
+      ) / count(distinct ts.id) * 100,
+      1
+    ),
+    coalesce(srs.self_report_score, 0)::numeric
   from public.members m
   join public.training_sessions ts on true
   left join public.training_evaluations te
     on te.session_id = ts.id and te.member_id = m.id
-  where (public.is_coach() or public.is_admin() or m.id = public.current_member_id())
+  left join approved_self_report_scores srs
+    on srs.member_id = m.id
+    and srs.month = date_trunc('month', ts.date)::date
+  where m.status = 'active'
+    and (public.is_coach() or public.is_admin() or m.id = public.current_member_id())
     and (p_year is null or extract(year from ts.date) = p_year)
     and (p_month is null or extract(month from ts.date) = p_month)
-  group by m.id, m.name, date_trunc('month', ts.date);
+  group by m.id, m.name, date_trunc('month', ts.date), srs.self_report_score;
 $$;
 
 revoke all on function public.monthly_attendance_rates(int, int) from public;
