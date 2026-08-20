@@ -414,9 +414,23 @@
       "tags": [],
       "meet": "2025 배럴 스프린트 챔피언십",
       "meetEn": "2025 Barrel Sprint Championship",
-      "date": "2025. 9.27.",
+      "date": "2025. 9. 27.",
       "detail": "예선",
       "detailEn": "Preliminary"
+    },
+    {
+      "event": "50 FREE",
+      "athlete": "최세",
+      "athleteEn": "Choi Sena",
+      "time": "38.42",
+      "tags": [
+        "PB"
+      ],
+      "meet": "제31회 전국대학 수영선수권대회",
+      "meetEn": "31st National University Swimming Championships",
+      "date": "2025. 11. 8.",
+      "detail": "",
+      "detailEn": ""
     }
   ]
 }
