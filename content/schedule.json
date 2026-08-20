@@ -3,107 +3,162 @@
     {
       "startDate": "2025-05-11",
       "dateLabel": "2025. 5. 11.",
+      "dateLabelEn": "",
       "type": "JOINT TRAINING",
       "title": "서울대 × 한국외대 수영부 연합훈련",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-05-15",
       "dateLabel": "2025. 5. 15. – 5. 17.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "2025 경기도 도민체전",
-      "result": "우승 (4관왕)"
+      "titleEn": "",
+      "result": "우승 (4관왕)",
+      "resultEn": ""
     },
     {
       "startDate": "2025-05-30",
       "dateLabel": "2025. 5. 30. – 6. 1.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "제2회 쉬엄쉬엄 한강 3종 축제",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-06-21",
       "dateLabel": "2025. 6. 21. – 6. 22.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "2025 한강크로스위밍챌린지",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-09-27",
       "dateLabel": "2025. 9. 27. – 9. 28.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "2025 배럴 스프린트 챔피언십",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-10-19",
       "dateLabel": "2025. 10. 19.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "제1회 노원구청장배 및 제8회 연맹회장배 수영대회",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-11-08",
       "dateLabel": "2025. 11. 8. – 11. 9.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "제31회 전국대학수영선수권대회",
-      "result": "공동 1위 (남자 2부 · 여자 2부)"
+      "titleEn": "",
+      "result": "공동 1위 (남자 2부 · 여자 2부)",
+      "resultEn": ""
     },
     {
       "startDate": "2025-11-14",
       "dateLabel": "2025. 11. 14.",
+      "dateLabelEn": "",
       "type": "JOINT TRAINING",
       "title": "스누풀(중앙 수영동아리) 연합훈련",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
     },
     {
       "startDate": "2025-11-20",
       "dateLabel": "2025. 11. 20. – 11. 24.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "전문체육인 전국대회(MBC배)",
-      "result": "3위"
+      "titleEn": "",
+      "result": "3위",
+      "resultEn": ""
     },
     {
       "startDate": "2026-03-08",
       "dateLabel": "2026. 3. 8.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "전국생활체육대축전 서울시 대표 선발전 수영대회",
-      "result": "자유형 1위 · 접영 2위"
+      "titleEn": "",
+      "result": "자유형 1위 · 접영 2위",
+      "resultEn": ""
     },
     {
       "startDate": "2026-05-02",
       "dateLabel": "2026. 5. 2. – 5. 3.",
+      "dateLabelEn": "",
       "type": "EXCHANGE EVENT",
       "title": "서울대 × 카이스트 연합교류전",
-      "result": "카이스트 17명 · 서울대 8명"
+      "titleEn": "",
+      "result": "카이스트 17명 · 서울대 8명",
+      "resultEn": ""
     },
     {
       "startDate": "2026-05-18",
       "dateLabel": "2026. 5. 18. – 5. 21.",
+      "dateLabelEn": "",
       "type": "EXCHANGE EVENT",
       "title": "서울대 × PolyU",
-      "result": "PolyU 8명 · 서울대 6명"
+      "titleEn": "",
+      "result": "PolyU 8명 · 서울대 6명",
+      "resultEn": ""
     },
     {
       "startDate": "2026-06-05",
       "dateLabel": "2026. 6. 5. – 6. 7.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "제3회 쉬엄쉬엄 한강 3종 축제",
-      "result": "완주 3명"
+      "titleEn": "",
+      "result": "완주 3명",
+      "resultEn": ""
     },
     {
       "startDate": "2026-06-21",
       "dateLabel": "2026. 6. 21.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "한강크로스스위밍챌린지",
-      "result": "완주 7명"
+      "titleEn": "",
+      "result": "완주 7명",
+      "resultEn": ""
     },
     {
       "startDate": "2026-06-27",
       "dateLabel": "2026. 6. 27.",
+      "dateLabelEn": "",
       "type": "COMPETITION",
       "title": "제12회 서울특별시 연맹회장배 수영대회",
-      "result": "—"
+      "titleEn": "",
+      "result": "—",
+      "resultEn": ""
+    },
+    {
+      "startDate": "2026-08-09",
+      "dateLabel": "2026. 8. 9",
+      "dateLabelEn": "2026. 8. 9",
+      "type": "COMPETITION",
+      "title": "2026 아레나 마스터즈",
+      "titleEn": "2026 Arena Masters",
+      "result": "신재원 선수 평영100m 한국마스터즈 신기록",
+      "resultEn": "Athlete Shin Jae-won sets a South Korean Masters record in the 100m breaststroke"
     }
   ]
 }
