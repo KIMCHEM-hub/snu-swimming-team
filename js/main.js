@@ -886,18 +886,24 @@ function escapeHtml(value) {
 // ---- ATTENDANCE ----
 // The Google Apps Script response is treated as untrusted input. Every dynamic value is
 // escaped at the rendering boundary, including values that are usually numeric.
+function formatRate(value) {
+  const rate = Number(value);
+  if (!Number.isFinite(rate)) return escapeHtml(value);
+  return `${Math.round(rate * 10000) / 100}%`;
+}
+
 function attendanceTop5Html(entries) {
   if (!entries.length) return '<p class="attendance-empty">표시할 출석 기록이 없습니다.</p>';
   const rows = entries.map((entry, index) => {
     const rank = escapeHtml(entry.rank ?? index + 1);
     const name = escapeHtml(entry.name);
     const score = escapeHtml(entry.score);
-    const rate = escapeHtml(entry.rate);
+    const rate = formatRate(entry.rate);
     const grade = escapeHtml(entry.grade);
     const firstPlace = String(entry.rank ?? index + 1) === "1";
     return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${rank}위</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${grade}</td></tr>`;
   }).join("");
-  return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col">점수</th><th scope="col">출석률</th><th scope="col">학년</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col">점수</th><th scope="col">출석률</th><th scope="col">등급/보상</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function attendanceTiersHtml(tiers) {
@@ -905,7 +911,7 @@ function attendanceTiersHtml(tiers) {
   const cards = groups.map(([key, label]) => {
     const people = Array.isArray(tiers?.[key]) ? tiers[key] : [];
     const names = people.length
-      ? people.map((person) => `<span class="attendance-tier-name">${escapeHtml(person.name)} <span class="attendance-tier-rate">${escapeHtml(person.rate)}</span></span>`).join(" · ")
+      ? people.map((person) => `<span class="attendance-tier-name">${escapeHtml(person.name)} <span class="attendance-tier-rate">${formatRate(person.rate)}</span></span>`).join(" · ")
       : "달성자가 없습니다.";
     return `<article class="attendance-tier"><h3>${label}</h3><p>${names}</p></article>`;
   }).join("");
@@ -914,7 +920,7 @@ function attendanceTiersHtml(tiers) {
 
 function attendanceWarningsHtml(warnings) {
   if (!warnings.length) return '<p class="attendance-empty">경고 대상자가 없습니다.</p>';
-  const entries = warnings.map((person) => `<li><span>${escapeHtml(person.name)}</span><span>${escapeHtml(person.score)}점 · ${escapeHtml(person.rate)}</span></li>`).join("");
+  const entries = warnings.map((person) => `<li><span>${escapeHtml(person.name)}</span><span>${escapeHtml(person.score)}점 · ${formatRate(person.rate)}</span></li>`).join("");
   return `<ul class="attendance-warning-list">${entries}</ul>`;
 }
 
