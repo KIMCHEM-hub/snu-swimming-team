@@ -20,9 +20,13 @@ import { initLang, applyStaticTranslations, t, pick } from "./i18n.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ATTENDANCE_API_URL = "https://script.google.com/macros/s/AKfycbznYRJgGVDOu26PaKASWZymrrxzGGoDsteXfPGOWTDWU2CAoYS0_4ioF-j8pW9OI6XC/exec";
+const ATTENDANCE_CACHE_TTL_MS = 15 * 60 * 1000;
+const ATTENDANCE_STORAGE_PREFIX = "snu-swimming:attendance:";
+const ATTENDANCE_MONTHS = new Set(["9월", "10월", "11월", "12월", "2학기"]);
 let activeAttendanceMonth = "9월";
 let attendanceRequestId = 0;
 const attendanceCache = new Map();
+const attendanceInFlight = new Map();
 
 // ---- RE-RENDER TEARDOWN REGISTRY ----
 // renderAll() (see CONTENT LOADING below) re-runs on every language switch — cheap since
@@ -892,6 +896,14 @@ function formatRate(value) {
   return `${Math.round(rate * 10000) / 100}%`;
 }
 
+function attendanceRewardLabel(value) {
+  const rate = Number(value);
+  if (!Number.isFinite(rate) || rate < 0.8) return "—";
+  if (rate < 1) return "80% 달성";
+  if (rate < 1.2) return "100% 달성";
+  return "120% 달성";
+}
+
 function attendanceTop5Html(entries) {
   if (!entries.length) return '<p class="attendance-empty">표시할 출석 기록이 없습니다.</p>';
   const rows = entries.map((entry, index) => {
@@ -899,9 +911,9 @@ function attendanceTop5Html(entries) {
     const name = escapeHtml(entry.name);
     const score = escapeHtml(entry.score);
     const rate = formatRate(entry.rate);
-    const grade = escapeHtml(entry.grade);
+    const reward = attendanceRewardLabel(entry.rate);
     const firstPlace = String(entry.rank ?? index + 1) === "1";
-    return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${rank}위</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${grade}</td></tr>`;
+    return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${rank}위</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${reward}</td></tr>`;
   }).join("");
   return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col">점수</th><th scope="col">출석률</th><th scope="col">등급/보상</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -933,16 +945,38 @@ function renderAttendance(data, month) {
   app.innerHTML = `<h3 class="attendance-group-heading">TOP 5</h3>${attendanceTop5Html(top5)}${tiers}<h3 class="attendance-group-heading">경고자</h3>${attendanceWarningsHtml(warnings)}`;
 }
 
-async function loadAttendance(month) {
-  const app = document.querySelector("[data-attendance-app]");
-  if (!app) return;
-  const requestId = ++attendanceRequestId;
-  if (attendanceCache.has(month)) {
-    renderAttendance(attendanceCache.get(month), month);
-    return;
-  }
-  app.innerHTML = '<p class="attendance-state">출석 현황을 불러오는 중입니다.</p>';
+function attendanceStorageKey(month) {
+  return `${ATTENDANCE_STORAGE_PREFIX}${month}`;
+}
+
+function readStoredAttendance(month) {
   try {
+    const cached = JSON.parse(window.localStorage.getItem(attendanceStorageKey(month)) || "null");
+    if (!cached || typeof cached !== "object" || !cached.data || typeof cached.data !== "object" || !Number.isFinite(cached.expiresAt) || cached.expiresAt <= Date.now()) {
+      if (cached) window.localStorage.removeItem(attendanceStorageKey(month));
+      return null;
+    }
+    return cached.data;
+  } catch (error) {
+    // Storage can be blocked, full, or contain malformed JSON. A network request remains a safe fallback.
+    return null;
+  }
+}
+
+function storeAttendance(month, data) {
+  try {
+    window.localStorage.setItem(attendanceStorageKey(month), JSON.stringify({
+      expiresAt: Date.now() + ATTENDANCE_CACHE_TTL_MS,
+      data,
+    }));
+  } catch (error) {
+    // Quota/privacy-mode errors must not prevent rendering the freshly fetched response.
+  }
+}
+
+function fetchAttendance(month) {
+  if (attendanceInFlight.has(month)) return attendanceInFlight.get(month);
+  const request = (async () => {
     const url = new URL(ATTENDANCE_API_URL);
     url.searchParams.set("month", month);
     const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -950,6 +984,34 @@ async function loadAttendance(month) {
     const data = await response.json();
     if (!data || typeof data !== "object") throw new Error("Invalid attendance response");
     attendanceCache.set(month, data);
+    storeAttendance(month, data);
+    return data;
+  })();
+  attendanceInFlight.set(month, request);
+  request.then(
+    () => attendanceInFlight.delete(month),
+    () => attendanceInFlight.delete(month),
+  );
+  return request;
+}
+
+async function loadAttendance(month) {
+  const app = document.querySelector("[data-attendance-app]");
+  if (!app || !ATTENDANCE_MONTHS.has(month)) return;
+  const requestId = ++attendanceRequestId;
+  if (attendanceCache.has(month)) {
+    renderAttendance(attendanceCache.get(month), month);
+    return;
+  }
+  const stored = readStoredAttendance(month);
+  if (stored) {
+    attendanceCache.set(month, stored);
+    renderAttendance(stored, month);
+    return;
+  }
+  app.innerHTML = '<p class="attendance-state">출석 현황을 불러오는 중입니다.</p>';
+  try {
+    const data = await fetchAttendance(month);
     if (requestId === attendanceRequestId && activeAttendanceMonth === month) renderAttendance(data, month);
   } catch (error) {
     if (requestId === attendanceRequestId && activeAttendanceMonth === month) {
