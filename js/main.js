@@ -19,6 +19,10 @@ import { initLang, applyStaticTranslations, t, pick } from "./i18n.js";
 })();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ATTENDANCE_API_URL = "https://script.google.com/macros/s/AKfycbznYRJgGVDOu26PaKASWZymrrxzGGoDsteXfPGOWTDWU2CAoYS0_4ioF-j8pW9OI6XC/exec";
+let activeAttendanceMonth = "9월";
+let attendanceRequestId = 0;
+const attendanceCache = new Map();
 
 // ---- RE-RENDER TEARDOWN REGISTRY ----
 // renderAll() (see CONTENT LOADING below) re-runs on every language switch — cheap since
@@ -35,7 +39,7 @@ function runTeardowns() {
 const header = document.querySelector("[data-header]");
 const toggle = document.querySelector(".menu-toggle");
 const menu = document.querySelector("#primary-menu");
-const sectionIds = ["about", "team", "training", "schedule", "records", "news", "notices", "gallery", "join"];
+const sectionIds = ["about", "team", "training", "schedule", "attendance", "records", "news", "notices", "gallery", "join"];
 const contentSections = sectionIds.map((id) => document.getElementById(id));
 
 contentSections.forEach((section) => section.classList.add("content-section"));
@@ -51,17 +55,19 @@ let pauseNewsVideo = () => {};
 let openSessionModal = () => {};
 
 function showPage(id) {
-  const isDetail = sectionIds.includes(id);
+  const routeId = String(id || "").replace(/^\/+/, "");
+  const isDetail = sectionIds.includes(routeId);
   document.body.classList.toggle("detail-mode", isDetail);
-  contentSections.forEach((section) => section.classList.toggle("is-current", section.id === id));
+  contentSections.forEach((section) => section.classList.toggle("is-current", section.id === routeId));
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   pauseNewsVideo();
+  if (routeId === "attendance") loadAttendance(activeAttendanceMonth);
 }
 
 document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener("click", (event) => {
-  const id = link.getAttribute("href").slice(1);
+  const id = link.getAttribute("href").slice(1).replace(/^\/+/, "");
   if (!sectionIds.includes(id) && id !== "top") return;
-  event.preventDefault(); setMenu(false); window.history.pushState(null, "", `#${id}`); showPage(id);
+  event.preventDefault(); setMenu(false); window.history.pushState(null, "", id === "attendance" ? "#/attendance" : `#${id}`); showPage(id);
 }));
 window.addEventListener("popstate", () => showPage(window.location.hash.slice(1)));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") setMenu(false); });
@@ -876,6 +882,87 @@ let memberStatusFilter = "active"; // "active" | "ob" — MEMBERS sub-filter, de
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
+
+// ---- ATTENDANCE ----
+// The Google Apps Script response is treated as untrusted input. Every dynamic value is
+// escaped at the rendering boundary, including values that are usually numeric.
+function attendanceTop5Html(entries) {
+  if (!entries.length) return '<p class="attendance-empty">표시할 출석 기록이 없습니다.</p>';
+  const rows = entries.map((entry, index) => {
+    const rank = escapeHtml(entry.rank ?? index + 1);
+    const name = escapeHtml(entry.name);
+    const score = escapeHtml(entry.score);
+    const rate = escapeHtml(entry.rate);
+    const grade = escapeHtml(entry.grade);
+    const firstPlace = String(entry.rank ?? index + 1) === "1";
+    return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${rank}위</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${grade}</td></tr>`;
+  }).join("");
+  return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col">점수</th><th scope="col">출석률</th><th scope="col">학년</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function attendanceTiersHtml(tiers) {
+  const groups = [["80", "80% 달성"], ["100", "100% 달성"], ["120", "120% 달성"]];
+  const cards = groups.map(([key, label]) => {
+    const people = Array.isArray(tiers?.[key]) ? tiers[key] : [];
+    const names = people.length
+      ? people.map((person) => `<span class="attendance-tier-name">${escapeHtml(person.name)} <span class="attendance-tier-rate">${escapeHtml(person.rate)}</span></span>`).join(" · ")
+      : "달성자가 없습니다.";
+    return `<article class="attendance-tier"><h3>${label}</h3><p>${names}</p></article>`;
+  }).join("");
+  return `<h3 class="attendance-group-heading">기준 달성자</h3><div class="attendance-tier-grid">${cards}</div>`;
+}
+
+function attendanceWarningsHtml(warnings) {
+  if (!warnings.length) return '<p class="attendance-empty">경고 대상자가 없습니다.</p>';
+  const entries = warnings.map((person) => `<li><span>${escapeHtml(person.name)}</span><span>${escapeHtml(person.score)}점 · ${escapeHtml(person.rate)}</span></li>`).join("");
+  return `<ul class="attendance-warning-list">${entries}</ul>`;
+}
+
+function renderAttendance(data, month) {
+  const app = document.querySelector("[data-attendance-app]");
+  if (!app) return;
+  const top5 = Array.isArray(data?.top5) ? data.top5 : [];
+  const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+  const tiers = month === "2학기" ? "" : attendanceTiersHtml(data?.tiers);
+  app.innerHTML = `<h3 class="attendance-group-heading">TOP 5</h3>${attendanceTop5Html(top5)}${tiers}<h3 class="attendance-group-heading">경고자</h3>${attendanceWarningsHtml(warnings)}`;
+}
+
+async function loadAttendance(month) {
+  const app = document.querySelector("[data-attendance-app]");
+  if (!app) return;
+  const requestId = ++attendanceRequestId;
+  if (attendanceCache.has(month)) {
+    renderAttendance(attendanceCache.get(month), month);
+    return;
+  }
+  app.innerHTML = '<p class="attendance-state">출석 현황을 불러오는 중입니다.</p>';
+  try {
+    const url = new URL(ATTENDANCE_API_URL);
+    url.searchParams.set("month", month);
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`Attendance request failed: ${response.status}`);
+    const data = await response.json();
+    if (!data || typeof data !== "object") throw new Error("Invalid attendance response");
+    attendanceCache.set(month, data);
+    if (requestId === attendanceRequestId && activeAttendanceMonth === month) renderAttendance(data, month);
+  } catch (error) {
+    if (requestId === attendanceRequestId && activeAttendanceMonth === month) {
+      app.innerHTML = '<p class="attendance-state error">출석 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>';
+    }
+  }
+}
+
+document.querySelectorAll("[data-attendance-month]").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeAttendanceMonth = button.dataset.attendanceMonth;
+    document.querySelectorAll("[data-attendance-month]").forEach((item) => {
+      const isActive = item === button;
+      item.classList.toggle("is-active", isActive);
+      item.setAttribute("aria-selected", String(isActive));
+    });
+    loadAttendance(activeAttendanceMonth);
+  });
+});
 function emptyTeamStateHtml(label, note) {
   return `<div class="member-directory"><p>${label}</p><p>${escapeHtml(note) || t("team.membersNoteFallback")}</p></div>`;
 }
