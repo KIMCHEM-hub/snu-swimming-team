@@ -431,6 +431,34 @@
       "date": "2025. 11. 8.",
       "detail": "",
       "detailEn": ""
+    },
+    {
+      "event": "50 FREE",
+      "athlete": "문지성",
+      "athleteEn": "Moon Jiseong",
+      "time": "25.38",
+      "tags": [
+        "4위"
+      ],
+      "meet": "2026 배럴 스프린트 챔피언십",
+      "meetEn": "2026 barrel sprint championship",
+      "date": "2026. 9. 13.",
+      "detail": "결승",
+      "detailEn": "Final"
+    },
+    {
+      "event": "50 FREE",
+      "athlete": "김민",
+      "athleteEn": "Kim Minchan",
+      "time": "32.33",
+      "tags": [
+        "조 3위"
+      ],
+      "meet": "2026 배럴 스프린트 챔피언십",
+      "meetEn": "2026 barrel sprint championship",
+      "date": "2026. 9. 13.",
+      "detail": "예선",
+      "detailEn": "heats"
     }
   ]
 }
