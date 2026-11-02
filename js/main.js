@@ -965,13 +965,13 @@ function formatRate(value) {
 function attendanceRewardLabel(value) {
   const rate = Number(value);
   if (!Number.isFinite(rate) || rate < 0.8) return "—";
-  if (rate < 1) return "80% 달성";
-  if (rate < 1.2) return "100% 달성";
-  return "120% 달성";
+  if (rate < 1) return t("attendance.tier", { n: 80 });
+  if (rate < 1.2) return t("attendance.tier", { n: 100 });
+  return t("attendance.tier", { n: 120 });
 }
 
 function attendanceTop5Html(entries) {
-  if (!entries.length) return '<p class="attendance-empty">표시할 출석 기록이 없습니다.</p>';
+  if (!entries.length) return `<p class="attendance-empty">${escapeHtml(t("attendance.emptyTop"))}</p>`;
   const rows = entries.map((entry, index) => {
     const rank = escapeHtml(entry.rank ?? index + 1);
     const name = escapeHtml(entry.name);
@@ -979,26 +979,26 @@ function attendanceTop5Html(entries) {
     const rate = formatRate(entry.rate);
     const reward = attendanceRewardLabel(entry.rate);
     const firstPlace = String(entry.rank ?? index + 1) === "1";
-    return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${rank}위</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${reward}</td></tr>`;
+    return `<tr class="${firstPlace ? "attendance-rank-one" : ""}"><td>${escapeHtml(t("attendance.rankN", { n: rank }))}</td><td>${name}</td><td>${score}</td><td>${rate}</td><td>${reward}</td></tr>`;
   }).join("");
-  return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">순위</th><th scope="col">이름</th><th scope="col">점수</th><th scope="col">출석률</th><th scope="col">등급/보상</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="table-wrap attendance-top5"><table><thead><tr><th scope="col">${t("attendance.colRank")}</th><th scope="col">${t("attendance.colName")}</th><th scope="col">${t("attendance.colScore")}</th><th scope="col">${t("attendance.colRate")}</th><th scope="col">${t("attendance.colTier")}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function attendanceTiersHtml(tiers) {
-  const groups = [["80", "80% 달성"], ["100", "100% 달성"], ["120", "120% 달성"]];
+  const groups = ["80", "100", "120"].map((key) => [key, t("attendance.tier", { n: key })]);
   const cards = groups.map(([key, label]) => {
     const people = Array.isArray(tiers?.[key]) ? tiers[key] : [];
     const names = people.length
       ? people.map((person) => `<span class="attendance-tier-name">${escapeHtml(person.name)} <span class="attendance-tier-rate">${formatRate(person.rate)}</span></span>`).join(" · ")
-      : "달성자가 없습니다.";
+      : escapeHtml(t("attendance.emptyTier"));
     return `<article class="attendance-tier"><h3>${label}</h3><p>${names}</p></article>`;
   }).join("");
-  return `<h3 class="attendance-group-heading">기준 달성자</h3><div class="attendance-tier-grid">${cards}</div>`;
+  return `<h3 class="attendance-group-heading">${t("attendance.tiersHeading")}</h3><div class="attendance-tier-grid">${cards}</div>`;
 }
 
 function attendanceWarningsHtml(warnings) {
-  if (!warnings.length) return '<p class="attendance-empty">경고 대상자가 없습니다.</p>';
-  const entries = warnings.map((person) => `<li><span>${escapeHtml(person.name)}</span><span>${escapeHtml(person.score)}점 · ${formatRate(person.rate)}</span></li>`).join("");
+  if (!warnings.length) return `<p class="attendance-empty">${escapeHtml(t("attendance.emptyWarning"))}</p>`;
+  const entries = warnings.map((person) => `<li><span>${escapeHtml(person.name)}</span><span>${escapeHtml(t("attendance.points", { n: person.score }))} · ${formatRate(person.rate)}</span></li>`).join("");
   return `<ul class="attendance-warning-list">${entries}</ul>`;
 }
 
@@ -1008,7 +1008,7 @@ function renderAttendance(data, month) {
   const top5 = Array.isArray(data?.top5) ? data.top5 : [];
   const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
   const tiers = month === "2학기" ? "" : attendanceTiersHtml(data?.tiers);
-  app.innerHTML = `<h3 class="attendance-group-heading">TOP 5</h3>${attendanceTop5Html(top5)}${tiers}<h3 class="attendance-group-heading">경고자</h3>${attendanceWarningsHtml(warnings)}`;
+  app.innerHTML = `<h3 class="attendance-group-heading">TOP 5</h3>${attendanceTop5Html(top5)}${tiers}<h3 class="attendance-group-heading">${t("attendance.warningsHeading")}</h3>${attendanceWarningsHtml(warnings)}`;
 }
 
 function attendanceStorageKey(month) {
@@ -1075,13 +1075,13 @@ async function loadAttendance(month) {
     renderAttendance(stored, month);
     return;
   }
-  app.innerHTML = '<p class="attendance-state">출석 현황을 불러오는 중입니다.</p>';
+  app.innerHTML = `<p class="attendance-state">${escapeHtml(t("attendance.loading"))}</p>`;
   try {
     const data = await fetchAttendance(month);
     if (requestId === attendanceRequestId && activeAttendanceMonth === month) renderAttendance(data, month);
   } catch (error) {
     if (requestId === attendanceRequestId && activeAttendanceMonth === month) {
-      app.innerHTML = '<p class="attendance-state error">출석 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>';
+      app.innerHTML = `<p class="attendance-state error">${escapeHtml(t("attendance.error"))}</p>`;
     }
   }
 }
@@ -1097,6 +1097,17 @@ document.querySelectorAll("[data-attendance-month]").forEach((button) => {
     loadAttendance(activeAttendanceMonth);
   });
 });
+// Open on the current month when it has a tab (Sep–Dec), instead of always September.
+(function selectCurrentAttendanceMonth() {
+  const current = `${new Date().getMonth() + 1}월`;
+  if (!ATTENDANCE_MONTHS.has(current)) return;
+  activeAttendanceMonth = current;
+  document.querySelectorAll("[data-attendance-month]").forEach((item) => {
+    const isActive = item.dataset.attendanceMonth === current;
+    item.classList.toggle("is-active", isActive);
+    item.setAttribute("aria-selected", String(isActive));
+  });
+})();
 function emptyTeamStateHtml(label, note) {
   return `<div class="member-directory"><p>${label}</p><p>${escapeHtml(note) || t("team.membersNoteFallback")}</p></div>`;
 }
@@ -1832,6 +1843,7 @@ function renderAll() {
   renderHomeWeeklyTraining(trainingSessions || []);
   renderTeam(team, leadership.members || [], team.members || [], legacy.entries || []);
   renderTraining(training.schedule || [], training.dryland || {});
+  if (attendanceCache.has(activeAttendanceMonth)) renderAttendance(attendanceCache.get(activeAttendanceMonth), activeAttendanceMonth);
 
   initHomeNewsCarousel();
   initNewsCarousel();
