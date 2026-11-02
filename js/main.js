@@ -284,10 +284,12 @@ function recordTagClass(tag) {
   return "result-tag";
 }
 function renderRecordTags(entry) {
-  return (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${tag}</span>`).join("");
+  return (entry.tags || []).map((tag) => `<span class="${recordTagClass(tag)}">${escapeHtml(tag)}</span>`).join("");
 }
 const BASE_RECORD_ORDER = ["50 FREE", "100 FREE", "50 FLY", "100 FLY", "50 BREAST", "100 BREAST"];
 const RECORDS_PAGE_SIZE = 10;
+// Team ranking (best per swimmer) vs. every result. Module-level so it survives tab and language switches.
+let recordsView = "best";
 function renderRecords(recordEntries, relayEntries) {
   const recordsAppEl = document.querySelector("[data-records-app]");
   if (!recordsAppEl) return;
@@ -312,13 +314,38 @@ function renderRecords(recordEntries, relayEntries) {
       return `<p class="record-event-name">RELAY</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>EVENT</th><th>TEAM</th><th>TIME</th><th>MEET</th><th>DATE</th><th>SWIMMERS</th></tr></thead><tbody>${rows}</tbody></table></div>${moreHtml}`;
     }
     const entries = (recordsByEvent[eventName] || []).slice().sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time));
-    const rows = entries.map((r, i) => {
-      const meet = pick(r, "meet");
-      const detail = pick(r, "detail");
-      return `<tr${i >= RECORDS_PAGE_SIZE ? " hidden" : ""}><td>${pick(r, "athlete")}</td><td>${r.time}</td><td>${renderRecordTags(r)}</td><td>${meet}${detail ? ` · ${detail}` : ""}</td><td>${r.date}</td></tr>`;
-    }).join("");
+    const switchHtml = `<div class="records-view-switch" role="group" aria-label="${escapeHtml(t("records.viewAria"))}">`
+      + `<button type="button" data-records-view="best" aria-pressed="${recordsView === "best"}">${escapeHtml(t("records.viewBest"))}</button>`
+      + `<button type="button" data-records-view="all" aria-pressed="${recordsView === "all"}">${escapeHtml(t("records.viewAll"))} <span>${entries.length}</span></button></div>`;
+    const headHtml = `<div class="record-event-head"><p class="record-event-name">${escapeHtml(eventName)}</p>${switchHtml}</div>`;
+    const meetCell = (r) => { const detail = pick(r, "detail"); return escapeHtml(pick(r, "meet")) + (detail ? ` · ${escapeHtml(detail)}` : ""); };
+
+    if (recordsView === "best") {
+      // One row per swimmer: entries are already fastest-first, so the first hit per name is their best.
+      const seen = new Set();
+      const best = entries.filter((r) => (seen.has(r.athlete) ? false : seen.add(r.athlete)));
+      const rows = best.map((r, i) => {
+        const holder = i === 0 ? ` <span class="record-badge team-best">${escapeHtml(t("records.teamBest"))}</span>` : "";
+        return `<tr${i === 0 ? ' class="is-team-best"' : ""}><td class="rank-cell">${i + 1}</td><td>${escapeHtml(pick(r, "athlete"))}${holder}</td><td>${escapeHtml(r.time)}</td><td>${meetCell(r)}</td><td>${escapeHtml(r.date)}</td></tr>`;
+      }).join("");
+      return `${headHtml}<div class="table-wrap"><table class="performance-table ranking-table"><thead><tr><th>RANK</th><th>ATHLETE</th><th>TIME</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div><p class="records-note">${t("records.bestNote")}</p>`;
+    }
+    const rows = entries.map((r, i) =>
+      `<tr${i >= RECORDS_PAGE_SIZE ? " hidden" : ""}><td>${escapeHtml(pick(r, "athlete"))}</td><td>${escapeHtml(r.time)}</td><td>${renderRecordTags(r)}</td><td>${meetCell(r)}</td><td>${escapeHtml(r.date)}</td></tr>`
+    ).join("");
     const moreHtml = entries.length > RECORDS_PAGE_SIZE ? `<button type="button" class="button load-more-button" data-records-more>${t("records.loadMore")}</button>` : "";
-    return `<p class="record-event-name">${eventName}</p><div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div>${moreHtml}<p class="records-note">${t("records.sortNote")}</p>`;
+    return `${headHtml}<div class="table-wrap"><table class="performance-table"><thead><tr><th>ATHLETE</th><th>TIME</th><th>RESULT</th><th>MEET</th><th>DATE</th></tr></thead><tbody>${rows}</tbody></table></div>${moreHtml}<p class="records-note">${t("records.sortNote")}</p>`;
+  }
+  function attachRecordsViewHandler(eventName) {
+    tableWrapEl.querySelectorAll("[data-records-view]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        recordsView = btn.dataset.recordsView;
+        tableWrapEl.innerHTML = renderRecordsTable(eventName);
+        attachRecordsMoreHandler();
+        attachRecordsViewHandler(eventName);
+        tableWrapEl.querySelector(`[data-records-view="${recordsView}"]`)?.focus();
+      });
+    });
   }
   function attachRecordsMoreHandler() {
     const moreBtn = tableWrapEl.querySelector("[data-records-more]");
@@ -334,11 +361,13 @@ function renderRecords(recordEntries, relayEntries) {
   recordsAppEl.innerHTML = `<div class="records-toolbar"><div class="event-tabs" role="tablist" aria-label="${t("records.eventTabsAria")}">${tabsHtml}</div></div><div data-records-table>${renderRecordsTable(recordEventOrder[0])}</div>`;
   const tableWrapEl = recordsAppEl.querySelector("[data-records-table]");
   attachRecordsMoreHandler();
+  attachRecordsViewHandler(recordEventOrder[0]);
   recordsAppEl.querySelectorAll("[data-event-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       recordsAppEl.querySelectorAll("[data-event-tab]").forEach((b) => b.classList.toggle("is-active", b === btn));
       tableWrapEl.innerHTML = renderRecordsTable(btn.dataset.eventTab);
       attachRecordsMoreHandler();
+      attachRecordsViewHandler(btn.dataset.eventTab);
     });
   });
 }
@@ -447,7 +476,48 @@ function homeNewsCardHtml(item, isLead) {
 function renderHomeNewsCarousel(items) {
   const track = document.querySelector("[data-carousel-track]");
   if (!track) return;
-  track.innerHTML = items.map((item, i) => homeNewsCardHtml(item, i === 0)).join("");
+  // Newest first, same order as the NEWS section — the CMS list is kept in entry order.
+  const sorted = items.slice().sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+  track.innerHTML = sorted.map((item, i) => homeNewsCardHtml(item, i === 0)).join("");
+}
+
+// ---- HOME: latest result band + next event ----
+// Both read the same content/*.json the rest of the page uses, so a new news item with a
+// `result` (or a new schedule event) updates the home page without touching code.
+function latestResultItem(items) {
+  return items
+    .filter((item) => String(item.result || "").trim())
+    .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))[0];
+}
+function renderHomeResult(newsItems) {
+  const el = document.querySelector("[data-home-result]");
+  if (!el) return;
+  const item = latestResultItem(newsItems);
+  if (!item) { el.hidden = true; return; }
+  el.hidden = false;
+  // `result` is written as "headline · secondary · secondary" in the CMS.
+  const [headline, ...rest] = String(pick(item, "result")).split(/\s+·\s+/).filter(Boolean);
+  const more = rest.map((r) => `<li>${escapeHtml(r)}</li>`).join("");
+  el.innerHTML = `<div class="shell home-result-grid">`
+    + `<div class="home-result-main"><p class="eyebrow accent">${escapeHtml(t("home.result.label"))}</p>`
+    + `<p class="home-result-meet"><span>${escapeHtml(pick(item, "title"))}</span><span>${escapeHtml(pick(item, "dateLabel"))}</span></p>`
+    + `<p class="home-result-headline${/[\u3131-\uD79D]/.test(headline) ? " is-hangul" : ""}">${escapeHtml(headline)}</p></div>`
+    + `<div class="home-result-side">${more ? `<ul class="home-result-more">${more}</ul>` : ""}`
+    + `<div class="home-result-links"><a href="#news">READ THE STORY ↗</a><a href="#records">ALL RESULTS ↗</a></div></div>`
+    + `</div>`;
+}
+function renderHomeNext(events) {
+  const el = document.querySelector("[data-home-next]");
+  if (!el) return;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const next = events
+    .filter((e) => String(e.startDate) >= todayKey)
+    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0];
+  const body = next
+    ? `<p class="current-date">${escapeHtml(pick(next, "dateLabel"))}</p><h2>${escapeHtml(pick(next, "title"))}</h2><p>${escapeHtml(next.type || "")}</p>`
+    : `<h2>${escapeHtml(t("home.next.emptyTitle"))}</h2><p>${escapeHtml(t("home.next.empty"))}</p>`;
+  el.innerHTML = `<p class="eyebrow accent">${escapeHtml(t("home.next.label"))}</p>${body}`;
 }
 
 function renderNewsSection(items) {
@@ -857,10 +927,6 @@ function initSessionModal() {
   teardowns.push(() => { closeModal(); ac.abort(); openSessionModal = () => {}; });
 }
 
-const infoItems = document.querySelectorAll(".info-grid article");
-if (infoItems[1]) infoItems[1].innerHTML = '<p class="eyebrow">LATEST RESULT</p><strong>2026년 전국생활체육대축전 서울시 대표 선발전 수영대회</strong><span>FREESTYLE · 1ST / BUTTERFLY · 2ND</span><a href="#records">VIEW RESULTS <b>↗</b></a>';
-const featuredAchievement = document.querySelector(".highlight-record");
-if (featuredAchievement) featuredAchievement.innerHTML = '<p class="eyebrow accent">FEATURED ACHIEVEMENT</p><p class="record-event">제31회 전국대학수영선수권대회</p><strong>JOINT 1ST</strong><div><span>DIVISIONS</span><b>MEN\'S DIV II · WOMEN\'S DIV II</b></div><div><span>DATE</span><b>2025. 11. 8. – 11. 9.</b></div><a href="#records">VIEW RESULTS <b>↗</b></a>';
 
 // ---- TEAM ----
 // Three independent collections feed the three tabs: content/leadership.json (LEADERSHIP),
@@ -1758,6 +1824,8 @@ function renderAll() {
   renderRecords(records.entries || [], relays.entries || []);
   renderGallery(gallery.photos || []);
   renderHomeNewsCarousel(news.items || []);
+  renderHomeResult(news.items || []);
+  renderHomeNext(schedule.events || []);
   renderNewsSection(news.items || []);
   renderNotices(notices.items || []);
   renderWeeklyTraining(trainingSessions || []);

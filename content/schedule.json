@@ -159,6 +159,26 @@
       "titleEn": "2026 Arena Masters",
       "result": "신재원 선수 평영100m 한국마스터즈 신기록",
       "resultEn": "Athlete Shin Jae-won sets a South Korean Masters record in the 100m breaststroke"
+    },
+    {
+      "startDate": "2026-09-13",
+      "dateLabel": "2026. 9. 13.",
+      "dateLabelEn": "",
+      "type": "COMPETITION",
+      "title": "2026 배럴 스프린트 챔피언십",
+      "titleEn": "2026 Barrel Sprint Championship",
+      "result": "문지성 자유형 50m 결승 4위",
+      "resultEn": "Moon Jiseong 4th, 50m Freestyle final"
+    },
+    {
+      "startDate": "2026-10-31",
+      "dateLabel": "2026. 10. 31. – 11. 1.",
+      "dateLabelEn": "",
+      "type": "COMPETITION",
+      "title": "제32회 전국대학수영선수권대회",
+      "titleEn": "The 32nd National University Swimming Championships",
+      "result": "수구 2부 우승 · 이정행 자유형 50m 2위",
+      "resultEn": "Water Polo Division 2 Champions · Lee Jeonghaeng 2nd, 50m Freestyle"
     }
   ]
 }
