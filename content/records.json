@@ -459,6 +459,20 @@
       "date": "2026. 9. 13.",
       "detail": "예선",
       "detailEn": "heats"
+    },
+    {
+      "event": "50 FREE",
+      "athlete": "이정행",
+      "athleteEn": "Lee Jeonghaeng",
+      "time": "24.58",
+      "tags": [
+        "2위"
+      ],
+      "meet": "제32회 전국대학수영선수권대회",
+      "meetEn": "The 32nd National University Swimming Championships",
+      "date": "2026.10.31~11.1",
+      "detail": "결승",
+      "detailEn": "Final"
     }
   ]
 }
